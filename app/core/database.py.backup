@@ -1,0 +1,118 @@
+# -*- coding: utf-8 -*-
+"""
+MySQL 데이터베이스 연결 및 세션 관리
+"""
+from sqlalchemy import create_engine, text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+from typing import Generator
+import logging
+
+from app.core.config import settings
+
+# 로깅 설정
+logger = logging.getLogger(__name__)
+
+# SQLAlchemy 엔진 생성
+engine = create_engine(
+    settings.DATABASE_URL,
+    pool_pre_ping=True,  # 연결 유효성 검사
+    pool_size=10,        # 연결 풀 크기
+    max_overflow=20,     # 최대 추가 연결
+    pool_recycle=3600,   # 연결 재사용 시간 (1시간)
+    echo=settings.DEBUG  # SQL 로깅 (개발 모드에서만)
+)
+
+# 세션 팩토리
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
+# Base 모델
+Base = declarative_base()
+
+def get_db() -> Generator[Session, None, None]:
+    """
+    데이터베이스 세션 의존성
+    FastAPI Depends에서 사용
+    
+    사용 예:
+        @app.get("/items")
+        def get_items(db: Session = Depends(get_db)):
+            return db.query(Item).all()
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+def test_connection() -> dict:
+    """
+    데이터베이스 연결 테스트
+    
+    Returns:
+        dict: 연결 상태 정보
+    """
+    try:
+        with engine.connect() as connection:
+            result = connection.execute(text("SELECT VERSION() as version, DATABASE() as `database`"))
+            row = result.fetchone()
+            
+            return {
+                "status": "success",
+                "connected": True,
+                "mysql_version": row[0] if row else None,
+                "database": row[1] if row else None,
+                "url": f"{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
+            }
+    except Exception as e:
+        logger.error(f"Database connection failed: {str(e)}")
+        return {
+            "status": "error",
+            "connected": False,
+            "error": str(e),
+            "url": f"{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
+        }
+
+def execute_query(query: str, params: dict = None) -> list:
+    """
+    쿼리 실행 및 결과 반환 (VBA GetQueryResult 유사)
+    
+    Args:
+        query: SQL 쿼리문
+        params: 쿼리 파라미터 (dict)
+    
+    Returns:
+        list: 결과 레코드 리스트 (dict 형태)
+    
+    사용 예:
+        results = execute_query("SELECT * FROM users WHERE status = :status", {"status": "ACTIVE"})
+    """
+    db = SessionLocal()
+    try:
+        result = db.execute(text(query), params or {})
+        
+        # SELECT 쿼리인 경우 결과 반환
+        if result.returns_rows:
+            columns = result.keys()
+            rows = result.fetchall()
+            return [dict(zip(columns, row)) for row in rows]
+        else:
+            # INSERT/UPDATE/DELETE인 경우 영향받은 행 수 반환
+            db.commit()
+            return [{"affected_rows": result.rowcount}]
+    
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Query execution failed: {str(e)}")
+        raise
+    finally:
+        db.close()
+
+# 데이터베이스 초기화 (테이블 생성 등)
+def init_db():
+    """데이터베이스 초기화"""
+    Base.metadata.create_all(bind=engine)

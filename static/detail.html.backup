@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>프로젝트 상세 정보 - PSMS</title>
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+    
+    <style>
+        .detail-page {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--primary-color);
+            color: white;
+            text-decoration: none;
+            border-radius: var(--radius-md);
+            margin-bottom: 2rem;
+            transition: var(--transition);
+        }
+        
+        .back-button:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+        
+        .detail-container {
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .detail-header {
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .detail-header h1 {
+            font-size: 1.75rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 4rem;
+            color: var(--text-secondary);
+        }
+        
+        .loading i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+        
+        .error {
+            text-align: center;
+            padding: 4rem;
+            color: var(--danger-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- 헤더 -->
+    <header class="app-header">
+        <div class="header-content">
+            <div class="header-left">
+                <i class="fas fa-project-diagram"></i>
+                <h1>프로젝트 상세 정보</h1>
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 컨텐츠 -->
+    <main class="detail-page">
+        <a href="/" class="back-button">
+            <i class="fas fa-arrow-left"></i>
+            목록으로 돌아가기
+        </a>
+        
+        <div class="detail-container">
+            <div class="detail-header">
+                <h1>
+                    <i class="fas fa-info-circle"></i>
+                    <span id="detailTitle">로딩 중...</span>
+                </h1>
+            </div>
+            
+            <div id="detailContent" class="loading">
+                <i class="fas fa-circle-notch fa-spin"></i>
+                <p>데이터를 불러오는 중...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Custom JS -->
+    <script src="/static/js/config.js"></script>
+    <script>
+        // URL 파라미터에서 pipeline_id 가져오기
+        const urlParams = new URLSearchParams(window.location.search);
+        const pipelineId = urlParams.get('pipeline_id');
+        
+        if (!pipelineId) {
+            document.getElementById('detailContent').innerHTML = `
+                <div class="error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>파이프라인 ID가 지정되지 않았습니다.</p>
+                    <a href="/" class="back-button" style="margin-top: 1rem;">목록으로 돌아가기</a>
+                </div>
+            `;
+        } else {
+            loadProjectDetail(pipelineId);
+        }
+        
+        // 프로젝트 상세 정보 로드
+        async function loadProjectDetail(pipelineId) {
+            try {
+                console.log('📡 상세 정보 로딩:', pipelineId);
+                
+                const response = await API.get(`${API_CONFIG.ENDPOINTS.PROJECT_DETAIL}/${pipelineId}/full`);
+                console.log('📥 상세 정보:', response);
+                
+                if (response) {
+                    document.getElementById('detailTitle').textContent = response.project_name || pipelineId;
+                    renderProjectDetail(response);
+                }
+            } catch (error) {
+                console.error('❌ 상세 정보 로딩 실패:', error);
+                document.getElementById('detailContent').innerHTML = `
+                    <div class="error">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>데이터 로드 중 오류가 발생했습니다.</p>
+                        <p style="font-size: 0.875rem; margin-top: 0.5rem;">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // 프로젝트 상세 정보 렌더링
+        function renderProjectDetail(data) {
+            const html = `
+                <div class="detail-section">
+                    <h3><i class="fas fa-info-circle"></i> 기본 정보</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <label>파이프라인 ID</label>
+                            <div>${data.pipeline_id || '-'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>프로젝트명</label>
+                            <div>${data.project_name || '-'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>사업분야</label>
+                            <div>${data.field_name || '-'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>진행단계</label>
+                            <div>${getStageBadge(data.current_stage)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>고객사</label>
+                            <div>${data.customer_name || '-'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>발주처</label>
+                            <div>${data.ordering_party_name || '-'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>담당자</label>
+                            <div>${data.manager_name || '-'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>견적금액</label>
+                            <div class="text-primary font-bold">${Utils.formatCurrency(data.quoted_amount)}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                ${data.attributes && data.attributes.length > 0 ? `
+                <div class="detail-section mt-3">
+                    <h3><i class="fas fa-tags"></i> 속성 정보</h3>
+                    <div class="detail-grid">
+                        ${data.attributes.map(attr => `
+                            <div class="detail-item">
+                                <label>${attr.attribute_name}</label>
+                                <div>${attr.attribute_value || '-'}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+                
+                ${data.histories && data.histories.length > 0 ? `
+                <div class="detail-section mt-3">
+                    <h3><i class="fas fa-history"></i> 변경 이력</h3>
+                    <div class="history-timeline">
+                        ${data.histories.map(history => `
+                            <div class="history-item">
+                                <div class="history-date">${Utils.formatDate(history.created_date)}</div>
+                                <div class="history-content">
+                                    <div class="history-stage">${getStageBadge(history.stage_code)}</div>
+                                    <div class="history-description">${history.description || '-'}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+            `;
+            
+            document.getElementById('detailContent').innerHTML = html;
+        }
+    </script>
+</body>
+</html>

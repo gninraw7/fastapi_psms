@@ -1,0 +1,110 @@
+# -*- coding: utf-8 -*-
+"""
+애플리케이션 설정
+"""
+import os
+from typing import List
+
+
+class Settings:
+    """애플리케이션 설정 클래스"""
+    
+    # ============================================
+    # 기본 설정
+    # ============================================
+    PROJECT_NAME: str = "PSMS API"
+    API_V1_PREFIX: str = "/api/v1"
+    VERSION: str = "2.0.0"
+    
+    # ============================================
+    # 데이터베이스 설정
+    # ============================================
+    DB_HOST: str = os.getenv("DB_HOST", "localhost")
+    DB_PORT: int = int(os.getenv("DB_PORT", "3306"))
+    DB_USER: str = os.getenv("DB_USER", "root")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
+    DB_NAME: str = os.getenv("DB_NAME", "psms")
+    DB_CHARSET: str = "utf8mb4"
+    
+    @property
+    def DATABASE_URL(self) -> str:
+        """데이터베이스 연결 URL"""
+        return f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset={self.DB_CHARSET}"
+    
+    # ============================================
+    # CORS 설정
+    # ============================================
+    # 환경 변수로 CORS origins 설정
+    # 개발 환경: CORS_ORIGINS=*
+    # 프로덕션: CORS_ORIGINS=http://192.168.1.100:8000,http://your-domain.com
+    CORS_ORIGINS: str = os.getenv(
+        "CORS_ORIGINS", 
+        "*"  # 기본값: 모든 origin 허용 (개발 환경)
+    )
+    
+    @property
+    def CORS_ORIGINS_LIST(self) -> List[str]:
+        """
+        CORS origins를 리스트로 변환
+        
+        Examples:
+            CORS_ORIGINS="*" → ["*"]
+            CORS_ORIGINS="http://localhost,http://192.168.1.100:8000" 
+                → ["http://localhost", "http://192.168.1.100:8000"]
+        """
+        # 와일드카드인 경우
+        if self.CORS_ORIGINS == "*":
+            return ["*"]
+        
+        # 쉼표로 구분된 문자열을 리스트로 변환
+        origins = [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        
+        # 빈 문자열 제거
+        return [origin for origin in origins if origin]
+    
+    # ============================================
+    # 서버 설정
+    # ============================================
+    SERVER_HOST: str = os.getenv("SERVER_HOST", "0.0.0.0")
+    SERVER_PORT: int = int(os.getenv("SERVER_PORT", "8000"))
+    DEBUG: bool = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
+    
+    # ============================================
+    # 로깅 설정
+    # ============================================
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    
+    # ============================================
+    # 보안 설정 (향후 확장)
+    # ============================================
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+
+# ============================================
+# 설정 인스턴스 생성
+# ============================================
+settings = Settings()
+
+
+# ============================================
+# 설정 정보 출력 (디버깅용)
+# ============================================
+def print_settings():
+    """현재 설정 정보 출력"""
+    print("\n" + "=" * 70)
+    print("  📋 Current Settings")
+    print("=" * 70)
+    print(f"  Project Name: {settings.PROJECT_NAME}")
+    print(f"  Version: {settings.VERSION}")
+    print(f"  API Prefix: {settings.API_V1_PREFIX}")
+    print(f"  Database: {settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}")
+    print(f"  CORS Origins: {settings.CORS_ORIGINS_LIST}")
+    print(f"  Debug Mode: {settings.DEBUG}")
+    print("=" * 70 + "\n")
+
+
+if __name__ == "__main__":
+    # 테스트용
+    print_settings()

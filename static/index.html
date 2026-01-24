@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PSMS - 프로젝트 관리 시스템</title>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Tabulator CSS -->
+    <link href="https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator.min.css" rel="stylesheet">
+    
+    <!-- SheetJS -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/navigation.css">
+    <link rel="stylesheet" href="/static/css/project-form.css">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <div class="navbar-brand">
+                <i class="fas fa-project-diagram"></i>
+                <span>PSMS</span>
+            </div>
+            
+            <ul class="navbar-menu">
+                <li class="navbar-item">
+                    <a href="#" class="navbar-link">
+                        <i class="fas fa-chart-line"></i>
+                        영업
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" data-page="projects-list"><i class="fas fa-list"></i> 프로젝트 목록</a></li>
+                        <li><a href="#" data-page="projects-new" data-mode="new"><i class="fas fa-plus-circle"></i> 신규 프로젝트</a></li>
+                        <li><a href="#" data-page="clients"><i class="fas fa-building"></i> 거래처 관리</a></li>
+                        <li class="dropdown-divider"></li>
+                        <li><a href="#" data-page="sales-dashboard"><i class="fas fa-tachometer-alt"></i> 영업 대시보드</a></li>
+                    </ul>
+                </li>
+                
+                <li class="navbar-item">
+                    <a href="#" class="navbar-link">
+                        <i class="fas fa-file-signature"></i>
+                        계약
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" data-page="contracts-list"><i class="fas fa-list"></i> 계약 목록</a></li>
+                        <li><a href="#" data-page="contracts-new"><i class="fas fa-plus-circle"></i> 계약 등록</a></li>
+                        <li class="dropdown-divider"></li>
+                        <li><a href="#" data-page="contracts-dashboard"><i class="fas fa-chart-pie"></i> 계약 현황</a></li>
+                    </ul>
+                </li>
+                
+                <li class="navbar-item">
+                    <a href="#" class="navbar-link">
+                        <i class="fas fa-won-sign"></i>
+                        매출
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" data-page="revenue-list"><i class="fas fa-list"></i> 매출 목록</a></li>
+                        <li><a href="#" data-page="revenue-new"><i class="fas fa-plus-circle"></i> 매출 등록</a></li>
+                        <li class="dropdown-divider"></li>
+                        <li><a href="#" data-page="revenue-dashboard"><i class="fas fa-chart-bar"></i> 매출 현황</a></li>
+                    </ul>
+                </li>
+                
+                <li class="navbar-item">
+                    <a href="#" class="navbar-link">
+                        <i class="fas fa-cog"></i>
+                        관리자
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" data-page="users"><i class="fas fa-users"></i> 사용자 관리</a></li>
+                        <li><a href="#" data-page="common-codes"><i class="fas fa-code"></i> 공통코드 관리</a></li>
+                        <li class="dropdown-divider"></li>
+                        <li><a href="#" data-page="settings"><i class="fas fa-sliders-h"></i> 시스템 설정</a></li>
+                    </ul>
+                </li>
+            </ul>
+            
+            <div class="navbar-user">
+                <div class="user-info">
+                    <i class="fas fa-user-circle"></i>
+                    <span id="userName">양승구</span>
+                </div>
+                <div class="user-menu">
+                    <button class="btn-icon" title="내정보" onclick="openMyInfo()">
+                        <i class="fas fa-user-cog"></i>
+                    </button>
+                    <button class="btn-icon" title="로그아웃" onclick="logout()">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div id="app-content">
+        <!-- 프로젝트 목록 페이지 -->
+        <div id="page-projects-list" class="page-content active">
+            <main class="app-main">
+                <!-- 통계 패널 -->
+                <div class="stats-panel">
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <i class="fas fa-folder-open"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="statTotal">0</div>
+                            <div class="stat-label">전체 프로젝트</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                            <i class="fas fa-tasks"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="statProgress">0</div>
+                            <div class="stat-label">진행중</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="statCompleted">0</div>
+                            <div class="stat-label">완료</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                            <i class="fas fa-won-sign"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="statAmount">0원</div>
+                            <div class="stat-label">총 견적금액</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 필터 패널 -->
+                <div class="filter-panel">
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label><i class="fas fa-search"></i> 검색필드</label>
+                            <select id="searchField" class="form-select">
+                                <option value="">전체</option>
+                                <option value="pipeline_id">파이프라인ID</option>
+                                <option value="project_name">프로젝트명</option>
+                                <option value="customer_name">고객사</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group" style="flex: 2;">
+                            <label><i class="fas fa-keyboard"></i> 검색어</label>
+                            <input type="text" id="searchText" class="form-input" placeholder="검색어를 입력하세요">
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label><i class="fas fa-user"></i> 담당자</label>
+                            <select id="filterManager" class="form-select">
+                                <option value="">전체</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label><i class="fas fa-briefcase"></i> 사업분야</label>
+                            <select id="filterField" class="form-select">
+                                <option value="">전체</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label><i class="fas fa-flag"></i> 진행단계</label>
+                            <select id="filterStage" class="form-select">
+                                <option value="">전체</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group filter-group-small">
+                            <label><i class="fas fa-list-ol"></i> 페이지크기</label>
+                            <select id="pageSize" class="form-select">
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100" selected>100</option>
+                                <option value="200">200</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-actions">
+                        <button id="btnAdd" class="btn btn-primary" title="새 프로젝트 추가">
+                            <i class="fas fa-plus-circle"></i> 신규
+                        </button>
+                        <button id="btnRefresh" class="btn btn-info">
+                            <i class="fas fa-sync-alt"></i> 새로고침
+                        </button>
+                        <button id="btnExport" class="btn btn-success">
+                            <i class="fas fa-file-excel"></i> 엑셀
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 테이블 패널 -->
+                <div class="table-panel">
+                    <div id="projectTable"></div>
+                </div>
+            </main>
+        </div>
+
+        <!-- 프로젝트 신규/수정 페이지 -->
+        <div id="page-projects-new" class="page-content">
+            <div class="form-container">
+                <div class="form-header">
+                    <div class="form-title">
+                        <i class="fas fa-edit"></i>
+                        <h2 id="formTitle">신규 프로젝트</h2>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-secondary" onclick="cancelProjectForm()">
+                            <i class="fas fa-times"></i> 취소
+                        </button>
+                        <button class="btn btn-primary" onclick="saveProject()">
+                            <i class="fas fa-save"></i> 저장
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 탭 네비게이션 -->
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="basic">
+                        <i class="fas fa-info-circle"></i> 기본정보
+                    </button>
+                    <button class="tab-btn" data-tab="attributes">
+                        <i class="fas fa-tags"></i> 속성정보
+                    </button>
+                    <button class="tab-btn" data-tab="history">
+                        <i class="fas fa-history"></i> 변경이력
+                    </button>
+                </div>
+
+                <!-- 탭 컨텐츠 -->
+                <div class="tab-content">
+                    <!-- 기본정보 탭 -->
+                    <div id="tab-basic" class="tab-pane active">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>파이프라인 ID <span class="required">*</span></label>
+                                <input type="text" id="pipeline_id" class="form-input" readonly>
+                                <small class="form-help">자동 생성됩니다</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label>진행단계 <span class="required">*</span></label>
+                                <select id="current_stage" class="form-select" required>
+                                    <option value="">선택하세요</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group full-width">
+                                <label>프로젝트명 <span class="required">*</span></label>
+                                <input type="text" id="project_name" class="form-input" placeholder="프로젝트명을 입력하세요" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label>사업분야 <span class="required">*</span></label>
+                                <select id="field_code" class="form-select" required>
+                                    <option value="">선택하세요</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label>담당자 <span class="required">*</span></label>
+                                <select id="manager_id" class="form-select" required>
+                                    <option value="">선택하세요</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label>고객사</label>
+                                <input type="text" id="customer_name" class="form-input" placeholder="고객사명">
+                            </div>
+
+                            <div class="form-group">
+                                <label>발주처</label>
+                                <input type="text" id="ordering_party_name" class="form-input" placeholder="발주처명">
+                            </div>
+
+                            <div class="form-group">
+                                <label>견적금액</label>
+                                <input type="number" id="quoted_amount" class="form-input" placeholder="0" min="0">
+                            </div>
+
+                            <div class="form-group">
+                                <label>수주확률 (%)</label>
+                                <input type="number" id="win_probability" class="form-input" placeholder="0" min="0" max="100">
+                            </div>
+
+                            <div class="form-group full-width">
+                                <label>비고</label>
+                                <textarea id="notes" class="form-textarea" rows="3" placeholder="비고사항을 입력하세요"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 속성정보 탭 -->
+                    <div id="tab-attributes" class="tab-pane">
+                        <div class="section-header">
+                            <h3><i class="fas fa-tags"></i> 프로젝트 속성</h3>
+                            <button class="btn btn-sm btn-primary" onclick="addAttribute()">
+                                <i class="fas fa-plus"></i> 속성 추가
+                            </button>
+                        </div>
+
+                        <div id="attributesList" class="attributes-list">
+                            <div class="empty-state">
+                                <i class="fas fa-inbox"></i>
+                                <p>등록된 속성이 없습니다</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 변경이력 탭 -->
+                    <div id="tab-history" class="tab-pane">
+                        <div class="section-header">
+                            <h3><i class="fas fa-history"></i> 프로젝트 변경이력</h3>
+                            <button class="btn btn-sm btn-primary" onclick="addHistory()">
+                                <i class="fas fa-plus"></i> 이력 추가
+                            </button>
+                        </div>
+
+                        <div id="historiesList" class="histories-list">
+                            <div class="empty-state">
+                                <i class="fas fa-inbox"></i>
+                                <p>등록된 이력이 없습니다</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 준비중 페이지들 (기존과 동일) -->
+        <div id="page-clients" class="page-content">
+            <div class="coming-soon">
+                <i class="fas fa-hammer"></i>
+                <h2>거래처 관리</h2>
+                <p>준비중입니다</p>
+            </div>
+        </div>
+
+        <!-- 나머지 준비중 페이지들... -->
+    </div>
+
+    <!-- 모달: 프로젝트 상세 정보 (읽기 전용) -->
+    <div id="projectModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2><i class="fas fa-info-circle"></i> 프로젝트 상세 정보</h2>
+                <button class="modal-close" onclick="closeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="modalBody" class="modal-body">
+                <p>로딩 중...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 로딩 오버레이 -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner">
+            <i class="fas fa-circle-notch fa-spin"></i>
+            <p>처리중...</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/navigation.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/project-form.js"></script>
+</body>
+</html>
