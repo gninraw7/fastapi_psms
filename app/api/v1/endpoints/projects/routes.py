@@ -454,6 +454,132 @@ async def create_project_history(
         app_logger.error(error_msg, exc_info=True)
         raise HTTPException(status_code=500, detail=error_msg)
 
+# ============================================
+# 프로젝트 이력 수정
+# ============================================
+class ProjectHistoryUpdateRequest(BaseModel):
+    base_date: Optional[str] = Field(None, description="기준 일자")
+    progress_stage: Optional[str] = Field(None, description="진행 단계")
+    strategy_content: Optional[str] = Field(None, description="이력 내용")
+    creator_id: Optional[str] = Field(None, description="작성자 ID")
+
+
+@router.put("/history/{history_id}")
+async def update_project_history(
+    history_id: int,
+    request: ProjectHistoryUpdateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    프로젝트 이력 수정
+    """
+    try:
+        app_logger.info(f"📝 프로젝트 이력 수정 시작: history_id={history_id}")
+        
+        # 1. 이력 존재 여부 확인
+        check_query = text("""
+            SELECT history_id FROM project_history WHERE history_id = :history_id
+        """)
+        
+        result = db.execute(check_query, {"history_id": history_id})
+        if not result.fetchone():
+            raise HTTPException(status_code=404, detail="이력을 찾을 수 없습니다")
+        
+        # 2. 업데이트할 필드 구성
+        update_fields = []
+        params = {"history_id": history_id}
+        
+        if request.base_date is not None:
+            update_fields.append("base_date = :base_date")
+            params["base_date"] = request.base_date
+            
+        if request.progress_stage is not None:
+            update_fields.append("progress_stage = :progress_stage")
+            params["progress_stage"] = request.progress_stage
+            
+        if request.strategy_content is not None:
+            update_fields.append("strategy_content = :strategy_content")
+            params["strategy_content"] = request.strategy_content
+            
+        if request.creator_id is not None:
+            update_fields.append("updated_by = :updated_by")
+            params["updated_by"] = request.creator_id
+        
+        if not update_fields:
+            raise HTTPException(status_code=400, detail="수정할 내용이 없습니다")
+        
+        # 3. 이력 수정
+        update_query = text(f"""
+            UPDATE project_history 
+            SET {', '.join(update_fields)}
+            WHERE history_id = :history_id
+        """)
+        
+        db.execute(update_query, params)
+        db.commit()
+        
+        app_logger.info(f"✅ 프로젝트 이력 수정 성공: history_id={history_id}")
+        
+        return {
+            "message": "이력이 수정되었습니다",
+            "history_id": history_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        error_msg = f"이력 수정 실패: {str(e)}"
+        app_logger.error(error_msg, exc_info=True)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
+# ============================================
+# 프로젝트 이력 삭제
+# ============================================
+@router.delete("/history/{history_id}")
+async def delete_project_history(
+    history_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    프로젝트 이력 삭제
+    """
+    try:
+        app_logger.info(f"🗑️ 프로젝트 이력 삭제 시작: history_id={history_id}")
+        
+        # 1. 이력 존재 여부 확인
+        check_query = text("""
+            SELECT history_id FROM project_history WHERE history_id = :history_id
+        """)
+        
+        result = db.execute(check_query, {"history_id": history_id})
+        if not result.fetchone():
+            raise HTTPException(status_code=404, detail="이력을 찾을 수 없습니다")
+        
+        # 2. 이력 삭제
+        delete_query = text("""
+            DELETE FROM project_history WHERE history_id = :history_id
+        """)
+        
+        db.execute(delete_query, {"history_id": history_id})
+        db.commit()
+        
+        app_logger.info(f"✅ 프로젝트 이력 삭제 성공: history_id={history_id}")
+        
+        return {
+            "message": "이력이 삭제되었습니다",
+            "history_id": history_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        error_msg = f"이력 삭제 실패: {str(e)}"
+        app_logger.error(error_msg, exc_info=True)
+        raise HTTPException(status_code=500, detail=error_msg)
+
 
 # ============================================
 # 프로젝트 이력 조회
