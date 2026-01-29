@@ -2,15 +2,20 @@
 // API Configuration
 // ===================================
 const API_CONFIG = {
-    BASE_URL: 'http://172.30.1.16:8000',
+    BASE_URL: window.location.origin,   
+   // BASE_URL: 'http://172.30.1.16:8000',
     API_VERSION: '/api/v1',
     
     ENDPOINTS: {
         PROJECTS_LIST: '/projects/list',
+		PROJECTS: '/projects',                 // ⭐ CRUD 엔드포인트
         PROJECT_DETAIL: '/project-detail',
+		PROJECT_HISTORY: '/projects/history',  // ⭐ 추가
         COMBO_DATA: '/projects/combo',
         MANAGERS: '/projects/managers',
-    },
+        CLIENTS_LIST: '/clients/list',        // ✅ 실제 엔드포인트
+        CLIENTS_SEARCH: '/clients/search',    // ✅ 실제 엔드포인트    
+	},
     
     TIMEOUT: 30000,
     RETRY: { MAX_ATTEMPTS: 3, DELAY: 1000 }
@@ -48,17 +53,102 @@ const API = {
         }
     },
     
-    async get(endpoint, params = {}) {
-        const query = new URLSearchParams(params).toString();
-        const url = query ? `${endpoint}?${query}` : endpoint;
-        return this.request(url, { method: 'GET' });
+	async get(endpoint, params = null) {
+        const url = new URL(`${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${endpoint}`);
+        if (params) {
+            Object.keys(params).forEach(key => {
+                if (params[key] !== null && params[key] !== undefined) {
+                    url.searchParams.append(key, params[key]);
+                }
+            });
+        }
+        
+        console.log('📡 GET:', url.toString());
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: response.statusText }));
+            throw new Error(error.detail || `HTTP ${response.status}`);
+        }
+        
+        return await response.json();
     },
     
-    async post(endpoint, data = {}) {
-        return this.request(endpoint, {
+    async post(endpoint, data) {
+        const url = `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${endpoint}`;
+        
+        console.log('📡 POST:', url);
+        console.log('📤 전송 데이터:', data);
+        
+        // ⭐ Content-Type을 application/json으로 명시
+        const response = await fetch(url, {
             method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
             body: JSON.stringify(data)
         });
+        
+        console.log('📥 응답 상태:', response.status);
+        
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: response.statusText }));
+            console.error('❌ 서버 에러:', error);
+            throw new Error(error.detail || `HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('✅ 응답 데이터:', result);
+        return result;
+    },
+    
+    async put(endpoint, data) {
+        const url = `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${endpoint}`;
+        
+        console.log('📡 PUT:', url);
+        console.log('📤 전송 데이터:', data);
+        
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
+        console.log('📥 응답 상태:', response.status);
+        
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: response.statusText }));
+            console.error('❌ 서버 에러:', error);
+            throw new Error(error.detail || `HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('✅ 응답 데이터:', result);
+        return result;
+    },
+    
+    async delete(endpoint) {
+        const url = `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${endpoint}`;
+        
+        console.log('📡 DELETE:', url);
+        
+        const response = await fetch(url, {
+            method: 'DELETE',
+        });
+        
+        console.log('📥 응답 상태:', response.status);
+        
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: response.statusText }));
+            console.error('❌ 서버 에러:', error);
+            throw new Error(error.detail || `HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('✅ 응답 데이터:', result);
+        return result;
     }
 };
 

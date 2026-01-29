@@ -16,11 +16,12 @@
     
     <!-- SheetJS -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    
+	
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/css/styles.css">
     <link rel="stylesheet" href="/static/css/navigation.css">
     <link rel="stylesheet" href="/static/css/project-form.css">
+	<link rel="stylesheet" href="/static/css/mobile.css">
 </head>
 <body>
     <!-- Navigation Bar -->
@@ -84,7 +85,35 @@
                         <li><a href="#" data-page="settings"><i class="fas fa-sliders-h"></i> 시스템 설정</a></li>
                     </ul>
                 </li>
-            </ul>
+			
+				<!-- ⭐ 관리자 메뉴 다음에 Mobile 메뉴 추가 -->
+				<li class="navbar-item">
+					<a href="#" class="navbar-link">
+						<i class="fas fa-mobile-alt"></i>
+						<span>Mobile</span>
+					</a>
+					<ul class="dropdown-menu">
+						<li>
+							<a href="#" data-page="mobile-projects">
+								<i class="fas fa-list"></i>
+								프로젝트 목록
+							</a>
+						</li>
+						<li>
+							<a href="#" data-page="mobile-project-new">
+								<i class="fas fa-plus-circle"></i>
+								프로젝트 등록
+							</a>
+						</li>
+						<li>
+							<a href="#" data-page="mobile-history-new">
+								<i class="fas fa-history"></i>
+								이력 등록
+							</a>
+						</li>
+					</ul>
+				</li>
+			</ul>			
             
             <div class="navbar-user">
                 <div class="user-info">
@@ -361,7 +390,318 @@
                 <p>준비중입니다</p>
             </div>
         </div>
+		
+    <!-- ========================================
+         Mobile: 프로젝트 목록
+         ======================================== -->
+    <div id="page-mobile-projects" class="page-content mobile-page">
+        <div class="mobile-container">
+            <!-- 헤더 -->
+            <div class="mobile-header">
+                <h2><i class="fas fa-list"></i> 프로젝트 목록</h2>
+                <button class="btn-mobile btn-mobile-primary" onclick="navigateTo('mobile-project-new')">
+                    <i class="fas fa-plus"></i> 신규
+                </button>
+            </div>
+            
+            <!-- 검색 필터 -->
+            <div class="mobile-filter">
+                <div class="mobile-search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="mobileSearchInput" placeholder="프로젝트명, 거래처명 검색...">
+                </div>
+                
+                <div class="mobile-filter-row">
+                    <select id="mobileStageFilter" class="mobile-select">
+                        <option value="">전체 진행단계</option>
+                    </select>
+                    
+                    <select id="mobileYearFilter" class="mobile-select">
+                        <option value="">전체 연도</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- 통계 카드 -->
+            <div class="mobile-stats">
+                <div class="mobile-stat-item">
+                    <div class="mobile-stat-label">전체</div>
+                    <div class="mobile-stat-value" id="mobileTotalCount">0</div>
+                </div>
+                <div class="mobile-stat-item">
+                    <div class="mobile-stat-label">진행중</div>
+                    <div class="mobile-stat-value" id="mobileActiveCount">0</div>
+                </div>
+                <div class="mobile-stat-item">
+                    <div class="mobile-stat-label">완료</div>
+                    <div class="mobile-stat-value" id="mobileCompleteCount">0</div>
+                </div>
+            </div>
+            
+            <!-- 프로젝트 목록 -->
+            <div id="mobileProjectList" class="mobile-project-list">
+                <!-- 동적 생성 -->
+            </div>
+        </div>
+    </div>
+    
+	<!-- ========================================
+		 Mobile: 프로젝트 등록/수정 (수정됨)
+		 ======================================== -->
+	<div id="page-mobile-project-new" class="page-content mobile-page">
+		<div class="mobile-container">
+			<!-- 헤더 -->
+			<div class="mobile-header">
+				<button class="btn-mobile-back" onclick="navigateTo('mobile-projects')">
+					<i class="fas fa-arrow-left"></i>
+				</button>
+				<h2 id="mobileFormTitle">프로젝트 등록</h2>
+				<button class="btn-mobile-icon" onclick="saveMobileProject()">
+					<i class="fas fa-save"></i>
+				</button>
+			</div>
+			
+			<!-- 프로젝트 등록/수정 폼 -->
+			<form id="mobileProjectForm" class="mobile-form" onsubmit="event.preventDefault(); saveMobileProject();">			
+				<input type="hidden" id="mobilePipelineId">
+				
+				<!-- 분야 (FIELD) -->
+				<div class="mobile-form-group">
+					<label>분야 <span class="required">*</span></label>
+					<select id="mobileFieldCode" required>
+						<option value="">선택하세요</option>
+					</select>
+				</div>
+				
+				<!-- 고객사 (검색) -->
+				<div class="mobile-form-group">
+					<label>고객사 <span class="required">*</span></label>
+					<div class="mobile-search-field">
+						<input type="hidden" id="mobileCustomerId" required>
+						<input 
+							type="text" 
+							id="mobileCustomerSearch" 
+							placeholder="고객사명을 검색하세요..."
+							autocomplete="off"
+							readonly
+							onclick="openMobileClientSearch('customer')"
+						>
+						<button type="button" class="btn-search" onclick="openMobileClientSearch('customer')">
+							<i class="fas fa-search"></i>
+						</button>
+					</div>
+					<div class="mobile-field-help">
+						<i class="fas fa-info-circle"></i> 탭하여 고객사를 검색하세요
+					</div>
+				</div>
+				
+				<!-- 발주처 (검색) -->
+				<div class="mobile-form-group">
+					<label>발주처</label>
+					<div class="mobile-search-field">
+						<input type="hidden" id="mobileOrderingPartyId">
+						<input 
+							type="text" 
+							id="mobileOrderingPartySearch" 
+							placeholder="발주처명을 검색하세요..."
+							autocomplete="off"
+							readonly
+							onclick="openMobileClientSearch('ordering')"
+						>
+						<button type="button" class="btn-search" onclick="openMobileClientSearch('ordering')">
+							<i class="fas fa-search"></i>
+						</button>
+						<button type="button" class="btn-clear" onclick="clearMobileClient('ordering')" style="display: none;">
+							<i class="fas fa-times"></i>
+						</button>
+					</div>
+					<div class="mobile-field-help">
+						<i class="fas fa-info-circle"></i> 고객사와 다른 경우만 입력
+					</div>
+				</div>
+				
+				<!-- 프로젝트명 -->
+				<div class="mobile-form-group">
+					<label>프로젝트명 <span class="required">*</span></label>
+					<input type="text" id="mobileProjectName" required placeholder="프로젝트명을 입력하세요">
+				</div>
+				
+				<!-- 진행단계 (STAGE) -->
+				<div class="mobile-form-group">
+					<label>진행단계 <span class="required">*</span></label>
+					<select id="mobileCurrentStage" required>
+						<option value="">선택하세요</option>
+					</select>
+				</div>
+				
+				<!-- 담당자 -->
+				<div class="mobile-form-group">
+					<label>담당자</label>
+					<select id="mobileManagerId">
+						<option value="">선택하세요</option>
+					</select>
+				</div>
 
+				<!-- 프로젝트 등록/수정 폼에서 다음 필드들을 주석 처리 또는 제거 -->
+				<!-- 				
+				<div class="mobile-form-row">
+					<div class="mobile-form-group">
+						<label>연도</label>
+						<input type="number" id="mobileYear" min="2020" max="2030">
+					</div>
+					
+					<div class="mobile-form-group">
+						<label>분기</label>
+						<select id="mobileQuarter">
+							<option value="">-</option>
+							<option value="1">1분기</option>
+							<option value="2">2분기</option>
+							<option value="3">3분기</option>
+							<option value="4">4분기</option>
+						</select>
+					</div>
+				</div>
+				
+				<div class="mobile-form-group">
+					<label>예상금액 (천원)</label>
+					<input type="number" id="mobileExpectedAmount" step="1000" placeholder="0">
+				</div>
+				
+				<div class="mobile-form-group">
+					<label>확정금액 (천원)</label>
+					<input type="number" id="mobileConfirmedAmount" step="1000" placeholder="0">
+				</div>
+				-->
+				
+				<!-- 비고 -->
+				<div class="mobile-form-group">
+					<label>비고</label>
+					<textarea id="mobileRemarks" rows="3" placeholder="비고사항을 입력하세요"></textarea>
+				</div>
+				
+				<!-- 액션 버튼 -->
+				<div class="mobile-form-actions">
+					<button type="button" class="btn-mobile btn-mobile-secondary" onclick="navigateTo('mobile-projects')">
+						<i class="fas fa-times"></i> 취소
+					</button>
+					<button type="submit" class="btn-mobile btn-mobile-primary">
+						<i class="fas fa-save"></i> 저장
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+
+	<!-- ========================================
+		 Mobile: 이력 등록
+		 ======================================== -->
+	<div id="page-mobile-history-new" class="page-content mobile-page">
+		<div class="mobile-container">
+			<!-- 헤더 -->
+			<div class="mobile-header">
+				<button class="btn-mobile-back" onclick="navigateTo('mobile-projects')">
+					<i class="fas fa-arrow-left"></i>
+				</button>
+				<h2>이력 등록</h2>
+				<button class="btn-mobile-icon" onclick="saveMobileHistory()">
+					<i class="fas fa-save"></i>
+				</button>
+			</div>
+			
+			<!-- 폼 -->
+			<form id="mobileHistoryForm" class="mobile-form" onsubmit="event.preventDefault(); saveMobileHistory();">
+				
+				<!-- 프로젝트 선택 -->
+				<div class="mobile-form-group">
+					<label>프로젝트 <span class="required">*</span></label>
+					<select id="mobileHistoryProject" required onchange="loadMobileProjectInfo()">
+						<option value="">프로젝트를 선택하세요</option>
+					</select>
+				</div>
+				
+				<!-- 선택된 프로젝트 정보 -->
+				<div id="mobileProjectInfo" class="mobile-project-info" style="display: none;">
+					<div class="mobile-info-row">
+						<span class="mobile-info-label">고객사:</span>
+						<span id="mobileInfoClient">-</span>
+					</div>
+					<div class="mobile-info-row">
+						<span class="mobile-info-label">현재단계:</span>
+						<span id="mobileInfoStage"></span>
+					</div>
+				</div>
+				
+				<!-- 이력 일자 -->
+				<div class="mobile-form-group">
+					<label>이력 일자 <span class="required">*</span></label>
+					<input type="date" id="mobileHistoryDate" required>
+				</div>
+				
+				<!-- 진행단계 -->
+				<div class="mobile-form-group">
+					<label>진행단계 <span class="required">*</span></label>
+					<select id="mobileHistoryStage" required>
+						<option value="">선택하세요</option>
+					</select>
+				</div>
+				
+				<!-- 이력 내용 -->
+				<div class="mobile-form-group">
+					<label>이력 내용 <span class="required">*</span></label>
+					<textarea 
+						id="mobileHistoryContent" 
+						rows="6" 
+						required 
+						placeholder="영업 활동 내용, 진행 상황 등을 입력하세요..."
+					></textarea>
+				</div>
+				
+				<!-- 액션 버튼 -->
+				<div class="mobile-form-actions">
+					<button type="button" class="btn-mobile btn-mobile-secondary" onclick="resetMobileHistoryForm()">
+						<i class="fas fa-redo"></i> 초기화
+					</button>
+					<button type="submit" class="btn-mobile btn-mobile-primary">
+						<i class="fas fa-save"></i> 저장
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+	
+	<!-- ========================================
+		 Mobile: 거래처 검색 모달
+		 ======================================== -->
+	<div id="mobileClientSearchModal" class="mobile-modal">
+		<div class="mobile-modal-content">
+			<!-- 모달 헤더 -->
+			<div class="mobile-modal-header">
+				<h3 id="mobileClientSearchTitle">거래처 검색</h3>
+				<button class="btn-mobile-close" onclick="closeMobileClientSearch()">
+					<i class="fas fa-times"></i>
+				</button>
+			</div>
+			
+			<!-- 검색 입력 -->
+			<div class="mobile-modal-search">
+				<div class="mobile-search-box">
+					<i class="fas fa-search"></i>
+					<input 
+						type="text" 
+						id="mobileClientSearchInput" 
+						placeholder="거래처명을 입력하세요..."
+						autocomplete="off"
+					>
+				</div>
+			</div>
+			
+			<!-- 검색 결과 -->
+			<div class="mobile-modal-body">
+				<div id="mobileClientSearchResults" class="mobile-client-list">
+					<!-- 동적 생성 -->
+				</div>
+			</div>
+		</div>
         <!-- 나머지 준비중 페이지들... -->
     </div>
 
@@ -394,5 +734,6 @@
     <script src="/static/js/navigation.js"></script>
     <script src="/static/js/app.js"></script>
     <script src="/static/js/project-form.js"></script>
+	<script src="/static/js/mobile.js"></script>		
 </body>
 </html>

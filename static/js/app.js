@@ -413,7 +413,6 @@ async function openProjectDetail(pipelineId) {
 // ===================================
 function renderProjectDetail(data) {
     const modalBody = document.getElementById('modalBody');
-    
     console.log('🎨 렌더링 데이터:', data);
     
     const project = data.project || data;
@@ -465,30 +464,21 @@ function renderProjectDetail(data) {
             <div class="detail-grid">
                 ${attributes.map(attr => `
                     <div class="detail-item">
-                        <label>${attr.attribute_name || attr.attr_name || '-'}</label>
-                        <div>${attr.attribute_value || attr.attr_value || '-'}</div>
+                        <label>${attr.attribute_name || '-'}</label>
+                        <div>${attr.attribute_value || '-'}</div>
                     </div>
                 `).join('')}
             </div>
         </div>
         ` : ''}
         
-        ${histories && histories.length > 0 ? `
-        <div class="detail-section mt-3">
+        <!-- ⭐ 이력 섹션은 detail-grid 밖에 위치 (full-width) -->
+        <div class="detail-section mt-3" style="width: 100%;">
             <h3><i class="fas fa-history"></i> 변경 이력</h3>
-            <div class="history-timeline">
-                ${histories.map(history => `
-                    <div class="history-item">
-                        <div class="history-date">${Utils.formatDate(history.created_date || history.base_date || history.record_date)}</div>
-                        <div class="history-content">
-                            <div class="history-stage">${getStageBadge(history.stage_code || history.progress_stage)}</div>
-                            <div class="history-description">${history.description || history.strategy_content || '-'}</div>
-                        </div>
-                    </div>
-                `).join('')}
+            <div class="history-list" style="width: 100%;">
+                ${renderProjectHistory(histories)}
             </div>
         </div>
-        ` : ''}
     `;
     
     modalBody.innerHTML = html;
@@ -515,3 +505,121 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
 });
+
+
+function renderProjectHistory(history) {
+    if (!history || history.length === 0) {
+        return `
+            <div class="history-empty">
+                <i class="fas fa-inbox"></i>
+                <p>등록된 이력이 없습니다.</p>
+            </div>
+        `;
+    }
+    
+    return history.map(item => `
+        <div class="history-item" style="width: 100%; max-width: none; display: block; box-sizing: border-box; background: #f8f9fa; border: 1px solid #e0e0e0; border-left: 4px solid #3498db; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+            <div class="history-header" style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
+                <span class="history-date" style="font-size: 14px; font-weight: 600; color: #2c3e50;">
+                    <i class="fas fa-calendar-alt"></i>
+                    ${item.base_date || item.record_date || '-'}
+                </span>
+                <span class="history-stage ${getStageBadgeClass(item.progress_stage)}">
+                    ${getStageText(item.progress_stage)}
+                </span>
+            </div>
+            <div style="width: 100%; max-width: none; display: block; box-sizing: border-box; padding: 12px; background: white; border-radius: 6px; border: 1px solid #e9ecef; color: #495057; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; word-break: keep-all; overflow-wrap: break-word;">
+                ${escapeHtml(item.strategy_content || '-')}
+            </div>
+            <div class="history-meta" style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #6c757d;">
+                <span>
+                    <i class="fas fa-user"></i>
+                    ${item.creator_id || '-'}
+                </span>
+                <span>
+                    <i class="fas fa-clock"></i>
+                    ${formatDateTime(item.created_at)}
+                </span>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ===================================
+// Helper Functions for History
+// ===================================
+
+/**
+ * 단계 코드에 따른 배지 클래스 반환
+ */
+function getStageBadgeClass(stageCode) {
+    const stageMap = {
+        'S01': 'badge-stage-1',  // 1 영업중
+        'S02': 'badge-stage-2',  // 2 제안
+        'S03': 'badge-stage-3',  // 3 협상
+        'S04': 'badge-stage-4',  // 4 임찰중
+        'S05': 'badge-stage-5',  // 5 DROP
+        'S06': 'badge-stage-6',  // 6 실주
+        'S07': 'badge-stage-7',  // 7 계약진행
+        'S08': 'badge-stage-8',  // 8 계약완료
+        'S09': 'badge-stage-9'   // 9 기타
+    };
+    
+    return stageMap[stageCode] || 'badge-stage-1';
+}
+
+/**
+ * 단계 코드에 따른 텍스트 반환
+ */
+function getStageText(stageCode) {
+    const stageMap = {
+        'S01': '1 영업중',
+        'S02': '2 제안',
+        'S03': '3 협상',
+        'S04': '4 임찰중',
+        'S05': '5 DROP',
+        'S06': '6 실주',
+        'S07': '7 계약진행',
+        'S08': '8 계약완료',
+        'S09': '9 기타'
+    };
+    
+    return stageMap[stageCode] || stageCode || '-';
+}
+
+/**
+ * 단계 배지 HTML 생성
+ */
+function getStageBadge(stageCode) {
+    return `<span class="badge ${getStageBadgeClass(stageCode)}">${getStageText(stageCode)}</span>`;
+}
+
+/**
+ * 날짜/시간 포맷
+ */
+function formatDateTime(dateStr) {
+    if (!dateStr) return '-';
+    
+    try {
+        const date = new Date(dateStr);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        
+        return `${year}-${month}-${day} ${hours}:${minutes}`;
+    } catch (e) {
+        return dateStr;
+    }
+}
+
+/**
+ * HTML 이스케이프
+ */
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}

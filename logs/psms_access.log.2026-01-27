@@ -1,0 +1,147 @@
+2026-01-27 05:29:13 | 📥 GET /api/v1/projects/list - IP: 100.127.96.42
+2026-01-27 05:29:13 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.028s | IP: 100.127.96.42
+2026-01-27 05:29:17 | 📥 GET /api/v1/projects/list - IP: 100.127.96.42
+2026-01-27 05:29:17 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.023s | IP: 100.127.96.42
+2026-01-27 05:32:57 | 📥 GET /api/v1/projects/list - IP: 100.127.96.42
+2026-01-27 05:32:57 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.025s | IP: 100.127.96.42
+2026-01-27 05:33:47 | 📥 GET /api/v1/projects/list - IP: 100.127.96.42
+2026-01-27 05:33:47 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.025s | IP: 100.127.96.42
+2026-01-27 05:34:52 | 📥 GET /api/v1/projects/list - IP: 100.127.96.42
+2026-01-27 05:34:52 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.025s | IP: 100.127.96.42
+2026-01-27 05:35:21 | 📥 GET /api/v1/projects/list - IP: 100.127.96.42
+2026-01-27 05:35:21 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.024s | IP: 100.127.96.42
+2026-01-27 13:41:37 | 📥 GET /docs - IP: 100.125.108.79
+2026-01-27 13:41:37 | 📤 GET /docs | Status: 200 | Time: 0.003s | IP: 100.125.108.79
+2026-01-27 13:41:37 | 📥 GET /api/v1/openapi.json - IP: 100.125.108.79
+2026-01-27 13:41:38 | 📤 GET /api/v1/openapi.json | Status: 200 | Time: 0.177s | IP: 100.125.108.79
+2026-01-27 13:42:13 | 📥 GET /api/v1/auth/me - IP: 100.125.108.79
+2026-01-27 13:42:13 | 📤 GET /api/v1/auth/me | Status: 401 | Time: 0.004s | IP: 100.125.108.79
+2026-01-27 13:43:05 | 📥 GET /api/v1/projects/list - IP: 100.125.108.79
+2026-01-27 13:43:05 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.023s | IP: 100.125.108.79
+2026-01-27 13:43:36 | 📥 GET /api/v1/projects/combo/STAGE - IP: 100.125.108.79
+2026-01-27 13:43:36 | 📤 GET /api/v1/projects/combo/STAGE | Status: 200 | Time: 0.004s | IP: 100.125.108.79
+2026-01-27 13:43:50 | 📥 GET /api/v1/projects/managers - IP: 100.125.108.79
+2026-01-27 13:43:50 | 📤 GET /api/v1/projects/managers | Status: 200 | Time: 0.007s | IP: 100.125.108.79
+2026-01-27 13:44:18 | 📥 GET /api/v1/projects/2025-047/history - IP: 100.125.108.79
+2026-01-27 13:44:18 | 📤 GET /api/v1/projects/2025-047/history | Status: 200 | Time: 0.013s | IP: 100.125.108.79
+2026-01-27 13:45:00 | 📥 GET /api/v1/clients/search - IP: 100.125.108.79
+2026-01-27 13:45:00 | 📤 GET /api/v1/clients/search | Status: 200 | Time: 0.019s | IP: 100.125.108.79
+2026-01-27 13:45:24 | 📥 GET /api/v1/clients/list - IP: 100.125.108.79
+2026-01-27 13:45:24 | 📤 GET /api/v1/clients/list | Status: 200 | Time: 0.017s | IP: 100.125.108.79
+2026-01-27 13:48:00 | 📥 POST /api/v1/auth/login - IP: 100.125.108.79
+2026-01-27 13:48:00 | 📤 POST /api/v1/auth/login | Status: 422 | Time: 0.006s | IP: 100.125.108.79
+2026-01-27 13:50:08 | 📥 POST /api/v1/auth/login - IP: 127.0.0.1
+2026-01-27 13:53:55 | 📥 POST /api/v1/auth/login - IP: 127.0.0.1
+2026-01-27 14:12:45 | 📥 POST /api/v1/auth/login - IP: 127.0.0.1
+2026-01-27 14:12:46 | 📤 POST /api/v1/auth/login | Status: 200 | Time: 0.421s | IP: 127.0.0.1
+2026-01-27 14:15:01 | 📥 GET / - IP: 100.125.108.79
+2026-01-27 14:15:01 | 📤 GET / | Status: 200 | Time: 0.016s | IP: 100.125.108.79
+2026-01-27 14:15:01 | GET /static/css/styles.css - IP: 100.125.108.79
+2026-01-27 14:15:01 | GET /static/css/navigation.css - IP: 100.125.108.79
+2026-01-27 14:15:01 | GET /static/css/project-form.css - IP: 100.125.108.79
+2026-01-27 14:15:01 | GET /static/css/mobile.css - IP: 100.125.108.79
+2026-01-27 14:15:01 | GET /static/js/config.js - IP: 100.125.108.79
+2026-01-27 14:15:01 | GET /static/js/navigation.js - IP: 100.125.108.79
+2026-01-27 14:15:01 | GET /static/js/app.js - IP: 100.125.108.79
+2026-01-27 14:15:01 | GET /static/js/project-form.js - IP: 100.125.108.79
+2026-01-27 14:15:01 | GET /static/js/mobile.js - IP: 100.125.108.79
+2026-01-27 14:15:01 | 📥 GET /api/v1/projects/combo/STAGE - IP: 100.125.108.79
+2026-01-27 14:15:02 | 📤 GET /api/v1/projects/combo/STAGE | Status: 200 | Time: 0.017s | IP: 100.125.108.79
+2026-01-27 14:15:02 | 📥 GET /api/v1/projects/managers - IP: 100.125.108.79
+2026-01-27 14:15:02 | 📤 GET /api/v1/projects/managers | Status: 200 | Time: 0.009s | IP: 100.125.108.79
+2026-01-27 14:15:02 | 📥 GET /api/v1/projects/combo/FIELD - IP: 100.125.108.79
+2026-01-27 14:15:02 | 📤 GET /api/v1/projects/combo/FIELD | Status: 200 | Time: 0.006s | IP: 100.125.108.79
+2026-01-27 14:15:02 | 📥 GET /api/v1/projects/list - IP: 100.125.108.79
+2026-01-27 14:15:02 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.038s | IP: 100.125.108.79
+2026-01-27 14:15:15 | 📥 GET /api/v1/project-detail/2025-116/full - IP: 100.125.108.79
+2026-01-27 14:15:15 | 📤 GET /api/v1/project-detail/2025-116/full | Status: 200 | Time: 0.020s | IP: 100.125.108.79
+2026-01-27 14:15:21 | 📥 GET /api/v1/projects/combo/STAGE - IP: 100.125.108.79
+2026-01-27 14:15:21 | 📤 GET /api/v1/projects/combo/STAGE | Status: 200 | Time: 0.006s | IP: 100.125.108.79
+2026-01-27 14:15:21 | 📥 GET /api/v1/projects/combo/FIELD - IP: 100.125.108.79
+2026-01-27 14:15:21 | 📤 GET /api/v1/projects/combo/FIELD | Status: 200 | Time: 0.006s | IP: 100.125.108.79
+2026-01-27 14:15:21 | 📥 GET /api/v1/projects/managers - IP: 100.125.108.79
+2026-01-27 14:15:21 | 📤 GET /api/v1/projects/managers | Status: 200 | Time: 0.007s | IP: 100.125.108.79
+2026-01-27 14:15:21 | 📥 GET /api/v1/projects/list - IP: 100.125.108.79
+2026-01-27 14:15:21 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.020s | IP: 100.125.108.79
+2026-01-27 14:43:19 | 📥 GET /health - IP: 100.127.96.42
+2026-01-27 14:43:19 | 📤 GET /health | Status: 200 | Time: 0.008s | IP: 100.127.96.42
+2026-01-27 14:43:19 | 📥 GET /api/v1/projects/list - IP: 100.127.96.42
+2026-01-27 14:43:19 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.024s | IP: 100.127.96.42
+2026-01-27 17:08:46 | 📥 GET /api/v1/projects/combo/STAGE - IP: 100.125.108.79
+2026-01-27 17:08:46 | 📤 GET /api/v1/projects/combo/STAGE | Status: 200 | Time: 0.007s | IP: 100.125.108.79
+2026-01-27 17:08:47 | 📥 GET /api/v1/projects/managers - IP: 100.125.108.79
+2026-01-27 17:08:47 | 📤 GET /api/v1/projects/managers | Status: 200 | Time: 0.007s | IP: 100.125.108.79
+2026-01-27 17:08:47 | 📥 GET /api/v1/projects/combo/FIELD - IP: 100.125.108.79
+2026-01-27 17:08:47 | 📤 GET /api/v1/projects/combo/FIELD | Status: 200 | Time: 0.006s | IP: 100.125.108.79
+2026-01-27 17:08:47 | 📥 GET /api/v1/projects/list - IP: 100.125.108.79
+2026-01-27 17:08:47 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.039s | IP: 100.125.108.79
+2026-01-27 17:09:13 | 📥 GET / - IP: 100.125.108.79
+2026-01-27 17:09:13 | 📤 GET / | Status: 200 | Time: 0.002s | IP: 100.125.108.79
+2026-01-27 17:09:18 | GET /static/css/navigation.css - IP: 100.125.108.79
+2026-01-27 17:09:18 | GET /static/css/project-form.css - IP: 100.125.108.79
+2026-01-27 17:09:18 | GET /static/css/mobile.css - IP: 100.125.108.79
+2026-01-27 17:09:18 | GET /static/js/config.js - IP: 100.125.108.79
+2026-01-27 17:09:18 | GET /static/js/navigation.js - IP: 100.125.108.79
+2026-01-27 17:09:19 | GET /static/css/styles.css - IP: 100.125.108.79
+2026-01-27 17:09:19 | GET /static/js/app.js - IP: 100.125.108.79
+2026-01-27 17:09:19 | GET /static/js/project-form.js - IP: 100.125.108.79
+2026-01-27 17:09:19 | GET /static/js/mobile.js - IP: 100.125.108.79
+2026-01-27 17:09:25 | 📥 GET /api/v1/projects/combo/STAGE - IP: 100.125.108.79
+2026-01-27 17:09:25 | 📤 GET /api/v1/projects/combo/STAGE | Status: 200 | Time: 0.006s | IP: 100.125.108.79
+2026-01-27 17:09:27 | 📥 GET /api/v1/projects/managers - IP: 100.125.108.79
+2026-01-27 17:09:27 | 📤 GET /api/v1/projects/managers | Status: 200 | Time: 0.007s | IP: 100.125.108.79
+2026-01-27 17:09:28 | 📥 GET /api/v1/projects/combo/FIELD - IP: 100.125.108.79
+2026-01-27 17:09:28 | 📤 GET /api/v1/projects/combo/FIELD | Status: 200 | Time: 0.006s | IP: 100.125.108.79
+2026-01-27 17:09:29 | 📥 GET /api/v1/projects/list - IP: 100.125.108.79
+2026-01-27 17:09:30 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.016s | IP: 100.125.108.79
+2026-01-27 17:09:31 | GET /favicon.ico - IP: 100.125.108.79
+2026-01-27 18:25:10 | 📥 GET //health - IP: 100.125.108.79
+2026-01-27 18:25:10 | 📤 GET //health | Status: 404 | Time: 0.002s | IP: 100.125.108.79
+2026-01-27 18:25:27 | 📥 GET /health - IP: 100.125.108.79
+2026-01-27 18:25:27 | 📤 GET /health | Status: 200 | Time: 0.014s | IP: 100.125.108.79
+2026-01-27 18:26:05 | 📥 POST /api/v1/auth/login - IP: 100.125.108.79
+2026-01-27 18:26:06 | 📤 POST /api/v1/auth/login | Status: 401 | Time: 0.392s | IP: 100.125.108.79
+2026-01-27 18:26:25 | 📥 POST /api/v1/auth/login - IP: 100.125.108.79
+2026-01-27 18:26:26 | 📤 POST /api/v1/auth/login | Status: 401 | Time: 0.391s | IP: 100.125.108.79
+2026-01-27 18:28:16 | 📥 POST /api/v1/auth/login - IP: 100.125.108.79
+2026-01-27 18:28:16 | 📤 POST /api/v1/auth/login | Status: 401 | Time: 0.374s | IP: 100.125.108.79
+2026-01-27 18:28:25 | 📥 POST /api/v1/auth/login - IP: 100.125.108.79
+2026-01-27 18:28:25 | 📤 POST /api/v1/auth/login | Status: 401 | Time: 0.398s | IP: 100.125.108.79
+2026-01-27 18:48:54 | 📥 POST /api/v1/auth/login - IP: 100.125.108.79
+2026-01-27 18:48:54 | 📤 POST /api/v1/auth/login | Status: 200 | Time: 0.405s | IP: 100.125.108.79
+2026-01-27 18:48:55 | 📥 GET /api/v1/auth/me - IP: 100.125.108.79
+2026-01-27 18:48:55 | 📤 GET /api/v1/auth/me | Status: 200 | Time: 0.011s | IP: 100.125.108.79
+2026-01-27 18:48:56 | 📥 GET /api/v1/projects/list - IP: 100.125.108.79
+2026-01-27 18:48:56 | 📥 GET /api/v1/common/codes/STAGE - IP: 100.125.108.79
+2026-01-27 18:48:56 | 📤 GET /api/v1/common/codes/STAGE | Status: 404 | Time: 0.001s | IP: 100.125.108.79
+2026-01-27 18:48:56 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.016s | IP: 100.125.108.79
+2026-01-27 18:55:04 | 📥 GET /api/v1/auth/me - IP: 100.125.108.79
+2026-01-27 18:55:04 | 📤 GET /api/v1/auth/me | Status: 200 | Time: 0.007s | IP: 100.125.108.79
+2026-01-27 18:55:05 | 📥 GET /api/v1/projects/list - IP: 100.125.108.79
+2026-01-27 18:55:05 | 📥 GET /api/v1/common/codes/STAGE - IP: 100.125.108.79
+2026-01-27 18:55:05 | 📤 GET /api/v1/common/codes/STAGE | Status: 404 | Time: 0.001s | IP: 100.125.108.79
+2026-01-27 18:55:05 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.024s | IP: 100.125.108.79
+2026-01-27 18:55:25 | 📥 GET /api/v1/projects/list - IP: 100.125.108.79
+2026-01-27 18:55:25 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.019s | IP: 100.125.108.79
+2026-01-27 18:55:26 | 📥 GET /api/v1/projects/list - IP: 100.125.108.79
+2026-01-27 18:55:26 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.020s | IP: 100.125.108.79
+2026-01-27 18:55:55 | 📥 GET /api/v1/projects/list - IP: 100.125.108.79
+2026-01-27 18:55:55 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.015s | IP: 100.125.108.79
+2026-01-27 18:55:55 | 📥 GET /api/v1/projects/list - IP: 100.125.108.79
+2026-01-27 18:55:56 | 📤 GET /api/v1/projects/list | Status: 200 | Time: 0.013s | IP: 100.125.108.79
+2026-01-27 18:56:02 | 📥 GET /api/v1/projects/2025-110 - IP: 100.125.108.79
+2026-01-27 18:56:02 | 📤 GET /api/v1/projects/2025-110 | Status: 405 | Time: 0.001s | IP: 100.125.108.79
+2026-01-27 18:56:34 | 📥 GET /api/v1/projects/2025-084 - IP: 100.125.108.79
+2026-01-27 18:56:34 | 📤 GET /api/v1/projects/2025-084 | Status: 405 | Time: 0.001s | IP: 100.125.108.79
+2026-01-27 19:10:10 | 📥 GET /api/v1/projects/2025-084 - IP: 100.125.108.79
+2026-01-27 19:10:10 | 📤 GET /api/v1/projects/2025-084 | Status: 200 | Time: 0.016s | IP: 100.125.108.79
+2026-01-27 19:10:57 | 📥 POST /api/v1/projects - IP: 100.125.108.79
+2026-01-27 19:10:57 | 📤 POST /api/v1/projects | Status: 422 | Time: 0.003s | IP: 100.125.108.79
+2026-01-27 19:11:45 | 📥 GET /api/v1/projects/2025-084 - IP: 100.125.108.79
+2026-01-27 19:11:45 | 📤 GET /api/v1/projects/2025-084 | Status: 200 | Time: 0.003s | IP: 100.125.108.79
+2026-01-27 19:12:44 | 📥 POST /api/v1/projects - IP: 100.125.108.79
+2026-01-27 19:12:44 | 📤 POST /api/v1/projects | Status: 422 | Time: 0.004s | IP: 100.125.108.79
+2026-01-27 19:12:56 | 📥 POST /api/v1/projects - IP: 100.125.108.79
+2026-01-27 19:12:56 | 📤 POST /api/v1/projects | Status: 422 | Time: 0.004s | IP: 100.125.108.79
+2026-01-27 19:13:05 | 📥 POST /api/v1/projects - IP: 100.125.108.79
+2026-01-27 19:13:05 | 📤 POST /api/v1/projects | Status: 422 | Time: 0.005s | IP: 100.125.108.79

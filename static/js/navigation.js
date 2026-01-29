@@ -4,12 +4,11 @@
 
 /**
  * 페이지 전환
- * @param {string} pageId - 전환할 페이지 ID (예: 'projects-list', 'projects-new')
  */
 function navigateTo(pageId) {
-    console.log('📄 페이지 전환:', pageId);
+    console.log('🔄 페이지 전환:', pageId);
     
-    // 모든 페이지 숨기기
+    // 모든 페이지 숨김
     document.querySelectorAll('.page-content').forEach(page => {
         page.classList.remove('active');
     });
@@ -19,18 +18,28 @@ function navigateTo(pageId) {
     if (targetPage) {
         targetPage.classList.add('active');
         
-        // 페이지별 초기화 로직
-        setTimeout(() => {
-            initializePage(pageId);
-        }, 50);
+        // 페이지별 초기화
+        if (pageId === 'sales') {
+            if (typeof initializeSales === 'function') initializeSales();
+        } else if (pageId === 'project-detail') {
+            if (typeof initializeProjectDetail === 'function') initializeProjectDetail();
+        } else if (pageId === 'mobile-projects') {
+            if (typeof initializeMobileProjects === 'function') initializeMobileProjects();
+        } else if (pageId === 'mobile-project-new') {
+            if (typeof initializeMobileProjectForm === 'function') initializeMobileProjectForm();
+        } else if (pageId === 'mobile-history-new') {
+            // ⭐ 이력 등록 초기화 추가
+            if (typeof initializeMobileHistory === 'function') {
+                console.log('🔧 모바일 이력 초기화 호출');
+                initializeMobileHistory();
+            } else {
+                console.error('❌ initializeMobileHistory 함수를 찾을 수 없음');
+            }
+        }
+        
+        console.log('✅ 페이지 전환 완료:', pageId);
     } else {
-        console.error('❌ 페이지를 찾을 수 없습니다:', pageId);
-    }
-    
-    // URL 업데이트 (브라우저 히스토리)
-    if (history.pushState) {
-        const newUrl = `${window.location.pathname}?page=${pageId}`;
-        history.pushState({page: pageId}, '', newUrl);
+        console.error('❌ 페이지를 찾을 수 없음:', pageId);
     }
 }
 
@@ -118,6 +127,28 @@ function initializePage(pageId) {
             console.log('⚙️ 시스템 설정 초기화');
             // TODO: 시스템 설정 초기화 로직
             break;
+			
+        // ⭐ 모바일 페이지 추가
+        case 'mobile-projects':
+            console.log('📱 모바일 프로젝트 목록 초기화');
+            if (typeof initializeMobileProjects !== 'undefined') {
+                initializeMobileProjects();
+            }
+            break;
+            
+        case 'mobile-project-new':
+            console.log('📱 모바일 프로젝트 폼 초기화');
+            if (typeof initializeMobileProjectForm !== 'undefined') {
+                initializeMobileProjectForm();
+            }
+            break;
+            
+        case 'mobile-history-new':
+            console.log('📱 모바일 이력 등록 초기화');
+            if (typeof initializeMobileHistory !== 'undefined') {
+                initializeMobileHistory();
+            }
+            break;			
             
         default:
             console.log('📄 기본 페이지 초기화:', pageId);

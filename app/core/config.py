@@ -37,7 +37,13 @@ class Settings:
     
     DB_SSL_DISABLED: bool = os.getenv("DB_SSL_DISABLED", "False").lower() in ("true", "1", "yes")
     DB_SSL_CA: str = os.getenv("DB_SSL_CA", "")
-    
+
+    # JWT 보안 설정
+    SECRET_KEY: str = "your-secret-key-change-this"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
     @property
     def DATABASE_URL(self) -> str:
         return f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset={self.DB_CHARSET}"

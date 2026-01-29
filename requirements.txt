@@ -22,3 +22,25 @@ uvicorn==0.40.0
 uvloop==0.22.1
 watchfiles==1.1.1
 websockets==16.0
+# FastAPI 및 서버
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# 데이터베이스
+sqlalchemy==2.0.25
+pymysql==1.1.0
+cryptography==42.0.0
+
+# JWT 및 보안
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-dotenv==1.0.0
+
+# Pydantic 설정
+pydantic==2.5.3
+pydantic-settings==2.1.0
+email-validator==2.1.0
+
+# 기타
+python-dateutil==2.8.2
