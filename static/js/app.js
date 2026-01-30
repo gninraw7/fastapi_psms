@@ -1,6 +1,11 @@
 // ===================================
 // static/js/app.js (수정 버전)
 // 프로젝트 목록에서 수정 화면으로 분기 기능 추가
+// 
+// 버그 수정 (2026-01-30):
+// 1. 진행단계 콤보 로드 - API 직접 호출로 변경
+// 2. 검색필드 조건 적용 - search_field, search_text 파라미터 사용
+// 3. 페이지 크기 기본값 25로 변경 (상단 필터의 pageSize 콤보 삭제됨)
 // ===================================
 
 // ===================================
@@ -8,13 +13,13 @@
 // ===================================
 let projectTable = null;
 let currentFilters = {
-    searchField: '',
-    searchText: '',
+    search_field: '',   // ⭐ snake_case로 통일
+    search_text: '',    // ⭐ snake_case로 통일
     manager_id: '',
     field_code: '',
     current_stage: '',
     page: 1,
-    page_size: 100
+    page_size: 25       // ⭐ 기본값 25로 변경
 };
 let selectedRow = null;  // 선택된 Row 추적
 
@@ -58,11 +63,13 @@ function checkURLParameters() {
 
 // ===================================
 // Initialize Filter Options
+// ⭐ 버그 수정: 진행단계 콤보 API 직접 호출
 // ===================================
 async function initializeFilters() {
     try {
         console.log('📡 필터 데이터 로딩...');
         
+        // 담당자 로드
         const managers = await API.get(API_CONFIG.ENDPOINTS.MANAGERS);
         const managerSelect = document.getElementById('filterManager');
         if (managers && managers.items) {
@@ -74,6 +81,7 @@ async function initializeFilters() {
             });
         }
         
+        // 사업분야 로드
         const fields = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/FIELD`);
         const fieldSelect = document.getElementById('filterField');
         if (fields && fields.items) {
@@ -85,13 +93,29 @@ async function initializeFilters() {
             });
         }
         
+        // ⭐ 버그 수정: 진행단계 - API에서 직접 로드
         const stageSelect = document.getElementById('filterStage');
-        Object.keys(window.STAGE_CONFIG).forEach(code => {
-            const opt = document.createElement('option');
-            opt.value = code;
-            opt.textContent = window.STAGE_CONFIG[code].label;
-            stageSelect.appendChild(opt);
-        });
+        try {
+            const stages = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/STAGE`);
+            console.log('📥 진행단계 데이터:', stages);
+            
+            if (stages && stages.items && stages.items.length > 0) {
+                stages.items.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.code;
+                    opt.textContent = s.code_name;
+                    stageSelect.appendChild(opt);
+                });
+                console.log('✅ 진행단계 콤보 로드 완료:', stages.items.length, '개');
+            } else {
+                // API 응답이 비어있으면 window.STAGE_CONFIG 사용
+                console.warn('⚠️ STAGE API 응답 비어있음, STAGE_CONFIG 사용');
+                loadStageFromConfig(stageSelect);
+            }
+        } catch (stageError) {
+            console.warn('⚠️ STAGE API 실패, STAGE_CONFIG 사용:', stageError);
+            loadStageFromConfig(stageSelect);
+        }
         
         console.log('✅ 필터 로딩 완료');
     } catch (error) {
@@ -99,8 +123,26 @@ async function initializeFilters() {
     }
 }
 
+/**
+ * STAGE_CONFIG에서 진행단계 콤보 로드 (폴백)
+ */
+function loadStageFromConfig(stageSelect) {
+    if (window.STAGE_CONFIG && Object.keys(window.STAGE_CONFIG).length > 0) {
+        Object.keys(window.STAGE_CONFIG).forEach(code => {
+            const opt = document.createElement('option');
+            opt.value = code;
+            opt.textContent = window.STAGE_CONFIG[code].label;
+            stageSelect.appendChild(opt);
+        });
+        console.log('✅ STAGE_CONFIG에서 로드 완료');
+    } else {
+        console.error('❌ STAGE_CONFIG도 비어있음');
+    }
+}
+
 // ===================================
 // Initialize Tabulator Table
+// ⭐ 버그 수정: 페이지 크기 기본값 25
 // ===================================
 function initializeTable() {
     return new Promise((resolve, reject) => {
@@ -111,7 +153,7 @@ function initializeTable() {
             layout: "fitDataStretch",
             pagination: true,
             paginationMode: "remote",
-            paginationSize: 100,
+            paginationSize: 25,                       // ⭐ 기본값 25로 변경
             paginationSizeSelector: [25, 50, 100, 200],
             placeholder: "데이터가 없습니다",
             
@@ -121,10 +163,11 @@ function initializeTable() {
             
             ajaxURL: `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${API_CONFIG.ENDPOINTS.PROJECTS_LIST}`,
             
+            // ⭐ 버그 수정: search_field, search_text 파라미터 전달
             ajaxURLGenerator: function(url, config, params) {
                 const query = new URLSearchParams({
                     page: params.page || 1,
-                    page_size: params.size || 100,
+                    page_size: params.size || 25,     // ⭐ 기본값 25
                     ...(currentFilters.search_field && { search_field: currentFilters.search_field }),
                     ...(currentFilters.search_text && { search_text: currentFilters.search_text }),
                     ...(currentFilters.manager_id && { manager_id: currentFilters.manager_id }),
@@ -203,58 +246,63 @@ function initializeTable() {
                     headerSort: false
                 },
                 {
-                    title: "담당자",
-                    field: "manager_name",
-                    width: 100,
-                    headerSort: false,
-                    hozAlign: "center"
-                },
-                {
                     title: "진행단계",
                     field: "current_stage",
                     width: 120,
-                    headerSort: false,
                     hozAlign: "center",
+                    headerSort: false,
                     formatter: function(cell) {
                         return getStageBadge(cell.getValue());
                     }
                 },
                 {
+                    title: "담당자",
+                    field: "manager_name",
+                    width: 100,
+                    hozAlign: "center",
+                    headerSort: false
+                },
+                {
                     title: "견적금액",
                     field: "quoted_amount",
-                    width: 150,
-                    headerSort: false,
+                    width: 130,
                     hozAlign: "right",
+                    headerSort: false,
                     formatter: function(cell) {
-                        return `<span class="cell-amount">${Utils.formatCurrency(cell.getValue())}</span>`;
+                        const val = cell.getValue();
+                        return val ? Utils.formatNumber(val) + ' 원' : '-';
+                    }
+                },
+                {
+                    title: "등록일",
+                    field: "created_at",
+                    width: 110,
+                    hozAlign: "center",
+                    headerSort: false,
+                    formatter: function(cell) {
+                        return Utils.formatDate(cell.getValue());
                     }
                 }
-            ]
-        });
-        
-        // Row 선택 이벤트
-        projectTable.on("rowSelected", function(row) {
-            selectedRow = row;
-            console.log('✅ Row 선택:', row.getData().pipeline_id);
-            updateEditButton();
-        });
-        
-        projectTable.on("rowDeselected", function(row) {
-            selectedRow = null;
-            console.log('❌ Row 선택 해제');
-            updateEditButton();
-        });
-        
-        projectTable.on("tableBuilt", function() {
-            console.log('✅ 테이블 빌드 완료');
-            resolve();
-        });
-        
-        // ⭐ Row 더블클릭 시 수정 화면으로 이동
-        projectTable.on("rowDblClick", function(e, row) {
-            const data = row.getData();
-            console.log('🖱️ Row 더블클릭 - 편집 모드로 이동:', data.pipeline_id);
-            openProjectForm('edit', data.pipeline_id);
+            ],
+            
+            // Row 선택 이벤트
+            rowSelected: function(row) {
+                selectedRow = row;
+                updateEditButton();
+                console.log('✅ Row 선택:', row.getData().pipeline_id);
+            },
+            
+            rowDeselected: function(row) {
+                selectedRow = null;
+                updateEditButton();
+                console.log('🔲 Row 선택 해제');
+            },
+            
+            // 테이블 빌드 완료 이벤트
+            tableBuilt: function() {
+                console.log('✅ 테이블 빌드 완료');
+                resolve();
+            }
         });
         
         projectTable.on("dataLoaded", function(data) {
@@ -302,6 +350,7 @@ function updateEditButton() {
 
 // ===================================
 // Initialize Event Listeners
+// ⭐ 버그 수정: 검색필드 조건 적용, pageSize 이벤트 제거
 // ===================================
 function initializeEventListeners() {
     // 새로고침 버튼
@@ -326,37 +375,48 @@ function initializeEventListeners() {
         }
     });
     
-    // 검색 필터 이벤트
+    // ⭐ 버그 수정: 검색 필터 이벤트 - search_field 사용
     document.getElementById('searchField').addEventListener('change', (e) => {
         currentFilters.search_field = e.target.value;
+        console.log('🔍 검색필드 변경:', currentFilters.search_field);
     });
     
+    // ⭐ 버그 수정: 검색어 입력 - search_text 사용
     document.getElementById('searchText').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             currentFilters.search_text = e.target.value;
+            console.log('🔍 검색 실행 (Enter):', currentFilters.search_field, currentFilters.search_text);
             projectTable.setData();
         }
     });
     
+    // 검색 버튼 클릭
     document.getElementById('btnSearch').addEventListener('click', () => {
         currentFilters.search_text = document.getElementById('searchText').value;
+        console.log('🔍 검색 실행 (버튼):', currentFilters.search_field, currentFilters.search_text);
         projectTable.setData();
     });
     
+    // 담당자 필터
     document.getElementById('filterManager').addEventListener('change', (e) => {
         currentFilters.manager_id = e.target.value;
         projectTable.setData();
     });
     
+    // 사업분야 필터
     document.getElementById('filterField').addEventListener('change', (e) => {
         currentFilters.field_code = e.target.value;
         projectTable.setData();
     });
     
+    // 진행단계 필터
     document.getElementById('filterStage').addEventListener('change', (e) => {
         currentFilters.current_stage = e.target.value;
+        console.log('🔍 진행단계 필터:', currentFilters.current_stage);
         projectTable.setData();
     });
+    
+    // ⭐ pageSize 이벤트 제거됨 (그리드 하단의 paginationSizeSelector 사용)
     
     // 모달 닫기 버튼
     document.querySelectorAll('.modal-close').forEach(btn => {
@@ -403,25 +463,21 @@ async function openProjectDetail(pipelineId) {
 }
 
 // ===================================
-// Render Project Detail Modal (수정됨 - 편집 버튼 추가)
+// Render Project Detail
 // ===================================
-function renderProjectDetail(data, pipelineId) {
+function renderProjectDetail(response, pipelineId) {
     const modalBody = document.getElementById('modalBody');
     if (!modalBody) return;
     
-    const project = data.project || data;
-    const attributes = data.attributes || [];
-    const histories = data.histories || [];
+    const project = response.project || response;
+    const attributes = response.attributes || [];
+    const histories = response.histories || [];
     
-    // 편집 버튼이 포함된 헤더
-    let html = `
+    const html = `
         <div class="detail-header">
-            <div class="detail-title">
-                <span class="pipeline-badge">${project.pipeline_id || pipelineId}</span>
-                <h3>${project.project_name || '-'}</h3>
-            </div>
+            <h2>${project.project_name || pipelineId}</h2>
             <div class="detail-actions">
-                <button class="btn btn-primary" onclick="editProject('${project.pipeline_id || pipelineId}')">
+                <button class="btn btn-primary" onclick="editProject('${pipelineId}')">
                     <i class="fas fa-edit"></i> 편집
                 </button>
             </div>
@@ -429,92 +485,99 @@ function renderProjectDetail(data, pipelineId) {
         
         <div class="detail-tabs">
             <button class="detail-tab active" onclick="switchDetailTab(this, 'basic')">기본정보</button>
-            <button class="detail-tab" onclick="switchDetailTab(this, 'attrs')">속성정보 (${attributes.length})</button>
-            <button class="detail-tab" onclick="switchDetailTab(this, 'history')">변경이력 (${histories.length})</button>
+            <button class="detail-tab" onclick="switchDetailTab(this, 'attributes')">속성정보</button>
+            <button class="detail-tab" onclick="switchDetailTab(this, 'history')">변경이력</button>
         </div>
         
-        <div class="detail-content">
-            <!-- 기본정보 탭 -->
-            <div id="detail-basic" class="detail-pane active">
+        <div id="detail-basic" class="detail-pane active">
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <label>파이프라인 ID</label>
+                    <span>${project.pipeline_id || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <label>프로젝트명</label>
+                    <span>${project.project_name || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <label>사업분야</label>
+                    <span>${project.field_name || project.field_code || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <label>진행단계</label>
+                    <span>${getStageBadge(project.current_stage)}</span>
+                </div>
+                <div class="detail-item">
+                    <label>담당자</label>
+                    <span>${project.manager_name || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <label>고객사</label>
+                    <span>${project.customer_name || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <label>발주처</label>
+                    <span>${project.ordering_party_name || '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <label>견적금액</label>
+                    <span>${project.quoted_amount ? Utils.formatNumber(project.quoted_amount) + ' 원' : '-'}</span>
+                </div>
+                <div class="detail-item">
+                    <label>수주확률</label>
+                    <span>${project.win_probability ? project.win_probability + '%' : '-'}</span>
+                </div>
+                <div class="detail-item full-width">
+                    <label>비고</label>
+                    <span>${project.notes || '-'}</span>
+                </div>
+            </div>
+        </div>
+        
+        <div id="detail-attributes" class="detail-pane">
+            ${attributes.length > 0 ? `
                 <table class="detail-table">
-                    <tr>
-                        <th>분야</th>
-                        <td>${project.field_name || project.field_code || '-'}</td>
-                        <th>진행단계</th>
-                        <td>${getStageBadge(project.current_stage)}</td>
-                    </tr>
-                    <tr>
-                        <th>고객사</th>
-                        <td>${project.customer_name || '-'}</td>
-                        <th>발주처</th>
-                        <td>${project.ordering_party_name || '-'}</td>
-                    </tr>
-                    <tr>
-                        <th>담당자</th>
-                        <td>${project.manager_name || project.manager_id || '-'}</td>
-                        <th>견적금액</th>
-                        <td class="amount">${Utils.formatCurrency(project.quoted_amount)}</td>
-                    </tr>
-                    <tr>
-                        <th>수주확률</th>
-                        <td>${project.win_probability || 0}%</td>
-                        <th>등록일</th>
-                        <td>${Utils.formatDate(project.created_at)}</td>
-                    </tr>
-                    <tr>
-                        <th>비고</th>
-                        <td colspan="3">${project.notes || '-'}</td>
-                    </tr>
+                    <thead>
+                        <tr>
+                            <th>속성</th>
+                            <th>값</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${attributes.map(a => `
+                            <tr>
+                                <td>${a.attribute_name || a.attribute_code}</td>
+                                <td>${a.attribute_value || '-'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
                 </table>
-            </div>
-            
-            <!-- 속성정보 탭 -->
-            <div id="detail-attrs" class="detail-pane">
-                ${attributes.length > 0 ? `
-                    <table class="detail-table">
-                        <thead>
+            ` : '<p class="no-data">등록된 속성이 없습니다.</p>'}
+        </div>
+        
+        <div id="detail-history" class="detail-pane">
+            ${histories.length > 0 ? `
+                <table class="detail-table">
+                    <thead>
+                        <tr>
+                            <th>일자</th>
+                            <th>진행단계</th>
+                            <th>내용</th>
+                            <th>작성자</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${histories.map(h => `
                             <tr>
-                                <th style="width: 40%;">속성명</th>
-                                <th style="width: 60%;">속성값</th>
+                                <td>${Utils.formatDate(h.history_date)}</td>
+                                <td>${getStageBadge(h.progress_stage)}</td>
+                                <td>${h.strategy_content || '-'}</td>
+                                <td>${h.creator_name || h.creator_id || '-'}</td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            ${attributes.map(attr => `
-                                <tr>
-                                    <td>${attr.attr_name || attr.attr_code || '-'}</td>
-                                    <td>${attr.attr_value || '-'}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                ` : '<p class="no-data">등록된 속성이 없습니다.</p>'}
-            </div>
-            
-            <!-- 변경이력 탭 -->
-            <div id="detail-history" class="detail-pane">
-                ${histories.length > 0 ? `
-                    <table class="detail-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 15%;">기준일</th>
-                                <th style="width: 15%;">진행단계</th>
-                                <th style="width: 50%;">전략/내용</th>
-                                <th style="width: 20%;">작성자</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${histories.map(hist => `
-                                <tr>
-                                    <td>${Utils.formatDate(hist.base_date)}</td>
-                                    <td>${getStageLabel(hist.progress_stage) || hist.progress_stage || '-'}</td>
-                                    <td>${hist.strategy_content || '-'}</td>
-                                    <td>${hist.creator_name || hist.creator_id || '-'}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                ` : '<p class="no-data">등록된 이력이 없습니다.</p>'}
-            </div>
+                        `).join('')}
+                    </tbody>
+                </table>
+            ` : '<p class="no-data">등록된 이력이 없습니다.</p>'}
         </div>
     `;
     
@@ -559,7 +622,7 @@ function closeModal() {
 // Update Statistics
 // ===================================
 function updateStatistics(response) {
-    document.getElementById('statTotal').textContent = response.total_records || 0;
+    document.getElementById('statTotal').textContent = response.total || response.total_records || 0;
     
     // 진행단계별 통계 (있는 경우)
     if (response.stats) {

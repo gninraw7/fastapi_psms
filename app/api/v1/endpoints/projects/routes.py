@@ -3,6 +3,7 @@ app/api/v1/endpoints/projects/routes.py
 프로젝트 API 라우트 - 버그 수정 (2026-01-30)
 
 수정 내용:
+- get_projects_list: search_field, search_text, manager_id 파라미터 추가
 - update_project: notes, win_probability 필드 추가
 - 속성/이력 통합 저장 처리
 """
@@ -33,8 +34,8 @@ class ProjectCreateRequest(BaseModel):
     ordering_party_id: Optional[int] = None
     current_stage: Optional[str] = None
     quoted_amount: Optional[int] = 0
-    win_probability: Optional[int] = 0  # ✅ 추가
-    notes: Optional[str] = None  # ✅ 추가
+    win_probability: Optional[int] = 0
+    notes: Optional[str] = None
     created_by: Optional[str] = "system"
 
 
@@ -47,11 +48,11 @@ class ProjectUpdateRequest(BaseModel):
     ordering_party_id: Optional[int] = None
     current_stage: Optional[str] = None
     quoted_amount: Optional[int] = None
-    win_probability: Optional[int] = None  # ✅ 추가
-    notes: Optional[str] = None  # ✅ 추가
+    win_probability: Optional[int] = None
+    notes: Optional[str] = None
     updated_by: Optional[str] = None
     
-    # ✅ 속성/이력 데이터
+    # 속성/이력 데이터
     attributes: Optional[List[dict]] = None
     histories: Optional[List[dict]] = None
     user_id: Optional[str] = None
@@ -76,31 +77,46 @@ class ProjectHistoryUpdateRequest(BaseModel):
 
 # ============================================
 # 프로젝트 목록 조회
+# ⭐ 버그 수정: search_field, search_text, manager_id 파라미터 추가
 # ============================================
 @router.get("/list")
 async def get_projects_list(
     page: int = Query(1, ge=1),
-    page_size: int = Query(100, ge=1, le=500),
+    page_size: int = Query(25, ge=1, le=500),  # ⭐ 기본값 25로 변경
     field_code: Optional[str] = None,
     current_stage: Optional[str] = None,
-    keyword: Optional[str] = None,
+    manager_id: Optional[str] = None,          # ⭐ 추가
+    search_field: Optional[str] = None,        # ⭐ 추가
+    search_text: Optional[str] = None,         # ⭐ 추가
+    keyword: Optional[str] = None,             # 기존 호환용
     db: Session = Depends(get_db)
 ):
     """프로젝트 목록 조회 (/list 경로)"""
-    return await get_projects(page, page_size, field_code, current_stage, keyword, db)
+    return await get_projects(
+        page, page_size, field_code, current_stage, 
+        manager_id, search_field, search_text, keyword, db
+    )
 
 
 @router.get("")
 async def get_projects(
     page: int = Query(1, ge=1),
-    page_size: int = Query(100, ge=1, le=500),
+    page_size: int = Query(25, ge=1, le=500),  # ⭐ 기본값 25로 변경
     field_code: Optional[str] = None,
     current_stage: Optional[str] = None,
-    keyword: Optional[str] = None,
+    manager_id: Optional[str] = None,          # ⭐ 추가
+    search_field: Optional[str] = None,        # ⭐ 추가
+    search_text: Optional[str] = None,         # ⭐ 추가
+    keyword: Optional[str] = None,             # 기존 호환용
     db: Session = Depends(get_db)
 ):
     """프로젝트 목록 조회"""
     try:
+        app_logger.info(f"📋 프로젝트 목록 조회 - page: {page}, page_size: {page_size}, "
+                       f"field_code: {field_code}, current_stage: {current_stage}, "
+                       f"manager_id: {manager_id}, search_field: {search_field}, "
+                       f"search_text: {search_text}, keyword: {keyword}")
+        
         # 기본 쿼리
         base_query = """
             SELECT 
@@ -132,17 +148,51 @@ async def get_projects(
         
         params = {}
         
+        # 사업분야 필터
         if field_code:
             base_query += " AND p.field_code = :field_code"
             params['field_code'] = field_code
         
+        # 진행단계 필터
         if current_stage:
             base_query += " AND p.current_stage = :current_stage"
             params['current_stage'] = current_stage
         
-        if keyword:
+        # ⭐ 담당자 필터 추가
+        if manager_id:
+            base_query += " AND p.manager_id = :manager_id"
+            params['manager_id'] = manager_id
+        
+        # ⭐ 검색 조건 처리 (search_field + search_text)
+        if search_text and search_text.strip():
+            search_term = f"%{search_text.strip()}%"
+            
+            if search_field == "pipeline_id":
+                # 파이프라인ID 검색
+                base_query += " AND p.pipeline_id LIKE :search_text"
+                params['search_text'] = search_term
+            elif search_field == "project_name":
+                # 프로젝트명 검색
+                base_query += " AND p.project_name LIKE :search_text"
+                params['search_text'] = search_term
+            elif search_field == "customer_name":
+                # 고객사 검색
+                base_query += " AND (c1.client_name LIKE :search_text OR c2.client_name LIKE :search_text)"
+                params['search_text'] = search_term
+            else:
+                # 검색필드가 지정되지 않은 경우 - 프로젝트명 + 고객사 통합 검색
+                base_query += """ AND (
+                    p.project_name LIKE :search_text 
+                    OR c1.client_name LIKE :search_text 
+                    OR c2.client_name LIKE :search_text
+                    OR p.pipeline_id LIKE :search_text
+                )"""
+                params['search_text'] = search_term
+        
+        # 기존 keyword 파라미터 호환 (search_text가 없을 때만)
+        elif keyword and keyword.strip():
             base_query += " AND (p.project_name LIKE :keyword OR c1.client_name LIKE :keyword)"
-            params['keyword'] = f"%{keyword}%"
+            params['keyword'] = f"%{keyword.strip()}%"
         
         # 카운트 쿼리
         count_query = f"SELECT COUNT(*) as cnt FROM ({base_query}) as t"
@@ -158,9 +208,12 @@ async def get_projects(
         result = db.execute(text(base_query), params)
         items = [dict(row._mapping) for row in result.fetchall()]
         
+        app_logger.info(f"✅ 프로젝트 목록 조회 완료 - 총 {total}건, 현재 페이지 {len(items)}건")
+        
         return {
             "items": items,
             "total": total,
+            "total_records": total,  # 프론트엔드 호환용
             "page": page,
             "page_size": page_size,
             "total_pages": (total + page_size - 1) // page_size
@@ -243,7 +296,7 @@ async def create_project(
 
 
 # ============================================
-# 프로젝트 수정 (✅ 버그 수정: notes, win_probability 추가)
+# 프로젝트 수정
 # ============================================
 @router.put("/{pipeline_id}")
 async def update_project(
@@ -293,12 +346,10 @@ async def update_project(
             update_fields.append("quoted_amount = :quoted_amount")
             params['quoted_amount'] = request.quoted_amount
         
-        # ✅ 버그 수정: win_probability 필드 추가
         if request.win_probability is not None:
             update_fields.append("win_probability = :win_probability")
             params['win_probability'] = request.win_probability
         
-        # ✅ 버그 수정: notes 필드 추가
         if request.notes is not None:
             update_fields.append("notes = :notes")
             params['notes'] = request.notes
@@ -313,125 +364,70 @@ async def update_project(
         if update_fields:
             query_str = f"""
                 UPDATE projects
-                SET {', '.join(update_fields)}
+                SET {', '.join(update_fields)}, updated_at = NOW()
                 WHERE pipeline_id = :pipeline_id
             """
             db.execute(text(query_str), params)
         
         # ===== 2. 속성 저장 =====
-        attr_count = 0
-        if request.attributes:
+        if request.attributes is not None:
+            # 기존 속성 삭제
+            db.execute(text(
+                "DELETE FROM project_attributes WHERE pipeline_id = :pipeline_id"
+            ), {'pipeline_id': pipeline_id})
+            
+            # 새 속성 추가
             for attr in request.attributes:
-                row_stat = attr.get("row_stat", "")
-                attr_code = attr.get("attr_code")
-                
-                if not attr_code:
-                    continue
-                
-                if row_stat == "N":  # 신규
+                if attr.get('attr_code') and attr.get('attr_value'):
                     db.execute(text("""
                         INSERT INTO project_attributes (pipeline_id, attr_code, attr_value, created_by)
-                        VALUES (:pipeline_id, :attr_code, :attr_value, :user_id)
+                        VALUES (:pipeline_id, :attr_code, :attr_value, :created_by)
                     """), {
-                        "pipeline_id": pipeline_id,
-                        "attr_code": attr_code,
-                        "attr_value": attr.get("attr_value", ""),
-                        "user_id": request.user_id or "system"
+                        'pipeline_id': pipeline_id,
+                        'attr_code': attr['attr_code'],
+                        'attr_value': attr['attr_value'],
+                        'created_by': request.user_id or 'system'
                     })
-                    attr_count += 1
-                    
-                elif row_stat == "U":  # 수정
-                    db.execute(text("""
-                        UPDATE project_attributes 
-                        SET attr_value = :attr_value, updated_by = :user_id
-                        WHERE pipeline_id = :pipeline_id AND attr_code = :attr_code
-                    """), {
-                        "pipeline_id": pipeline_id,
-                        "attr_code": attr_code,
-                        "attr_value": attr.get("attr_value", ""),
-                        "user_id": request.user_id or "system"
-                    })
-                    attr_count += 1
-                    
-                elif row_stat == "D":  # 삭제
-                    db.execute(text("""
-                        DELETE FROM project_attributes 
-                        WHERE pipeline_id = :pipeline_id AND attr_code = :attr_code
-                    """), {
-                        "pipeline_id": pipeline_id,
-                        "attr_code": attr_code
-                    })
-                    attr_count += 1
         
         # ===== 3. 이력 저장 =====
-        hist_count = 0
-        if request.histories:
+        if request.histories is not None:
+            # 기존 이력 삭제
+            db.execute(text(
+                "DELETE FROM project_history WHERE pipeline_id = :pipeline_id"
+            ), {'pipeline_id': pipeline_id})
+            
+            # 새 이력 추가
             for hist in request.histories:
-                row_stat = hist.get("row_stat", "")
-                
-                if row_stat == "N":  # 신규
+                if hist.get('base_date'):
                     db.execute(text("""
-                        INSERT INTO project_history (
-                            pipeline_id, base_date, progress_stage, strategy_content, creator_id, created_by
-                        ) VALUES (
-                            :pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, :created_by
-                        )
+                        INSERT INTO project_history 
+                        (pipeline_id, base_date, progress_stage, strategy_content, creator_id, record_date)
+                        VALUES 
+                        (:pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, NOW())
                     """), {
-                        "pipeline_id": pipeline_id,
-                        "base_date": hist.get("base_date"),
-                        "progress_stage": hist.get("progress_stage"),
-                        "strategy_content": hist.get("strategy_content", ""),
-                        "creator_id": request.user_id or "system",
-                        "created_by": request.user_id or "system"
+                        'pipeline_id': pipeline_id,
+                        'base_date': hist['base_date'],
+                        'progress_stage': hist.get('progress_stage'),
+                        'strategy_content': hist.get('strategy_content', ''),
+                        'creator_id': hist.get('creator_id') or request.user_id or 'system'
                     })
-                    hist_count += 1
-                    
-                elif row_stat == "U":  # 수정
-                    history_id = hist.get("history_id")
-                    if history_id:
-                        db.execute(text("""
-                            UPDATE project_history 
-                            SET base_date = :base_date, 
-                                progress_stage = :progress_stage, 
-                                strategy_content = :strategy_content,
-                                updated_by = :user_id
-                            WHERE history_id = :history_id
-                        """), {
-                            "history_id": history_id,
-                            "base_date": hist.get("base_date"),
-                            "progress_stage": hist.get("progress_stage"),
-                            "strategy_content": hist.get("strategy_content", ""),
-                            "user_id": request.user_id or "system"
-                        })
-                        hist_count += 1
-                    
-                elif row_stat == "D":  # 삭제
-                    history_id = hist.get("history_id")
-                    if history_id:
-                        db.execute(text("""
-                            DELETE FROM project_history WHERE history_id = :history_id
-                        """), {
-                            "history_id": history_id
-                        })
-                        hist_count += 1
         
         db.commit()
         
-        app_logger.info(f"✅ 프로젝트 수정 성공 - 기본정보, 속성: {attr_count}건, 이력: {hist_count}건")
+        app_logger.info(f"✅ 프로젝트 수정 완료: {pipeline_id}")
         
         return {
-            "message": "프로젝트 정보가 수정되었습니다",
-            "pipeline_id": pipeline_id,
-            "attributes_saved": attr_count,
-            "histories_saved": hist_count
+            "message": "프로젝트가 수정되었습니다",
+            "pipeline_id": pipeline_id
         }
         
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
-        app_logger.error(f"❌ 프로젝트 수정 실패: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"프로젝트 수정 실패: {str(e)}")
+        error_msg = f"프로젝트 수정 실패: {str(e)}"
+        app_logger.error(error_msg, exc_info=True)
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 # ============================================
@@ -444,42 +440,47 @@ async def create_project_history(
 ):
     """프로젝트 이력 등록"""
     try:
-        app_logger.info(f"📝 프로젝트 이력 등록: pipeline_id={request.pipeline_id}")
+        app_logger.info(f"📝 프로젝트 이력 등록: {request.pipeline_id}")
         
-        # 프로젝트 존재 여부 확인
+        # 프로젝트 존재 확인
         check_query = text("SELECT pipeline_id FROM projects WHERE pipeline_id = :pipeline_id")
-        result = db.execute(check_query, {"pipeline_id": request.pipeline_id})
+        result = db.execute(check_query, {'pipeline_id': request.pipeline_id})
         if not result.fetchone():
             raise HTTPException(status_code=404, detail="프로젝트를 찾을 수 없습니다")
         
         # 이력 등록
         insert_query = text("""
-            INSERT INTO project_history (
-                pipeline_id, base_date, progress_stage, strategy_content, creator_id, created_by
-            ) VALUES (
-                :pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, :created_by
-            )
+            INSERT INTO project_history 
+            (pipeline_id, base_date, progress_stage, strategy_content, creator_id, record_date)
+            VALUES 
+            (:pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, NOW())
         """)
         
-        params = {
-            "pipeline_id": request.pipeline_id,
-            "base_date": request.base_date,
-            "progress_stage": request.progress_stage,
-            "strategy_content": request.strategy_content,
-            "creator_id": request.creator_id or "system",
-            "created_by": request.creator_id or "system"
-        }
+        db.execute(insert_query, {
+            'pipeline_id': request.pipeline_id,
+            'base_date': request.base_date,
+            'progress_stage': request.progress_stage,
+            'strategy_content': request.strategy_content,
+            'creator_id': request.creator_id or 'system'
+        })
         
-        result = db.execute(insert_query, params)
+        # 프로젝트의 현재 단계도 업데이트 (선택적)
+        if request.progress_stage:
+            db.execute(text("""
+                UPDATE projects 
+                SET current_stage = :stage, updated_at = NOW()
+                WHERE pipeline_id = :pipeline_id
+            """), {
+                'pipeline_id': request.pipeline_id,
+                'stage': request.progress_stage
+            })
+        
         db.commit()
         
-        history_id = result.lastrowid
-        
-        app_logger.info(f"✅ 프로젝트 이력 등록 성공: history_id={history_id}")
+        app_logger.info(f"✅ 프로젝트 이력 등록 완료: {request.pipeline_id}")
         
         return {
             "message": "이력이 등록되었습니다",
-            "history_id": history_id,
             "pipeline_id": request.pipeline_id
         }
         
@@ -503,17 +504,17 @@ async def update_project_history(
 ):
     """프로젝트 이력 수정"""
     try:
-        app_logger.info(f"📝 프로젝트 이력 수정: history_id={history_id}")
+        app_logger.info(f"✏️ 프로젝트 이력 수정: history_id={history_id}")
         
-        # 이력 존재 여부 확인
+        # 존재 확인
         check_query = text("SELECT history_id FROM project_history WHERE history_id = :history_id")
-        result = db.execute(check_query, {"history_id": history_id})
+        result = db.execute(check_query, {'history_id': history_id})
         if not result.fetchone():
             raise HTTPException(status_code=404, detail="이력을 찾을 수 없습니다")
         
-        # 수정할 필드 구성
+        # 수정
         update_fields = []
-        params = {"history_id": history_id}
+        params = {'history_id': history_id}
         
         if request.base_date is not None:
             update_fields.append("base_date = :base_date")
@@ -527,23 +528,16 @@ async def update_project_history(
             update_fields.append("strategy_content = :strategy_content")
             params['strategy_content'] = request.strategy_content
         
-        if request.creator_id is not None:
-            update_fields.append("updated_by = :updated_by")
-            params['updated_by'] = request.creator_id
+        if update_fields:
+            query_str = f"""
+                UPDATE project_history
+                SET {', '.join(update_fields)}, updated_at = NOW()
+                WHERE history_id = :history_id
+            """
+            db.execute(text(query_str), params)
+            db.commit()
         
-        if not update_fields:
-            raise HTTPException(status_code=400, detail="수정할 내용이 없습니다")
-        
-        update_query = text(f"""
-            UPDATE project_history
-            SET {', '.join(update_fields)}
-            WHERE history_id = :history_id
-        """)
-        
-        db.execute(update_query, params)
-        db.commit()
-        
-        app_logger.info(f"✅ 프로젝트 이력 수정 성공: history_id={history_id}")
+        app_logger.info(f"✅ 프로젝트 이력 수정 완료: history_id={history_id}")
         
         return {
             "message": "이력이 수정되었습니다",
@@ -571,18 +565,18 @@ async def delete_project_history(
     try:
         app_logger.info(f"🗑️ 프로젝트 이력 삭제: history_id={history_id}")
         
-        # 이력 존재 여부 확인
+        # 존재 확인
         check_query = text("SELECT history_id FROM project_history WHERE history_id = :history_id")
-        result = db.execute(check_query, {"history_id": history_id})
+        result = db.execute(check_query, {'history_id': history_id})
         if not result.fetchone():
             raise HTTPException(status_code=404, detail="이력을 찾을 수 없습니다")
         
         # 삭제
-        delete_query = text("DELETE FROM project_history WHERE history_id = :history_id")
-        db.execute(delete_query, {"history_id": history_id})
+        db.execute(text("DELETE FROM project_history WHERE history_id = :history_id"), 
+                  {'history_id': history_id})
         db.commit()
         
-        app_logger.info(f"✅ 프로젝트 이력 삭제 성공: history_id={history_id}")
+        app_logger.info(f"✅ 프로젝트 이력 삭제 완료: history_id={history_id}")
         
         return {
             "message": "이력이 삭제되었습니다",

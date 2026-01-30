@@ -203,6 +203,14 @@
                             <input type="text" id="searchText" class="form-input" placeholder="검색어를 입력하세요">
                         </div>
                         
+                        <div class="filter-group" style="flex: 0 0 auto;">
+                            <label>&nbsp;</label>
+                            <button id="btnSearch" class="btn btn-secondary">
+                                <i class="fas fa-search"></i> 검색
+                            </button>
+                        </div>
+
+                        
                         <div class="filter-group">
                             <label><i class="fas fa-user"></i> 담당자</label>
                             <select id="filterManager" class="form-select">
@@ -223,16 +231,6 @@
                                 <option value="">전체</option>
                             </select>
                         </div>
-                        
-                        <div class="filter-group filter-group-small">
-                            <label><i class="fas fa-list-ol"></i> 페이지크기</label>
-                            <select id="pageSize" class="form-select">
-                                <option value="25">25</option>
-                                <option value="50">50</option>
-                                <option value="100" selected>100</option>
-                                <option value="200">200</option>
-                            </select>
-                        </div>
                     </div>
                     
                     <div class="filter-actions">
@@ -245,6 +243,7 @@
                         <button id="btnExport" class="btn btn-success">
                             <i class="fas fa-file-excel"></i> 엑셀
                         </button>
+
                     </div>
                 </div>
 

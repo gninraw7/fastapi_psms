@@ -2,6 +2,7 @@
 // static/js/config.js
 // API 설정 및 유틸리티 함수
 // 수정: 공통코드 엔드포인트 변경 (/projects/combo → /common/codes)
+// 버그 수정 (2026-01-30): window.STAGE_CONFIG 동기화
 // ===================================
 
 // ===================================
@@ -46,121 +47,44 @@ const API = {
             const response = await fetch(url, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json',
+                    ...options.headers
                 },
                 ...options
             });
             
-            console.log('📡 응답 상태:', response.status, response.statusText);
-            
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                throw new Error(`HTTP ${response.status}`);
             }
             
-            const data = await response.json();
-            console.log('✅ 응답 데이터:', data);
-            return data;
+            return await response.json();
         } catch (error) {
-            console.error('❌ API 에러:', error);
+            console.error('❌ API 에러:', url, error);
             throw error;
         }
     },
     
-    async get(endpoint, params = null) {
-        const url = new URL(`${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${endpoint}`);
-        if (params) {
-            Object.keys(params).forEach(key => {
-                if (params[key] !== null && params[key] !== undefined) {
-                    url.searchParams.append(key, params[key]);
-                }
-            });
-        }
-        
-        console.log('📡 GET:', url.toString());
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({ detail: response.statusText }));
-            throw new Error(error.detail || `HTTP ${response.status}`);
-        }
-        
-        return await response.json();
+    async get(endpoint) {
+        return this.request(endpoint);
     },
     
     async post(endpoint, data) {
-        const url = `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${endpoint}`;
-        
-        console.log('📡 POST:', url);
-        console.log('📤 전송 데이터:', data);
-        
-        const response = await fetch(url, {
+        return this.request(endpoint, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
             body: JSON.stringify(data)
         });
-        
-        console.log('📥 응답 상태:', response.status);
-        
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({ detail: response.statusText }));
-            console.error('❌ 서버 에러:', error);
-            throw new Error(error.detail || `HTTP ${response.status}`);
-        }
-        
-        const result = await response.json();
-        console.log('✅ 응답 데이터:', result);
-        return result;
     },
     
     async put(endpoint, data) {
-        const url = `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${endpoint}`;
-        
-        console.log('📡 PUT:', url);
-        console.log('📤 전송 데이터:', data);
-        
-        const response = await fetch(url, {
+        return this.request(endpoint, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
             body: JSON.stringify(data)
         });
-        
-        console.log('📥 응답 상태:', response.status);
-        
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({ detail: response.statusText }));
-            console.error('❌ 서버 에러:', error);
-            throw new Error(error.detail || `HTTP ${response.status}`);
-        }
-        
-        const result = await response.json();
-        console.log('✅ 응답 데이터:', result);
-        return result;
     },
     
     async delete(endpoint) {
-        const url = `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${endpoint}`;
-        
-        console.log('📡 DELETE:', url);
-        
-        const response = await fetch(url, {
-            method: 'DELETE',
+        return this.request(endpoint, {
+            method: 'DELETE'
         });
-        
-        console.log('📥 응답 상태:', response.status);
-        
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({ detail: response.statusText }));
-            console.error('❌ 서버 에러:', error);
-            throw new Error(error.detail || `HTTP ${response.status}`);
-        }
-        
-        const result = await response.json();
-        console.log('✅ 응답 데이터:', result);
-        return result;
     }
 };
 
@@ -169,26 +93,14 @@ const API = {
 // ===================================
 const Utils = {
     formatNumber(num) {
-        if (!num || num === 0) return '0';
-        return parseInt(num).toLocaleString('ko-KR');
+        if (num === null || num === undefined) return '0';
+        return Number(num).toLocaleString('ko-KR');
     },
     
-    formatCurrency(amount) {
-        if (!amount || amount === 0) return '0원';
-        return `${this.formatNumber(amount)}원`;
-    },
-    
-    formatDate(dateString) {
-        if (!dateString) return '';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('ko-KR');
-    },
-    
-    formatDateTime(dateString) {
-        if (!dateString) return '';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('ko-KR') + ' ' + 
-               date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    formatDate(date) {
+        if (!date) return '-';
+        const d = new Date(date);
+        return d.toLocaleDateString('ko-KR');
     },
     
     truncate(text, maxLength = 50) {
@@ -241,6 +153,7 @@ let STAGE_COLORS = [
 
 /**
  * 진행단계 설정을 API에서 로드
+ * ⭐ 버그 수정: window.STAGE_CONFIG 동기화 추가
  */
 async function loadStageConfig() {
     try {
@@ -255,6 +168,10 @@ async function loadStageConfig() {
                     class: STAGE_COLORS[index % STAGE_COLORS.length]
                 };
             });
+            
+            // ⭐ 버그 수정: window.STAGE_CONFIG도 업데이트
+            window.STAGE_CONFIG = STAGE_CONFIG;
+            
             console.log('✅ STAGE 설정 완료:', STAGE_CONFIG);
         }
     } catch (error) {
@@ -271,6 +188,9 @@ async function loadStageConfig() {
             'S08': { label: '8 계약완료', class: 'badge-stage-8' },
             'S09': { label: '9 유지보수', class: 'badge-stage-9' }
         };
+        
+        // ⭐ 버그 수정: 폴백 시에도 window.STAGE_CONFIG 업데이트
+        window.STAGE_CONFIG = STAGE_CONFIG;
     }
 }
 
