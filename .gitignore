@@ -20,3 +20,5 @@ venv/
 # secrets / local setup
 download/20260124_1400_db/setup_aiven.sh
 download/20260124_1400_db/AIVEN_MYSQL_SETUP.md
+logs/*.log*
+logs/server.pid

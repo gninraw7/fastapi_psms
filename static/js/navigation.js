@@ -212,24 +212,22 @@ function openMyInfo() {
 /**
  * 로그아웃
  */
-function logout() {
+async function logout() {
     console.log('🚪 로그아웃 요청');
     
     if (confirm('로그아웃 하시겠습니까?')) {
         console.log('✅ 로그아웃 확인');
         
-        // TODO: 실제 로그아웃 API 호출
-        /*
         try {
-            await API.post('/auth/logout');
-            window.location.href = '/login';
+            // AUTH 모듈의 logout 함수 사용
+            await AUTH.logout();
+            // AUTH.logout()이 자동으로 / 로 리디렉션
         } catch (error) {
-            console.error('로그아웃 실패:', error);
+            console.error('로그아웃 중 오류:', error);
+            // 에러가 발생해도 로컬 데이터는 삭제하고 로그인 페이지로 이동
+            AUTH.clearAuth();
+            window.location.href = '/';
         }
-        */
-        
-        alert('로그아웃 기능 준비중입니다.');
-        // window.location.href = '/logout';
     } else {
         console.log('❌ 로그아웃 취소');
     }

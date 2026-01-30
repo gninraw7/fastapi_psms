@@ -22,8 +22,13 @@
     <link rel="stylesheet" href="/static/css/navigation.css">
     <link rel="stylesheet" href="/static/css/project-form.css">
 	<link rel="stylesheet" href="/static/css/mobile.css">
+    <!-- ⭐ 인증 관리 스크립트 추가 -->
+    <script src="/static/js/auth.js"></script>    
 </head>
 <body>
+    <!-- 인증 확인 스크립트 -->
+    <script src="/static/js/auth-check.js"></script>
+
     <!-- Navigation Bar -->
     <nav class="navbar">
         <div class="navbar-container">
@@ -118,7 +123,7 @@
             <div class="navbar-user">
                 <div class="user-info">
                     <i class="fas fa-user-circle"></i>
-                    <span id="userName">양승구</span>
+                    <span id="currentUser">사용자</span>
                 </div>
                 <div class="user-menu">
                     <button class="btn-icon" title="내정보" onclick="openMyInfo()">
