@@ -8,6 +8,10 @@
  * 1.3 수주확률(win_probability), 비고(notes) 필드 추가
  * 2.1 속성정보 탭 - PROJECT_ATTRIBUTE 콤보박스
  * 3.1 변경이력 탭 - progress_stage 콤보박스, 기본값 S01
+ * 
+ * 버그 수정 (2026-01-30):
+ * - 아이콘 중복 표시 문제 해결 (formTitle 텍스트만 변경)
+ * - 속성/이력 저장 로직 수정
  */
 
 // ===================================
@@ -37,13 +41,17 @@ async function initializeProjectForm(mode = 'new', pipelineId = null) {
     
     console.log('📝 폼 초기화:', mode, pipelineId);
     
-    // 제목 변경
+    // ✅ 버그 수정: 제목 텍스트만 변경 (아이콘은 HTML에 이미 있음)
     const titleElement = document.getElementById('formTitle');
+    const titleIcon = titleElement.parentElement.querySelector('i');  // 부모의 아이콘
+    
     if (mode === 'new') {
-        titleElement.innerHTML = '<i class="fas fa-plus-circle"></i> 신규 프로젝트';
+        titleElement.textContent = '신규 프로젝트';  // 텍스트만 변경
+        if (titleIcon) titleIcon.className = 'fas fa-plus-circle';
         document.getElementById('pipeline_id').value = '자동생성';
     } else {
-        titleElement.innerHTML = '<i class="fas fa-edit"></i> 프로젝트 수정';
+        titleElement.textContent = '프로젝트 수정';  // 텍스트만 변경
+        if (titleIcon) titleIcon.className = 'fas fa-edit';
     }
     
     // 콤보박스 초기화 (수정됨)
@@ -141,214 +149,23 @@ async function loadFormComboBoxes() {
                 attributeOptions = attrs.items;
             }
         } catch (e) {
-            console.warn('⚠️ PROJECT_ATTRIBUTE API 실패:', e);
+            console.warn('⚠️ PROJECT_ATTRIBUTE 로드 실패:', e);
+            attributeOptions = [];
         }
         
         console.log('✅ 콤보박스 로딩 완료');
+        
     } catch (error) {
         console.error('❌ 콤보박스 로딩 실패:', error);
     }
 }
 
 // ===================================
-// 1.2 고객사/발주처 선택 기능
-// ===================================
-function initializeClientSearch() {
-    // 고객사 검색 버튼 이벤트
-    const customerSearchBtn = document.getElementById('customer_search_btn');
-    if (customerSearchBtn) {
-        customerSearchBtn.addEventListener('click', () => openClientSearchModal('customer'));
-    }
-    
-    // 발주처 검색 버튼 이벤트
-    const orderingPartySearchBtn = document.getElementById('ordering_party_search_btn');
-    if (orderingPartySearchBtn) {
-        orderingPartySearchBtn.addEventListener('click', () => openClientSearchModal('ordering_party'));
-    }
-    
-    // 고객사 입력 필드 클릭시 모달 열기
-    const customerInput = document.getElementById('customer_name');
-    if (customerInput) {
-        customerInput.addEventListener('click', () => openClientSearchModal('customer'));
-        customerInput.setAttribute('readonly', true);
-        customerInput.style.cursor = 'pointer';
-    }
-    
-    // 발주처 입력 필드 클릭시 모달 열기
-    const orderingPartyInput = document.getElementById('ordering_party_name');
-    if (orderingPartyInput) {
-        orderingPartyInput.addEventListener('click', () => openClientSearchModal('ordering_party'));
-        orderingPartyInput.setAttribute('readonly', true);
-        orderingPartyInput.style.cursor = 'pointer';
-    }
-}
-
-// 고객사 검색 모달 열기
-function openClientSearchModal(target) {
-    clientSearchTarget = target;
-    clientSearchPage = 1;
-    
-    const modal = document.getElementById('clientSearchModal');
-    if (modal) {
-        modal.classList.add('active');
-        document.getElementById('clientSearchInput').value = '';
-        document.getElementById('clientSearchInput').focus();
-        loadClientSearchResults('');
-    }
-}
-
-// 고객사 검색 모달 닫기
-function closeClientSearchModal() {
-    const modal = document.getElementById('clientSearchModal');
-    if (modal) {
-        modal.classList.remove('active');
-    }
-}
-
-// 고객사 검색 실행
-async function searchClients() {
-    const searchText = document.getElementById('clientSearchInput').value.trim();
-    clientSearchPage = 1;
-    await loadClientSearchResults(searchText);
-}
-
-// 고객사 검색 결과 로드 (페이징 포함)
-async function loadClientSearchResults(searchText, page = 1) {
-    const resultsContainer = document.getElementById('clientSearchResults');
-    resultsContainer.innerHTML = '<p style="text-align: center; padding: 20px;">검색 중...</p>';
-    
-    try {
-        // 1.2 고객사 검색 API (페이징 포함)
-        // 기존 /clients/search API 사용 (페이징 지원하도록 백엔드 수정 필요)
-        // 또는 /clients/list API 사용
-        const response = await API.get(`/clients/search`, {
-            search: searchText,
-            limit: 10
-        });
-        
-        console.log('📥 고객사 검색 결과:', response);
-        
-        // 기존 API 응답 형식: { clients: [...], total: N }
-        const clients = response.clients || response.items || response || [];
-        
-        if (!clients || clients.length === 0) {
-            resultsContainer.innerHTML = '<p style="text-align: center; padding: 20px;">검색 결과가 없습니다.</p>';
-            // 페이징 숨김
-            const paginationContainer = document.getElementById('clientSearchPagination');
-            if (paginationContainer) paginationContainer.innerHTML = '';
-            return;
-        }
-        
-        // 결과 테이블 생성
-        let html = `
-            <table class="client-search-table">
-                <thead>
-                    <tr>
-                        <th>고객사명</th>
-                        <th>사업자번호</th>
-                        <th>대표자</th>
-                        <th>선택</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-        
-        clients.forEach(client => {
-            html += `
-                <tr>
-                    <td>${client.client_name || ''}</td>
-                    <td>${client.business_number || ''}</td>
-                    <td>${client.ceo_name || ''}</td>
-                    <td>
-                        <button type="button" class="btn btn-sm btn-primary" 
-                            onclick="selectClient(${client.client_id}, '${escapeHtml(client.client_name)}')">
-                            선택
-                        </button>
-                    </td>
-                </tr>
-            `;
-        });
-        
-        html += '</tbody></table>';
-        resultsContainer.innerHTML = html;
-        
-        // 페이징 (기존 API가 페이징 미지원이면 숨김)
-        const paginationContainer = document.getElementById('clientSearchPagination');
-        if (paginationContainer) {
-            if (response.total_pages) {
-                updateClientPagination(response);
-            } else {
-                // 전체 건수만 표시
-                paginationContainer.innerHTML = `<span class="page-info">총 ${clients.length}건</span>`;
-            }
-        }
-        
-    } catch (error) {
-        console.error('❌ 고객사 검색 실패:', error);
-        resultsContainer.innerHTML = '<p style="text-align: center; color: red; padding: 20px;">검색 중 오류가 발생했습니다.</p>';
-    }
-}
-
-// 페이징 UI 업데이트
-function updateClientPagination(response) {
-    const paginationContainer = document.getElementById('clientSearchPagination');
-    if (!paginationContainer) return;
-    
-    const { page, total_pages, has_prev, has_next } = response;
-    
-    let html = '<div class="pagination-controls">';
-    
-    if (has_prev) {
-        html += `<button type="button" class="btn btn-sm" onclick="goToClientPage(${page - 1})">이전</button>`;
-    }
-    
-    html += `<span class="page-info">${page} / ${total_pages || 1}</span>`;
-    
-    if (has_next) {
-        html += `<button type="button" class="btn btn-sm" onclick="goToClientPage(${page + 1})">다음</button>`;
-    }
-    
-    html += '</div>';
-    paginationContainer.innerHTML = html;
-}
-
-// 페이지 이동
-function goToClientPage(page) {
-    const searchText = document.getElementById('clientSearchInput').value.trim();
-    clientSearchPage = page;
-    loadClientSearchResults(searchText, page);
-}
-
-// 고객사 선택
-function selectClient(clientId, clientName) {
-    if (clientSearchTarget === 'customer') {
-        selectedCustomerId = clientId;
-        document.getElementById('customer_id').value = clientId;
-        document.getElementById('customer_name').value = clientName;
-    } else if (clientSearchTarget === 'ordering_party') {
-        selectedOrderingPartyId = clientId;
-        document.getElementById('ordering_party_id').value = clientId;
-        document.getElementById('ordering_party_name').value = clientName;
-    }
-    
-    closeClientSearchModal();
-}
-
-// HTML 이스케이프
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// ===================================
-// Load Project Data (Edit Mode) - 수정됨
+// Load Project Data (수정 모드)
 // ===================================
 async function loadProjectData(pipelineId) {
     try {
         Utils.showLoading(true);
-        console.log('📡 프로젝트 데이터 로딩:', pipelineId);
         
         const response = await API.get(`${API_CONFIG.ENDPOINTS.PROJECT_DETAIL}/${pipelineId}/full`);
         console.log('📥 프로젝트 데이터:', response);
@@ -425,16 +242,24 @@ function resetForm() {
     document.getElementById('manager_id').value = '';
     
     // 고객사/발주처 초기화
-    document.getElementById('customer_id').value = '';
+    const customerIdEl = document.getElementById('customer_id');
+    if (customerIdEl) customerIdEl.value = '';
     document.getElementById('customer_name').value = '';
-    document.getElementById('ordering_party_id').value = '';
+    
+    const orderingPartyIdEl = document.getElementById('ordering_party_id');
+    if (orderingPartyIdEl) orderingPartyIdEl.value = '';
     document.getElementById('ordering_party_name').value = '';
+    
     selectedCustomerId = null;
     selectedOrderingPartyId = null;
     
     document.getElementById('quoted_amount').value = '';
-    document.getElementById('win_probability').value = '';
-    document.getElementById('notes').value = '';
+    
+    const winProbEl = document.getElementById('win_probability');
+    if (winProbEl) winProbEl.value = '';
+    
+    const notesEl = document.getElementById('notes');
+    if (notesEl) notesEl.value = '';
     
     attributes = [];
     histories = [];
@@ -462,6 +287,123 @@ function initializeFormTabs() {
             document.getElementById(`tab-${targetTab}`).classList.add('active');
         });
     });
+}
+
+// ===================================
+// Client Search (고객사/발주처)
+// ===================================
+function initializeClientSearch() {
+    // 고객사 검색 버튼
+    const customerSearchBtn = document.getElementById('customer_search_btn');
+    const customerNameInput = document.getElementById('customer_name');
+    
+    if (customerSearchBtn) {
+        customerSearchBtn.addEventListener('click', () => openClientSearchModal('customer'));
+    }
+    if (customerNameInput) {
+        customerNameInput.addEventListener('click', () => openClientSearchModal('customer'));
+    }
+    
+    // 발주처 검색 버튼
+    const orderingPartySearchBtn = document.getElementById('ordering_party_search_btn');
+    const orderingPartyNameInput = document.getElementById('ordering_party_name');
+    
+    if (orderingPartySearchBtn) {
+        orderingPartySearchBtn.addEventListener('click', () => openClientSearchModal('ordering_party'));
+    }
+    if (orderingPartyNameInput) {
+        orderingPartyNameInput.addEventListener('click', () => openClientSearchModal('ordering_party'));
+    }
+}
+
+// 고객사 검색 모달 열기
+async function openClientSearchModal(target) {
+    clientSearchTarget = target;
+    clientSearchPage = 1;
+    
+    const modal = document.getElementById('clientSearchModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        document.getElementById('clientSearchInput').value = '';
+        await searchClients();
+    }
+}
+
+// 고객사 검색
+async function searchClients(page = 1) {
+    const searchInput = document.getElementById('clientSearchInput');
+    const keyword = searchInput?.value?.trim() || '';
+    
+    try {
+        const response = await API.get(`${API_CONFIG.ENDPOINTS.CLIENTS}?keyword=${encodeURIComponent(keyword)}&page=${page}&page_size=10`);
+        console.log('📥 고객사 검색 결과:', response);
+        
+        renderClientSearchResults(response.items || response.clients || []);
+        renderClientPagination(response.total || 0, page);
+    } catch (error) {
+        console.error('❌ 고객사 검색 실패:', error);
+    }
+}
+
+// 검색 결과 렌더링
+function renderClientSearchResults(clients) {
+    const container = document.getElementById('clientSearchResults');
+    if (!container) return;
+    
+    if (clients.length === 0) {
+        container.innerHTML = '<p class="no-data">검색 결과가 없습니다.</p>';
+        return;
+    }
+    
+    container.innerHTML = clients.map(client => `
+        <div class="client-item" onclick="selectClient(${client.client_id}, '${client.client_name}')">
+            <span class="client-name">${client.client_name}</span>
+            <span class="client-type">${client.client_type || ''}</span>
+        </div>
+    `).join('');
+}
+
+// 페이지네이션 렌더링
+function renderClientPagination(total, currentPage) {
+    const container = document.getElementById('clientPagination');
+    if (!container) return;
+    
+    const totalPages = Math.ceil(total / 10);
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    let html = '';
+    for (let i = 1; i <= totalPages && i <= 5; i++) {
+        html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="searchClients(${i})">${i}</button>`;
+    }
+    container.innerHTML = html;
+}
+
+// 고객사 선택
+function selectClient(clientId, clientName) {
+    if (clientSearchTarget === 'customer') {
+        selectedCustomerId = clientId;
+        const customerIdEl = document.getElementById('customer_id');
+        if (customerIdEl) customerIdEl.value = clientId;
+        document.getElementById('customer_name').value = clientName;
+    } else {
+        selectedOrderingPartyId = clientId;
+        const orderingPartyIdEl = document.getElementById('ordering_party_id');
+        if (orderingPartyIdEl) orderingPartyIdEl.value = clientId;
+        document.getElementById('ordering_party_name').value = clientName;
+    }
+    
+    closeClientSearchModal();
+}
+
+// 모달 닫기
+function closeClientSearchModal() {
+    const modal = document.getElementById('clientSearchModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
 }
 
 // ===================================
@@ -594,7 +536,7 @@ function renderAttributes() {
                     </td>
                     <td>
                         <button type="button" class="btn btn-sm btn-danger" onclick="removeAttribute(${index})">
-                            <i class="fas fa-trash"></i> 삭제
+                            <i class="fas fa-trash"></i>
                         </button>
                     </td>
                 </tr>
@@ -711,14 +653,12 @@ function renderHistories() {
                         </select>
                     </td>
                     <td>
-                        <input type="text" class="form-input" 
-                            value="${hist.strategy_content || ''}" 
-                            placeholder="전략 또는 활동 내용 입력"
-                            onchange="updateHistory(${index}, 'strategy_content', this.value)">
+                        <textarea class="form-textarea" rows="2" 
+                            onchange="updateHistory(${index}, 'strategy_content', this.value)">${hist.strategy_content || ''}</textarea>
                     </td>
                     <td>
                         <button type="button" class="btn btn-sm btn-danger" onclick="removeHistory(${index})">
-                            <i class="fas fa-trash"></i> 삭제
+                            <i class="fas fa-trash"></i>
                         </button>
                     </td>
                 </tr>
@@ -727,14 +667,14 @@ function renderHistories() {
         
         html += '</tbody></table>';
     } else {
-        html += '<p class="no-data">등록된 이력이 없습니다. 위에서 이력을 추가하세요.</p>';
+        html += '<p class="no-data">등록된 이력이 없습니다. 위 버튼으로 이력을 추가하세요.</p>';
     }
     
     container.innerHTML = html;
 }
 
 // ===================================
-// Save Project (수정됨 - row_stat 올바르게 전송)
+// Save Project (✅ 수정됨 - 속성/이력 별도 저장)
 // ===================================
 async function saveProject() {
     try {
@@ -770,7 +710,7 @@ async function saveProject() {
         
         Utils.showLoading(true);
         
-        // 속성 데이터 준비 (row_stat이 있는 것만 전송)
+        // ✅ 속성 데이터 준비 (row_stat이 있는 것만 전송)
         const attributesToSave = attributes
             .filter(a => a.row_stat)  // row_stat이 있는 것만 (N, U, D)
             .map(a => ({
@@ -779,7 +719,7 @@ async function saveProject() {
                 row_stat: a.row_stat
             }));
         
-        // 이력 데이터 준비 (row_stat이 있는 것만 전송)
+        // ✅ 이력 데이터 준비 (row_stat이 있는 것만 전송)
         const historiesToSave = histories
             .filter(h => h.row_stat)  // row_stat이 있는 것만 (N, U, D)
             .map(h => ({
@@ -863,4 +803,3 @@ window.openClientSearchModal = openClientSearchModal;
 window.closeClientSearchModal = closeClientSearchModal;
 window.searchClients = searchClients;
 window.selectClient = selectClient;
-window.goToClientPage = goToClientPage;
