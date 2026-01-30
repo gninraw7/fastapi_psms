@@ -1,34 +1,27 @@
 // ===================================
-// static/js/config.js
-// API 설정 및 유틸리티 함수
-// 수정: 공통코드 엔드포인트 변경 (/projects/combo → /common/codes)
-// ===================================
-
-// ===================================
 // API Configuration
 // ===================================
 const API_CONFIG = {
-    BASE_URL: window.location.origin,
-    // BASE_URL: 'http://172.30.1.16:8000',  // 개발 서버
+    BASE_URL: window.location.origin,   
+   // BASE_URL: 'http://172.30.1.16:8000',
     API_VERSION: '/api/v1',
     
     ENDPOINTS: {
-        // 프로젝트 관련
         PROJECTS_LIST: '/projects/list',
-        PROJECTS: '/projects',
+		PROJECTS: '/projects',                 // ⭐ CRUD 엔드포인트
         PROJECT_DETAIL: '/project-detail',
-        PROJECT_HISTORY: '/projects/history',
-        
+		PROJECT_HISTORY: '/projects/history',  // ⭐ 추가
+
         // 거래처 관련
         CLIENTS_LIST: '/clients/list',
         CLIENTS_SEARCH: '/clients/search',
         CLIENTS_SEARCH_SIMPLE: '/clients/search/simple',
         
-        // 공통코드 관련 (⭐ 변경됨)
-        COMBO_DATA: '/common/codes',          // 변경: /projects/combo → /common/codes
-        MANAGERS: '/common/managers',          // 변경: /projects/managers → /common/managers
-        CODE_GROUPS: '/common/code-groups',    // 신규
-    },
+        // ⭐ 공통코드 관련 (변경됨)
+        COMBO_DATA: '/common/codes',         // /projects/combo → /common/codes
+        MANAGERS: '/common/managers',         // /projects/managers → /common/managers
+        CODE_GROUPS: '/common/code-groups',   // 신규
+	},
     
     TIMEOUT: 30000,
     RETRY: { MAX_ATTEMPTS: 3, DELAY: 1000 }
@@ -66,7 +59,7 @@ const API = {
         }
     },
     
-    async get(endpoint, params = null) {
+	async get(endpoint, params = null) {
         const url = new URL(`${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${endpoint}`);
         if (params) {
             Object.keys(params).forEach(key => {
@@ -93,6 +86,7 @@ const API = {
         console.log('📡 POST:', url);
         console.log('📤 전송 데이터:', data);
         
+        // ⭐ Content-Type을 application/json으로 명시
         const response = await fetch(url, {
             method: 'POST',
             headers: {
@@ -184,13 +178,6 @@ const Utils = {
         return date.toLocaleDateString('ko-KR');
     },
     
-    formatDateTime(dateString) {
-        if (!dateString) return '';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('ko-KR') + ' ' + 
-               date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-    },
-    
     truncate(text, maxLength = 50) {
         if (!text) return '';
         return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
@@ -206,20 +193,11 @@ const Utils = {
     
     showLoading(show = true) {
         const overlay = document.getElementById('loadingOverlay');
-        if (overlay) {
-            if (show) {
-                overlay.classList.add('active');
-            } else {
-                overlay.classList.remove('active');
-            }
+        if (show) {
+            overlay.classList.add('active');
+        } else {
+            overlay.classList.remove('active');
         }
-    },
-    
-    escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
     }
 };
 
@@ -262,7 +240,7 @@ async function loadStageConfig() {
         // 폴백: 기본 설정
         STAGE_CONFIG = {
             'S01': { label: '1 영업중', class: 'badge-stage-1' },
-            'S02': { label: '2 견적제출', class: 'badge-stage-2' },
+            'S02': { label: '2 건적제출', class: 'badge-stage-2' },
             'S03': { label: '3 제안중', class: 'badge-stage-3' },
             'S04': { label: '4 입찰중', class: 'badge-stage-4' },
             'S05': { label: '5 DROP', class: 'badge-stage-5' },
@@ -307,5 +285,3 @@ window.STAGE_CONFIG = STAGE_CONFIG;
 window.loadStageConfig = loadStageConfig;
 window.getStageBadge = getStageBadge;
 window.getStageLabel = getStageLabel;
-
-console.log('📦 Config 모듈 로드 완료');

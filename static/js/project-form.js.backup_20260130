@@ -366,44 +366,29 @@ async function loadProjectData(pipelineId) {
             // 고객사/발주처 (ID와 이름 모두 설정)
             if (project.customer_id) {
                 selectedCustomerId = project.customer_id;
-                const customerIdEl = document.getElementById('customer_id');
-                if (customerIdEl) customerIdEl.value = project.customer_id;
+                document.getElementById('customer_id').value = project.customer_id;
             }
             document.getElementById('customer_name').value = project.customer_name || '';
             
             if (project.ordering_party_id) {
                 selectedOrderingPartyId = project.ordering_party_id;
-                const orderingPartyIdEl = document.getElementById('ordering_party_id');
-                if (orderingPartyIdEl) orderingPartyIdEl.value = project.ordering_party_id;
+                document.getElementById('ordering_party_id').value = project.ordering_party_id;
             }
             document.getElementById('ordering_party_name').value = project.ordering_party_name || '';
             
             document.getElementById('quoted_amount').value = project.quoted_amount || '';
             
             // 1.3 수주확률, 비고 (신규 필드)
-            const winProbEl = document.getElementById('win_probability');
-            if (winProbEl) winProbEl.value = project.win_probability || '';
+            document.getElementById('win_probability').value = project.win_probability || '';
+            document.getElementById('notes').value = project.notes || '';
             
-            const notesEl = document.getElementById('notes');
-            if (notesEl) notesEl.value = project.notes || '';
-            
-            // 속성 로드 - 기존 데이터는 row_stat을 빈값으로 (수정 시 'U'로 변경)
-            attributes = (response.attributes || []).map(attr => ({
-                ...attr,
-                row_stat: ''  // 기존 데이터: 빈값 (변경 시 'U')
-            }));
+            // 속성 로드
+            attributes = response.attributes || [];
             renderAttributes();
             
-            // 이력 로드 - 기존 데이터는 row_stat을 빈값으로
-            histories = (response.histories || []).map(hist => ({
-                ...hist,
-                row_stat: ''  // 기존 데이터: 빈값 (변경 시 'U')
-            }));
+            // 이력 로드
+            histories = response.histories || [];
             renderHistories();
-            
-            console.log('✅ 프로젝트 데이터 로드 완료');
-            console.log('   - 속성:', attributes.length, '개');
-            console.log('   - 이력:', histories.length, '개');
         }
         
         Utils.showLoading(false);
@@ -468,77 +453,65 @@ function initializeFormTabs() {
 // 2.1 Attributes Management (수정됨)
 // ===================================
 function addAttribute() {
-    // 2.1 속성 추가
+    // 2.1 기존 속성과 중복 체크
     const attrCodeSelect = document.getElementById('new_attr_code');
     const attrValueInput = document.getElementById('new_attr_value');
     
-    if (!attrCodeSelect) {
-        console.warn('⚠️ 속성 코드 select 요소를 찾을 수 없음');
-        return;
+    if (!attrCodeSelect || !attrValueInput) {
+        // 입력 필드가 없으면 기본 방식
+        const newAttr = {
+            attr_code: '',
+            attr_value: '',
+            row_stat: 'N'
+        };
+        attributes.push(newAttr);
+    } else {
+        const attrCode = attrCodeSelect.value;
+        const attrValue = attrValueInput.value.trim();
+        
+        if (!attrCode) {
+            alert('속성명을 선택하세요.');
+            return;
+        }
+        
+        // 2.1 중복 체크
+        const isDuplicate = attributes.some(attr => attr.attr_code === attrCode && attr.row_stat !== 'D');
+        if (isDuplicate) {
+            alert('이미 등록된 속성입니다.');
+            return;
+        }
+        
+        const newAttr = {
+            attr_code: attrCode,
+            attr_name: attributeOptions.find(o => o.code === attrCode)?.code_name || attrCode,
+            attr_value: attrValue,
+            row_stat: 'N'
+        };
+        attributes.push(newAttr);
+        
+        // 입력 필드 초기화
+        attrCodeSelect.value = '';
+        attrValueInput.value = '';
     }
-    
-    const attrCode = attrCodeSelect.value;
-    const attrValue = attrValueInput ? attrValueInput.value.trim() : '';
-    
-    if (!attrCode) {
-        alert('속성명을 선택하세요.');
-        return;
-    }
-    
-    // 2.1 중복 체크 (삭제 표시된 것 제외)
-    const isDuplicate = attributes.some(attr => attr.attr_code === attrCode && attr.row_stat !== 'D');
-    if (isDuplicate) {
-        alert('이미 등록된 속성입니다. 동일한 속성은 중복 등록할 수 없습니다.');
-        return;
-    }
-    
-    // 새 속성 추가
-    const attrName = attributeOptions.find(o => o.code === attrCode)?.code_name || attrCode;
-    const newAttr = {
-        attr_code: attrCode,
-        attr_name: attrName,
-        attr_value: attrValue,
-        row_stat: 'N'  // 신규
-    };
-    attributes.push(newAttr);
-    
-    console.log('➕ 속성 추가:', newAttr);
-    
-    // 입력 필드 초기화
-    attrCodeSelect.value = '';
-    if (attrValueInput) attrValueInput.value = '';
     
     renderAttributes();
 }
 
 function removeAttribute(index) {
-    const attr = attributes[index];
-    
-    if (attr.row_stat === 'N') {
+    if (attributes[index].row_stat === 'N') {
         // 신규 항목은 바로 삭제
         attributes.splice(index, 1);
-        console.log('🗑️ 신규 속성 삭제');
     } else {
         // 기존 항목은 삭제 표시
         attributes[index].row_stat = 'D';
-        console.log('🗑️ 기존 속성 삭제 표시:', attr.attr_code);
     }
     renderAttributes();
 }
 
 function updateAttribute(index, field, value) {
-    const attr = attributes[index];
-    const oldValue = attr[field];
-    
-    // 값이 변경된 경우에만 처리
-    if (oldValue !== value) {
-        attributes[index][field] = value;
-        
-        // 기존 데이터인 경우 (row_stat이 빈값) → 수정 표시
-        if (attr.row_stat === '' || attr.row_stat === undefined) {
-            attributes[index].row_stat = 'U';
-            console.log('✏️ 속성 수정:', attr.attr_code, field, ':', oldValue, '→', value);
-        }
+    attributes[index][field] = value;
+    if (attributes[index].row_stat !== 'N') {
+        attributes[index].row_stat = 'U';
     }
 }
 
@@ -546,7 +519,7 @@ function renderAttributes() {
     const container = document.getElementById('attributesList');
     if (!container) return;
     
-    // 2.1 속성 추가 영역 + 테이블
+    // 2.1 속성 추가 영역
     let html = `
         <div class="attribute-add-row">
             <select id="new_attr_code" class="form-select">
@@ -555,57 +528,45 @@ function renderAttributes() {
                     `<option value="${opt.code}">${opt.code_name}</option>`
                 ).join('')}
             </select>
-            <input type="text" id="new_attr_value" class="form-input" placeholder="속성값 입력">
+            <input type="text" id="new_attr_value" class="form-input" placeholder="속성값">
             <button type="button" class="btn btn-sm btn-primary" onclick="addAttribute()">
                 <i class="fas fa-plus"></i> 추가
             </button>
         </div>
+        <table class="attributes-table">
+            <thead>
+                <tr>
+                    <th>속성명</th>
+                    <th>속성값</th>
+                    <th>삭제</th>
+                </tr>
+            </thead>
+            <tbody>
     `;
     
-    // 삭제되지 않은 속성만 필터링
-    const visibleAttrs = attributes.filter(attr => attr.row_stat !== 'D');
-    
-    if (visibleAttrs.length > 0) {
+    attributes.forEach((attr, index) => {
+        if (attr.row_stat === 'D') return;  // 삭제된 항목 숨김
+        
+        const attrName = attr.attr_name || attributeOptions.find(o => o.code === attr.attr_code)?.code_name || attr.attr_code;
+        
         html += `
-            <table class="attributes-table">
-                <thead>
-                    <tr>
-                        <th style="width: 30%;">속성명</th>
-                        <th style="width: 50%;">속성값</th>
-                        <th style="width: 20%;">관리</th>
-                    </tr>
-                </thead>
-                <tbody>
+            <tr>
+                <td>${attrName}</td>
+                <td>
+                    <input type="text" class="form-input" 
+                        value="${attr.attr_value || ''}" 
+                        onchange="updateAttribute(${index}, 'attr_value', this.value)">
+                </td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removeAttribute(${index})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
         `;
-        
-        attributes.forEach((attr, index) => {
-            if (attr.row_stat === 'D') return;  // 삭제된 항목 숨김
-            
-            const attrName = attr.attr_name || attributeOptions.find(o => o.code === attr.attr_code)?.code_name || attr.attr_code;
-            const rowClass = attr.row_stat === 'N' ? 'new-row' : (attr.row_stat === 'U' ? 'modified-row' : '');
-            
-            html += `
-                <tr class="${rowClass}">
-                    <td>${attrName}</td>
-                    <td>
-                        <input type="text" class="form-input" 
-                            value="${attr.attr_value || ''}" 
-                            onchange="updateAttribute(${index}, 'attr_value', this.value)">
-                    </td>
-                    <td>
-                        <button type="button" class="btn btn-sm btn-danger" onclick="removeAttribute(${index})">
-                            <i class="fas fa-trash"></i> 삭제
-                        </button>
-                    </td>
-                </tr>
-            `;
-        });
-        
-        html += '</tbody></table>';
-    } else {
-        html += '<p class="no-data">등록된 속성이 없습니다. 위에서 속성을 추가하세요.</p>';
-    }
+    });
     
+    html += '</tbody></table>';
     container.innerHTML = html;
 }
 
@@ -615,45 +576,28 @@ function renderAttributes() {
 function addHistory() {
     const today = new Date().toISOString().split('T')[0];
     const newHist = {
-        history_id: null,  // 신규는 null
         base_date: today,
         progress_stage: 'S01',  // 3.1 기본값 S01
         strategy_content: '',
-        row_stat: 'N'  // 신규
+        row_stat: 'N'
     };
     histories.push(newHist);
-    console.log('➕ 이력 추가');
     renderHistories();
 }
 
 function removeHistory(index) {
-    const hist = histories[index];
-    
-    if (hist.row_stat === 'N') {
-        // 신규 항목은 바로 삭제
+    if (histories[index].row_stat === 'N') {
         histories.splice(index, 1);
-        console.log('🗑️ 신규 이력 삭제');
     } else {
-        // 기존 항목은 삭제 표시
         histories[index].row_stat = 'D';
-        console.log('🗑️ 기존 이력 삭제 표시:', hist.history_id);
     }
     renderHistories();
 }
 
 function updateHistory(index, field, value) {
-    const hist = histories[index];
-    const oldValue = hist[field];
-    
-    // 값이 변경된 경우에만 처리
-    if (oldValue !== value) {
-        histories[index][field] = value;
-        
-        // 기존 데이터인 경우 (row_stat이 빈값) → 수정 표시
-        if (hist.row_stat === '' || hist.row_stat === undefined) {
-            histories[index].row_stat = 'U';
-            console.log('✏️ 이력 수정:', hist.history_id, field, ':', oldValue, '→', value);
-        }
+    histories[index][field] = value;
+    if (histories[index].row_stat !== 'N') {
+        histories[index].row_stat = 'U';
     }
 }
 
@@ -668,73 +612,59 @@ function renderHistories() {
                 <i class="fas fa-plus"></i> 이력 추가
             </button>
         </div>
+        <table class="histories-table">
+            <thead>
+                <tr>
+                    <th>기준일</th>
+                    <th>진행단계</th>
+                    <th>전략/내용</th>
+                    <th>삭제</th>
+                </tr>
+            </thead>
+            <tbody>
     `;
     
-    // 삭제되지 않은 이력만 필터링
-    const visibleHists = histories.filter(hist => hist.row_stat !== 'D');
-    
-    if (visibleHists.length > 0) {
+    histories.forEach((hist, index) => {
+        if (hist.row_stat === 'D') return;
+        
+        // 3.1 진행단계 콤보박스 옵션 생성
+        const stageOptionsHtml = stageOptions.map(s => 
+            `<option value="${s.code}" ${hist.progress_stage === s.code ? 'selected' : ''}>${s.code_name}</option>`
+        ).join('');
+        
         html += `
-            <table class="histories-table">
-                <thead>
-                    <tr>
-                        <th style="width: 15%;">기준일</th>
-                        <th style="width: 20%;">진행단계</th>
-                        <th style="width: 45%;">전략/내용</th>
-                        <th style="width: 20%;">관리</th>
-                    </tr>
-                </thead>
-                <tbody>
+            <tr>
+                <td>
+                    <input type="date" class="form-input" 
+                        value="${hist.base_date || ''}" 
+                        onchange="updateHistory(${index}, 'base_date', this.value)">
+                </td>
+                <td>
+                    <select class="form-select" onchange="updateHistory(${index}, 'progress_stage', this.value)">
+                        <option value="">선택</option>
+                        ${stageOptionsHtml}
+                    </select>
+                </td>
+                <td>
+                    <input type="text" class="form-input" 
+                        value="${hist.strategy_content || ''}" 
+                        onchange="updateHistory(${index}, 'strategy_content', this.value)">
+                </td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="removeHistory(${index})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
         `;
-        
-        histories.forEach((hist, index) => {
-            if (hist.row_stat === 'D') return;  // 삭제된 항목 숨김
-            
-            // 3.1 진행단계 콤보박스 옵션 생성
-            const stageOptionsHtml = stageOptions.map(s => 
-                `<option value="${s.code}" ${hist.progress_stage === s.code ? 'selected' : ''}>${s.code_name}</option>`
-            ).join('');
-            
-            const rowClass = hist.row_stat === 'N' ? 'new-row' : (hist.row_stat === 'U' ? 'modified-row' : '');
-            
-            html += `
-                <tr class="${rowClass}">
-                    <td>
-                        <input type="date" class="form-input" 
-                            value="${hist.base_date || ''}" 
-                            onchange="updateHistory(${index}, 'base_date', this.value)">
-                    </td>
-                    <td>
-                        <select class="form-select" onchange="updateHistory(${index}, 'progress_stage', this.value)">
-                            <option value="">선택</option>
-                            ${stageOptionsHtml}
-                        </select>
-                    </td>
-                    <td>
-                        <input type="text" class="form-input" 
-                            value="${hist.strategy_content || ''}" 
-                            placeholder="전략 또는 활동 내용 입력"
-                            onchange="updateHistory(${index}, 'strategy_content', this.value)">
-                    </td>
-                    <td>
-                        <button type="button" class="btn btn-sm btn-danger" onclick="removeHistory(${index})">
-                            <i class="fas fa-trash"></i> 삭제
-                        </button>
-                    </td>
-                </tr>
-            `;
-        });
-        
-        html += '</tbody></table>';
-    } else {
-        html += '<p class="no-data">등록된 이력이 없습니다. 위에서 이력을 추가하세요.</p>';
-    }
+    });
     
+    html += '</tbody></table>';
     container.innerHTML = html;
 }
 
 // ===================================
-// Save Project (수정됨 - row_stat 올바르게 전송)
+// Save Project (수정됨 - win_probability, notes 포함)
 // ===================================
 async function saveProject() {
     try {
@@ -746,51 +676,27 @@ async function saveProject() {
         
         if (!projectName) {
             alert('프로젝트명을 입력하세요.');
-            document.getElementById('project_name').focus();
             return;
         }
         
         if (!fieldCode) {
             alert('사업분야를 선택하세요.');
-            document.getElementById('field_code').focus();
             return;
         }
         
         if (!currentStage) {
             alert('진행단계를 선택하세요.');
-            document.getElementById('current_stage').focus();
             return;
         }
         
         if (!managerId) {
             alert('담당자를 선택하세요.');
-            document.getElementById('manager_id').focus();
             return;
         }
         
         Utils.showLoading(true);
         
-        // 속성 데이터 준비 (row_stat이 있는 것만 전송)
-        const attributesToSave = attributes
-            .filter(a => a.row_stat)  // row_stat이 있는 것만 (N, U, D)
-            .map(a => ({
-                attr_code: a.attr_code,
-                attr_value: a.attr_value || '',
-                row_stat: a.row_stat
-            }));
-        
-        // 이력 데이터 준비 (row_stat이 있는 것만 전송)
-        const historiesToSave = histories
-            .filter(h => h.row_stat)  // row_stat이 있는 것만 (N, U, D)
-            .map(h => ({
-                history_id: h.history_id || null,
-                base_date: h.base_date,
-                progress_stage: h.progress_stage,
-                strategy_content: h.strategy_content || '',
-                row_stat: h.row_stat
-            }));
-        
-        // 데이터 수집
+        // 데이터 수집 (1.2, 1.3 수정 반영)
         const projectData = {
             project_name: projectName,
             field_code: fieldCode,
@@ -799,16 +705,14 @@ async function saveProject() {
             customer_id: selectedCustomerId || parseInt(document.getElementById('customer_id')?.value) || null,
             ordering_party_id: selectedOrderingPartyId || parseInt(document.getElementById('ordering_party_id')?.value) || null,
             quoted_amount: parseInt(document.getElementById('quoted_amount').value) || 0,
-            win_probability: parseInt(document.getElementById('win_probability')?.value) || 0,
-            notes: document.getElementById('notes')?.value?.trim() || '',
-            attributes: attributesToSave,
-            histories: historiesToSave,
-            user_id: window.currentUser?.login_id || 'system'
+            win_probability: parseInt(document.getElementById('win_probability').value) || 0,  // 1.3 추가
+            notes: document.getElementById('notes').value.trim(),  // 1.3 추가
+            attributes: attributes.filter(a => a.row_stat !== 'D'),
+            histories: histories.filter(h => h.row_stat !== 'D'),
+            user_id: window.currentUser?.login_id || 'system'  // 현재 로그인 사용자
         };
         
         console.log('💾 저장 데이터:', projectData);
-        console.log('   - 속성 변경:', attributesToSave.length, '건');
-        console.log('   - 이력 변경:', historiesToSave.length, '건');
         
         // API 호출
         let response;
