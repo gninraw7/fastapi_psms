@@ -530,12 +530,13 @@ function renderAttributes() {
                 <tr class="${rowClass}">
                     <td>${attrName}</td>
                     <td>
-                        <input type="text" class="form-input" 
+                        <input type="text" class="form-input" style="width: 95%;"
                             value="${attr.attr_value || ''}" 
-                            onchange="updateAttribute(${index}, 'attr_value', this.value)">
+                            onchange="window.updateAttribute(${index}, 'attr_value', this.value)">
                     </td>
-                    <td>
-                        <button type="button" class="btn btn-sm btn-danger" onclick="removeAttribute(${index})">
+                    <td style="text-align: center;">
+                        <button type="button" class="btn btn-sm btn-danger" 
+                            onclick="window.removeAttribute(${index})" title="삭제">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>
@@ -617,13 +618,13 @@ function renderHistories() {
     
     if (visibleHists.length > 0) {
         html += `
-            <table class="histories-table">
+            <table class="histories-table" style="width: 100%; border-collapse: collapse;">
                 <thead>
                     <tr>
-                        <th style="width: 15%;">기준일</th>
-                        <th style="width: 20%;">진행단계</th>
-                        <th style="width: 45%;">전략/내용</th>
-                        <th style="width: 20%;">관리</th>
+                        <th style="width: 150px; padding: 8px 16px 8px 8px;">기준일</th>
+                        <th style="width: 140px; padding: 8px 16px;">진행단계</th>
+                        <th style="padding: 8px;">전략/내용</th>
+                        <th style="width: 80px; padding: 8px;">관리</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -641,23 +642,28 @@ function renderHistories() {
             
             html += `
                 <tr class="${rowClass}">
-                    <td>
+                    <td style="padding: 8px 16px 8px 8px; vertical-align: top;">
                         <input type="date" class="form-input" 
+                            style="width: 130px;"
                             value="${hist.base_date || ''}" 
-                            onchange="updateHistory(${index}, 'base_date', this.value)">
+                            onchange="window.updateHistory(${index}, 'base_date', this.value)">
                     </td>
-                    <td>
-                        <select class="form-select" onchange="updateHistory(${index}, 'progress_stage', this.value)">
+                    <td style="padding: 8px 16px; vertical-align: top;">
+                        <select class="form-select" 
+                            style="width: 110px;"
+                            onchange="window.updateHistory(${index}, 'progress_stage', this.value)">
                             <option value="">선택</option>
                             ${stageOptionsHtml}
                         </select>
                     </td>
-                    <td>
+                    <td style="padding: 8px; vertical-align: top;">
                         <textarea class="form-textarea" rows="2" 
-                            onchange="updateHistory(${index}, 'strategy_content', this.value)">${hist.strategy_content || ''}</textarea>
+                            style="width: 98%; box-sizing: border-box; resize: vertical;"
+                            onchange="window.updateHistory(${index}, 'strategy_content', this.value)">${hist.strategy_content || ''}</textarea>
                     </td>
-                    <td>
-                        <button type="button" class="btn btn-sm btn-danger" onclick="removeHistory(${index})">
+                    <td style="text-align: center; padding: 8px; vertical-align: top;">
+                        <button type="button" class="btn btn-sm btn-danger" 
+                            onclick="window.removeHistory(${index})" title="삭제">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>
@@ -760,15 +766,38 @@ async function saveProject() {
         
         console.log('✅ 저장 응답:', response);
         
-        Utils.showLoading(false);
+        // ✅ 신규 등록인 경우 → 수정 모드로 전환
+        if (formMode === 'new' && response.pipeline_id) {
+            // 모드 변경
+            formMode = 'edit';
+            currentPipelineId = response.pipeline_id;
+            
+            // pipeline_id 표시
+            document.getElementById('pipeline_id').value = response.pipeline_id;
+            
+            // 제목 변경
+            const titleElement = document.getElementById('formTitle');
+            const titleIcon = titleElement.parentElement.querySelector('i');
+            titleElement.textContent = '프로젝트 수정';
+            if (titleIcon) titleIcon.className = 'fas fa-edit';
+            
+            Utils.showLoading(false);
+            
+            // 데이터 새로고침 (row_stat 초기화를 위해)
+            await loadProjectData(response.pipeline_id);
+            
+            alert(`프로젝트가 등록되었습니다.\nPipeline ID: ${response.pipeline_id}`);
+        } else {
+            Utils.showLoading(false);
+            
+            // 수정 모드: 데이터 새로고침 (row_stat 초기화)
+            await loadProjectData(currentPipelineId);
+            
+            alert('프로젝트가 수정되었습니다.');
+        }
         
-        alert(formMode === 'new' 
-            ? `프로젝트가 등록되었습니다.\nPipeline ID: ${response.pipeline_id}` 
-            : '프로젝트가 수정되었습니다.'
-        );
-        
-        // 목록으로 이동
-        navigateTo('projects-list');
+        // ✅ 목록으로 이동하지 않고 현재 화면 유지
+        // 백그라운드에서 목록 데이터 갱신 (나중에 목록으로 돌아갈 때를 위해)
         if (typeof projectTable !== 'undefined' && projectTable) {
             projectTable.setData();
         }
@@ -781,11 +810,24 @@ async function saveProject() {
 }
 
 // ===================================
-// Cancel Form
+// Close Form (목록으로 돌아가기)
+// ===================================
+function closeProjectForm() {
+    // 목록으로 이동
+    navigateTo('projects-list');
+    
+    // 목록 데이터 새로고침
+    if (typeof projectTable !== 'undefined' && projectTable) {
+        projectTable.setData();
+    }
+}
+
+// ===================================
+// Cancel Form (변경 사항 확인 후 닫기)
 // ===================================
 function cancelProjectForm() {
-    if (confirm('작성 중인 내용이 저장되지 않습니다. 취소하시겠습니까?')) {
-        navigateTo('projects-list');
+    if (confirm('작성 중인 내용이 저장되지 않습니다. 목록으로 돌아가시겠습니까?')) {
+        closeProjectForm();
     }
 }
 
@@ -799,6 +841,7 @@ window.removeHistory = removeHistory;
 window.updateHistory = updateHistory;
 window.saveProject = saveProject;
 window.cancelProjectForm = cancelProjectForm;
+window.closeProjectForm = closeProjectForm;
 window.openClientSearchModal = openClientSearchModal;
 window.closeClientSearchModal = closeClientSearchModal;
 window.searchClients = searchClients;

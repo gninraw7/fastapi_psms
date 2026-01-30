@@ -77,6 +77,19 @@ class ProjectHistoryUpdateRequest(BaseModel):
 # ============================================
 # 프로젝트 목록 조회
 # ============================================
+@router.get("/list")
+async def get_projects_list(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=500),
+    field_code: Optional[str] = None,
+    current_stage: Optional[str] = None,
+    keyword: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """프로젝트 목록 조회 (/list 경로)"""
+    return await get_projects(page, page_size, field_code, current_stage, keyword, db)
+
+
 @router.get("")
 async def get_projects(
     page: int = Query(1, ge=1),
@@ -109,8 +122,8 @@ async def get_projects(
                 p.created_at,
                 p.updated_at
             FROM projects p
-            LEFT JOIN common_codes f ON f.code_type = 'FIELD' AND f.code = p.field_code
-            LEFT JOIN common_codes s ON s.code_type = 'STAGE' AND s.code = p.current_stage
+            LEFT JOIN comm_code f ON f.group_code = 'FIELD' AND f.code = p.field_code
+            LEFT JOIN comm_code s ON s.group_code = 'STAGE' AND s.code = p.current_stage
             LEFT JOIN users u ON u.login_id = p.manager_id
             LEFT JOIN clients c1 ON c1.client_id = p.customer_id
             LEFT JOIN clients c2 ON c2.client_id = p.ordering_party_id

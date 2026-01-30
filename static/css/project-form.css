@@ -655,3 +655,203 @@ bashcat >> ~/fastapi_psms/static/css/project-form.css << 'EOF'
     margin-top: 0.25rem;
 }
 </style>
+
+/* ===================================
+   Form Header - 닫기 버튼 스타일
+   =================================== */
+.form-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    color: white;
+}
+
+.form-header .form-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.form-header .form-title i {
+    font-size: 1.5rem;
+}
+
+.form-header .form-title h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.form-header .form-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* 닫기 아이콘 버튼 (X) */
+.btn-close-icon {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 1.1rem;
+}
+
+.btn-close-icon:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
+}
+
+/* 목록 버튼 (outline 스타일) */
+.btn-outline-secondary {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.btn-outline-secondary:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: white;
+}
+
+/* 저장 버튼 강조 */
+.form-header .btn-primary {
+    background: white;
+    color: #667eea;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 600;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.form-header .btn-primary:hover {
+    background: #f0f0f0;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* ===================================
+   반응형 스타일
+   =================================== */
+@media (max-width: 768px) {
+    .form-header {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+    }
+    
+    .form-header .form-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .btn-outline-secondary span {
+        display: none;  /* 모바일에서 텍스트 숨김 */
+    }
+}
+
+/* 
+   이력 테이블 스타일 수정
+   static/css/project-form.css에 추가하세요
+*/
+
+/* ===================================
+   이력 테이블 - textarea 폭 조정
+   =================================== */
+.histories-table {
+    width: 100%;
+    table-layout: fixed;  /* 컬럼 폭 고정 */
+}
+
+.histories-table td {
+    vertical-align: top;
+    padding: 0.5rem;
+}
+
+/* 전략/내용 컬럼의 textarea */
+.histories-table td textarea.form-textarea {
+    width: 95% !important;
+    min-width: 95% !important;
+    max-width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    min-height: 60px;
+}
+
+/* 속성 테이블 input 폭 조정 */
+.attributes-table td input.form-input {
+    width: 95% !important;
+    box-sizing: border-box;
+}
+
+/* 관리 컬럼 버튼 중앙 정렬 */
+.histories-table td:last-child,
+.attributes-table td:last-child {
+    text-align: center;
+    vertical-align: middle;
+}
+
+/* 삭제 버튼 스타일 */
+.btn-danger {
+    background-color: #dc3545;
+    border: none;
+    color: white;
+    padding: 0.375rem 0.625rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+    transform: scale(1.05);
+}
+
+/* ===================================
+   반응형 - 작은 화면
+   =================================== */
+@media (max-width: 992px) {
+    .histories-table th:nth-child(1),
+    .histories-table td:nth-child(1) {
+        width: 10% !important;
+    }
+    
+    .histories-table th:nth-child(2),
+    .histories-table td:nth-child(2) {
+        width: 15% !important;
+    }
+    
+    .histories-table th:nth-child(3),
+    .histories-table td:nth-child(3) {
+        width: 50% !important;
+    }
+    
+    .histories-table th:nth-child(4),
+    .histories-table td:nth-child(4) {
+        width: 15% !important;
+    }
+}

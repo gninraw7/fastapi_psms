@@ -264,11 +264,14 @@
                         <h2 id="formTitle">신규 프로젝트</h2>
                     </div>
                     <div class="form-actions">
-                        <button class="btn btn-secondary" onclick="cancelProjectForm()">
-                            <i class="fas fa-times"></i> 취소
-                        </button>
-                        <button class="btn btn-primary" onclick="saveProject()">
+                        <button class="btn btn-primary" onclick="saveProject()" title="저장">
                             <i class="fas fa-save"></i> 저장
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="closeProjectForm()" title="목록으로">
+                            <i class="fas fa-list"></i> 목록
+                        </button>
+                        <button class="btn btn-close-icon" onclick="closeProjectForm()" title="닫기">
+                            <i class="fas fa-times"></i>
                         </button>
                     </div>
                 </div>

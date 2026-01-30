@@ -1,5 +1,9 @@
 """
 프로젝트 상세 관리 서비스
+app/services/project_detail_service.py
+
+버그 수정 (2026-01-30):
+- get_project_detail: notes, win_probability 필드 추가
 """
 from typing import Optional, List
 from sqlalchemy import text
@@ -18,6 +22,7 @@ logger = logging.getLogger(__name__)
 def get_project_detail(db: Session, pipeline_id: str) -> Optional[ProjectDetail]:
     """
     프로젝트 상세 정보 조회 (JOIN)
+    ✅ 수정: notes, win_probability 필드 추가
     """
     query = text("""
         SELECT 
@@ -34,6 +39,8 @@ def get_project_detail(db: Session, pipeline_id: str) -> Optional[ProjectDetail]
             p.current_stage,
             cc_stage.code_name as stage_name,
             p.quoted_amount,
+            p.win_probability,
+            p.notes,
             p.created_at,
             p.updated_at
         FROM projects p
@@ -62,6 +69,8 @@ def get_project_detail(db: Session, pipeline_id: str) -> Optional[ProjectDetail]
             current_stage=result.current_stage,
             stage_name=result.stage_name,
             quoted_amount=result.quoted_amount,
+            win_probability=result.win_probability,  # ✅ 추가
+            notes=result.notes,  # ✅ 추가
             created_at=result.created_at,
             updated_at=result.updated_at
         )
@@ -174,41 +183,45 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
         # 프로젝트 기본 정보 저장
         if mode == "INSERT":
             # 신규 프로젝트 생성
+            from datetime import date
+            year = date.today().year
+            year_pattern = f"{year}_%"
+            
+            # 새 ID 생성
+            max_query = text("""
+                SELECT MAX(CAST(SUBSTRING(pipeline_id, 6) AS UNSIGNED)) as max_seq
+                FROM projects
+                WHERE pipeline_id LIKE :year_pattern
+            """)
+            max_result = db.execute(max_query, {"year_pattern": year_pattern}).fetchone()
+            max_seq = max_result.max_seq if max_result and max_result.max_seq else 0
+            pipeline_id = f"{year}_{str(max_seq + 1).zfill(3)}"
+            
             insert_query = text("""
                 INSERT INTO projects (
                     pipeline_id, project_name, field_code, manager_id,
-                    customer_id, ordering_party_id, current_stage, quoted_amount, created_by
+                    customer_id, ordering_party_id, current_stage, 
+                    quoted_amount, win_probability, notes, created_by
+                ) VALUES (
+                    :pipeline_id, :project_name, :field_code, :manager_id,
+                    :customer_id, :ordering_party_id, :current_stage,
+                    :quoted_amount, :win_probability, :notes, :user_id
                 )
-                SELECT 
-                    (@new_id := CONCAT(:year, '_', LPAD(
-                        COALESCE(MAX(CAST(SUBSTRING(pipeline_id, 6) AS UNSIGNED)), 0) + 1, 3, '0'
-                    ))),
-                    :project_name, :field_code, :manager_id,
-                    :customer_id, :ordering_party_id, :current_stage, :quoted_amount, :user_id
-                FROM (
-                    SELECT pipeline_id FROM projects WHERE pipeline_id LIKE :year_pattern
-                ) AS tmp
             """)
             
-            from datetime import datetime
-            year = datetime.now().strftime("%Y")
-            
             db.execute(insert_query, {
-                "year": year,
-                "year_pattern": f"{year}_%",
+                "pipeline_id": pipeline_id,
                 "project_name": data.project_name,
                 "field_code": data.field_code,
                 "manager_id": data.manager_id,
                 "customer_id": data.customer_id,
                 "ordering_party_id": data.ordering_party_id,
                 "current_stage": data.current_stage,
-                "quoted_amount": float(data.quoted_amount) if data.quoted_amount else 0.0,
+                "quoted_amount": data.quoted_amount or 0,
+                "win_probability": getattr(data, 'win_probability', 0) or 0,
+                "notes": getattr(data, 'notes', '') or '',
                 "user_id": data.user_id
             })
-            
-            # 생성된 pipeline_id 가져오기
-            result = db.execute(text("SELECT @new_id")).fetchone()
-            pipeline_id = result[0]
             
         else:
             # 기존 프로젝트 수정
@@ -221,6 +234,8 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                     ordering_party_id = :ordering_party_id,
                     current_stage = :current_stage,
                     quoted_amount = :quoted_amount,
+                    win_probability = :win_probability,
+                    notes = :notes,
                     updated_by = :user_id
                 WHERE pipeline_id = :pipeline_id
             """)
@@ -233,7 +248,9 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                 "customer_id": data.customer_id,
                 "ordering_party_id": data.ordering_party_id,
                 "current_stage": data.current_stage,
-                "quoted_amount": float(data.quoted_amount) if data.quoted_amount else 0.0,
+                "quoted_amount": data.quoted_amount or 0,
+                "win_probability": getattr(data, 'win_probability', 0) or 0,
+                "notes": getattr(data, 'notes', '') or '',
                 "user_id": data.user_id
             })
         
@@ -288,83 +305,95 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
             if row_stat == "N":  # 신규
                 db.execute(text("""
                     INSERT INTO project_history (
-                        pipeline_id, base_date, progress_stage, strategy_content, 
-                        creator_id, created_by
-                    )
-                    VALUES (
-                        :pipeline_id, :base_date, :progress_stage, :strategy_content,
-                        :user_id, :user_id
+                        pipeline_id, base_date, progress_stage, strategy_content, creator_id, created_by
+                    ) VALUES (
+                        :pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, :created_by
                     )
                 """), {
                     "pipeline_id": pipeline_id,
                     "base_date": hist.get("base_date"),
                     "progress_stage": hist.get("progress_stage"),
                     "strategy_content": hist.get("strategy_content", ""),
-                    "user_id": data.user_id
+                    "creator_id": data.user_id,
+                    "created_by": data.user_id
                 })
                 hist_count += 1
                 
             elif row_stat == "U":  # 수정
-                db.execute(text("""
-                    UPDATE project_history 
-                    SET 
-                        base_date = :base_date,
-                        progress_stage = :progress_stage,
-                        strategy_content = :strategy_content,
-                        updated_by = :user_id
-                    WHERE history_id = :history_id AND pipeline_id = :pipeline_id
-                """), {
-                    "history_id": hist.get("history_id"),
-                    "pipeline_id": pipeline_id,
-                    "base_date": hist.get("base_date"),
-                    "progress_stage": hist.get("progress_stage"),
-                    "strategy_content": hist.get("strategy_content", ""),
-                    "user_id": data.user_id
-                })
-                hist_count += 1
+                history_id = hist.get("history_id")
+                if history_id:
+                    db.execute(text("""
+                        UPDATE project_history 
+                        SET base_date = :base_date, 
+                            progress_stage = :progress_stage, 
+                            strategy_content = :strategy_content,
+                            updated_by = :user_id
+                        WHERE history_id = :history_id
+                    """), {
+                        "history_id": history_id,
+                        "base_date": hist.get("base_date"),
+                        "progress_stage": hist.get("progress_stage"),
+                        "strategy_content": hist.get("strategy_content", ""),
+                        "user_id": data.user_id
+                    })
+                    hist_count += 1
                 
             elif row_stat == "D":  # 삭제
-                db.execute(text("""
-                    DELETE FROM project_history 
-                    WHERE history_id = :history_id AND pipeline_id = :pipeline_id
-                """), {
-                    "history_id": hist.get("history_id"),
-                    "pipeline_id": pipeline_id
-                })
-                hist_count += 1
+                history_id = hist.get("history_id")
+                if history_id:
+                    db.execute(text("""
+                        DELETE FROM project_history WHERE history_id = :history_id
+                    """), {
+                        "history_id": history_id
+                    })
+                    hist_count += 1
         
         db.commit()
+        
+        logger.info(f"프로젝트 저장 완료: {pipeline_id}, 속성: {attr_count}건, 이력: {hist_count}건")
         
         return ProjectSaveResponse(
             success=True,
             pipeline_id=pipeline_id,
-            message="정상적으로 저장되었습니다.",
+            message=f"프로젝트가 {'등록' if mode == 'INSERT' else '수정'}되었습니다.",
             attributes_saved=attr_count,
             histories_saved=hist_count
         )
         
     except Exception as e:
         db.rollback()
-        logger.error(f"프로젝트 저장 실패: {str(e)}")
+        logger.error(f"프로젝트 저장 실패: {e}", exc_info=True)
         raise
 
 
 def delete_project(db: Session, pipeline_id: str, user_id: str) -> bool:
     """
-    프로젝트 삭제 (CASCADE로 관련 데이터 자동 삭제)
+    프로젝트 삭제
     """
     try:
-        query = text("""
-            DELETE FROM projects 
-            WHERE pipeline_id = :pipeline_id
-        """)
+        # 존재 확인
+        check_query = text("SELECT pipeline_id FROM projects WHERE pipeline_id = :pipeline_id")
+        result = db.execute(check_query, {"pipeline_id": pipeline_id}).fetchone()
         
-        result = db.execute(query, {"pipeline_id": pipeline_id})
+        if not result:
+            return False
+        
+        # 관련 데이터 삭제 (CASCADE가 없는 경우 수동 삭제)
+        db.execute(text("DELETE FROM project_attributes WHERE pipeline_id = :pipeline_id"), 
+                   {"pipeline_id": pipeline_id})
+        db.execute(text("DELETE FROM project_history WHERE pipeline_id = :pipeline_id"), 
+                   {"pipeline_id": pipeline_id})
+        
+        # 프로젝트 삭제
+        db.execute(text("DELETE FROM projects WHERE pipeline_id = :pipeline_id"), 
+                   {"pipeline_id": pipeline_id})
+        
         db.commit()
         
-        return result.rowcount > 0
+        logger.info(f"프로젝트 삭제 완료: {pipeline_id} by {user_id}")
+        return True
         
     except Exception as e:
         db.rollback()
-        logger.error(f"프로젝트 삭제 실패: {str(e)}")
+        logger.error(f"프로젝트 삭제 실패: {e}", exc_info=True)
         raise

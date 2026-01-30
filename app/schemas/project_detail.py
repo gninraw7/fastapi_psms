@@ -1,5 +1,10 @@
 """
 프로젝트 상세 관리 스키마
+app/schemas/project_detail.py
+
+버그 수정 (2026-01-30):
+- ProjectDetail, ProjectBase: notes, win_probability 필드 추가
+- ProjectSaveRequest: notes, win_probability 필드 추가
 """
 from datetime import date, datetime
 from typing import Optional, List
@@ -19,6 +24,8 @@ class ProjectBase(BaseModel):
     ordering_party_id: Optional[int] = Field(None, description="발주처 ID")
     current_stage: Optional[str] = Field(None, description="현재 진행단계")
     quoted_amount: Optional[Decimal] = Field(default=Decimal('0.00'), description="견적금액")
+    win_probability: Optional[int] = Field(None, description="수주확률")  # ✅ 추가
+    notes: Optional[str] = Field(None, description="비고")  # ✅ 추가
 
 
 class ProjectCreate(ProjectBase):
@@ -137,6 +144,8 @@ class ProjectSaveRequest(BaseModel):
     ordering_party_id: Optional[int] = None
     current_stage: Optional[str] = None
     quoted_amount: Optional[Decimal] = Decimal('0.00')
+    win_probability: Optional[int] = Field(None, description="수주확률")  # ✅ 추가
+    notes: Optional[str] = Field(None, description="비고")  # ✅ 추가
     
     # 속성 목록 (row_stat: N=신규, U=수정, D=삭제, ""=변경없음)
     attributes: List[dict] = Field(default_factory=list, description="속성 목록")
