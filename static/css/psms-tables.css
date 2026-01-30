@@ -1,0 +1,505 @@
+/* ===================================
+   Tabulator 테이블 커스텀 스타일
+   - 크기 축소 적용
+   =================================== */
+
+/* Tabulator 기본 스타일 오버라이드 */
+.tabulator {
+    font-size: var(--font-size-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.tabulator-header {
+    background: var(--bg-light);
+    border-bottom: 2px solid var(--primary-color);
+}
+
+.tabulator-col {
+    background: transparent;
+    border-right: 1px solid var(--border-light);
+}
+
+.tabulator-col-title {
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.tabulator-cell {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    font-size: var(--font-size-sm);
+    border-right: 1px solid var(--border-light);
+}
+
+.tabulator-row {
+    min-height: 2.64rem;  /* 축소 */
+}
+
+.tabulator-row:hover {
+    background: var(--bg-hover) !important;
+}
+
+.tabulator-row.tabulator-selected {
+    background: rgba(47, 85, 151, 0.08) !important;
+}
+
+.tabulator-row.tabulator-selected .tabulator-cell {
+    border-color: var(--primary-color) !important;
+}
+
+.tabulator-row.tabulator-selectable:hover {
+    background: rgba(47, 85, 151, 0.04) !important;
+    cursor: pointer;
+}
+
+/* 신규 추가된 행 */
+.new-row {
+    background-color: #e8f5e9 !important;
+}
+
+.new-row:hover {
+    background-color: #c8e6c9 !important;
+}
+
+/* 수정된 행 */
+.modified-row {
+    background-color: #fff3e0 !important;
+}
+
+.modified-row:hover {
+    background-color: #ffe0b2 !important;
+}
+
+/* 체크박스 스타일 */
+.tabulator .tabulator-header .tabulator-col .tabulator-header-filter input[type="checkbox"],
+.tabulator-cell input[type="checkbox"] {
+    width: 1.408rem;  /* 축소 */
+    height: 1.408rem;
+    cursor: pointer;
+}
+
+/* 페이지네이션 */
+.tabulator-footer {
+    padding: var(--spacing-md);
+    background: var(--bg-light);
+    border-top: 1px solid var(--border-color);
+}
+
+.tabulator-page {
+    padding: var(--spacing-xs) var(--spacing-md);
+    margin: 0 var(--spacing-xs);
+    font-size: var(--font-size-sm);
+    border-radius: var(--radius-sm);
+}
+
+.tabulator-page.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+
+/* ===================================
+   프로젝트 속성 테이블
+   =================================== */
+.attributes-table,
+.histories-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--spacing-lg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.attributes-table th,
+.attributes-table td,
+.histories-table th,
+.histories-table td {
+    padding: var(--spacing-md) var(--spacing-lg);
+    text-align: left;
+    border-bottom: 1px solid var(--border-light);
+    vertical-align: top;
+}
+
+.attributes-table th,
+.histories-table th {
+    background: var(--bg-light);
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.attributes-table tbody tr:last-child td,
+.histories-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.attributes-table tbody tr:hover,
+.histories-table tbody tr:hover {
+    background: var(--bg-hover);
+}
+
+/* 속성 추가 영역 */
+.attribute-add-row,
+.history-add-row {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-lg);
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    border-radius: var(--radius-md);
+    align-items: center;
+}
+
+.attribute-add-row .form-select,
+.attribute-add-row .form-input {
+    flex: 1;
+    min-width: 132px;  /* 축소 */
+}
+
+/* textarea 폭 조정 */
+.histories-table td textarea.form-textarea {
+    width: 95% !important;
+    min-width: 95% !important;
+    max-width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    min-height: 4.4rem;  /* 축소 */
+}
+
+/* 속성 테이블 input 폭 조정 */
+.attributes-table td input.form-input {
+    width: 95% !important;
+    box-sizing: border-box;
+}
+
+/* 관리 컬럼 버튼 중앙 정렬 */
+.histories-table td:last-child,
+.attributes-table td:last-child {
+    text-align: center;
+    vertical-align: middle;
+}
+
+
+/* ===================================
+   프로젝트 상세 - 이력 섹션
+   =================================== */
+.detail-section {
+    margin-bottom: var(--spacing-2xl);
+    width: 100%;
+}
+
+.detail-section h3 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 2px solid var(--primary-color);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+    max-height: 440px;  /* 축소 */
+    overflow-y: auto;
+    padding: var(--spacing-xs);
+    width: 100%;
+}
+
+.history-item {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-left: 0.352rem solid var(--primary-color);  /* 축소 */
+    border-radius: var(--radius-md);
+    padding: var(--spacing-lg);
+    transition: var(--transition);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.history-item:hover {
+    box-shadow: var(--shadow-md);
+    border-left-color: var(--primary-dark);
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+}
+
+.history-date {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.history-stage {
+    display: inline-block;
+    padding: 0.264rem 0.88rem;  /* 축소 */
+    border-radius: var(--radius-xl);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+}
+
+.history-content {
+    width: 100% !important;
+    max-width: none !important;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: keep-all;
+    padding: var(--spacing-md);
+    background: white;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-light);
+    box-sizing: border-box;
+}
+
+.history-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--border-color);
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+}
+
+.history-empty {
+    text-align: center;
+    padding: var(--spacing-3xl) var(--spacing-lg);
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+
+/* ===================================
+   프로젝트 상세 모달
+   =================================== */
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-lg);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.detail-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+.detail-title h3 {
+    margin: 0;
+    font-size: var(--font-size-xl);
+    color: var(--text-primary);
+}
+
+.detail-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.pipeline-badge {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: white;
+    padding: 0.264rem 0.704rem;  /* 축소 */
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    letter-spacing: 0.044rem;
+}
+
+.detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--spacing-sm);
+}
+
+.detail-table th,
+.detail-table td {
+    padding: var(--spacing-md) var(--spacing-lg);
+    border: 1px solid var(--border-color);
+    text-align: left;
+    vertical-align: middle;
+}
+
+.detail-table th {
+    background: var(--bg-color);
+    font-weight: 600;
+    color: var(--text-secondary);
+    width: 105.6px;  /* 축소 */
+    white-space: nowrap;
+}
+
+.detail-table td {
+    color: var(--text-primary);
+}
+
+.detail-table td.amount {
+    text-align: right;
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.detail-table thead th {
+    background: var(--bg-light);
+    text-align: center;
+}
+
+.detail-table tbody tr:hover {
+    background: var(--bg-hover);
+}
+
+
+/* ===================================
+   고객사 검색 모달
+   =================================== */
+.modal-medium {
+    max-width: 616px;  /* 축소 */
+}
+
+.client-search-results {
+    max-height: 352px;  /* 축소 */
+    overflow-y: auto;
+    margin-top: var(--spacing-lg);
+}
+
+.client-search-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.client-search-table th,
+.client-search-table td {
+    padding: var(--spacing-md);
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.client-search-table th {
+    background: var(--bg-hover);
+    font-weight: 600;
+}
+
+.client-search-table tr:hover {
+    background: var(--bg-color);
+}
+
+
+/* ===================================
+   페이징
+   =================================== */
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    padding: var(--spacing-lg);
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+.page-info {
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}
+
+
+/* ===================================
+   입력 그룹
+   =================================== */
+.input-group {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.input-group .form-input {
+    flex: 1;
+}
+
+
+/* ===================================
+   탭 설명
+   =================================== */
+.tab-description {
+    padding: var(--spacing-lg);
+    background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-lg);
+    color: #1565c0;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+}
+
+.tab-description i {
+    font-size: var(--icon-md);
+}
+
+
+/* ===================================
+   Empty State
+   =================================== */
+.empty-state {
+    text-align: center;
+    padding: 3.52rem 1.76rem;  /* 축소 */
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 3.52rem;  /* 축소 */
+    margin-bottom: var(--spacing-lg);
+    opacity: 0.5;
+}
+
+.empty-state p {
+    font-size: var(--font-size-md);
+}
+
+
+/* ===================================
+   반응형 테이블
+   =================================== */
+@media (max-width: 992px) {
+    .histories-table th:nth-child(1),
+    .histories-table td:nth-child(1) {
+        width: 10% !important;
+    }
+    
+    .histories-table th:nth-child(2),
+    .histories-table td:nth-child(2) {
+        width: 15% !important;
+    }
+    
+    .histories-table th:nth-child(3),
+    .histories-table td:nth-child(3) {
+        width: 50% !important;
+    }
+    
+    .histories-table th:nth-child(4),
+    .histories-table td:nth-child(4) {
+        width: 15% !important;
+    }
+}

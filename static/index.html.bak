@@ -18,16 +18,10 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 	
     <!-- Custom CSS -->
-    <!-- 메인 CSS -->
-    <link rel="stylesheet" href="/css/psms-optimized.css?v=2.0">
-    <!-- 테이블 CSS 추가 -->
-    <link rel="stylesheet" href="/css/psms-tables.css?v=2.0">
-
-    <!--<link rel="stylesheet" href="/static/css/styles.css">-->
-    <!--<link rel="stylesheet" href="/static/css/navigation.css">-->
-    <!--<link rel="stylesheet" href="/static/css/project-form.css">-->
-	<!--<link rel="stylesheet" href="/static/css/mobile.css">-->
-    
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/navigation.css">
+    <link rel="stylesheet" href="/static/css/project-form.css">
+	<link rel="stylesheet" href="/static/css/mobile.css">
     <!-- ⭐ 인증 관리 스크립트 추가 -->
     <script src="/static/js/auth.js"></script>    
 </head>
@@ -811,10 +805,10 @@
 
     <!-- Scripts -->
     <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
-    <script src="/static/js/config.js?v=20260130"></script>
-    <script src="/static/js/navigation.js?v=20260130"></script>
-    <script src="/static/js/app.js?v=20260130"></script>
-    <script src="/static/js/project-form.js?v=20260130"></script>
-	<script src="/static/js/mobile.js?v=20260130"></script>		
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/navigation.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/project-form.js"></script>
+	<script src="/static/js/mobile.js"></script>		
 </body>
 </html>

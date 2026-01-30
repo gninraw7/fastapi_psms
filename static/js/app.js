@@ -1,11 +1,10 @@
 // ===================================
-// static/js/app.js (수정 버전)
-// 프로젝트 목록에서 수정 화면으로 분기 기능 추가
+// static/js/app.js
+// 프로젝트 목록 화면 JavaScript
 // 
 // 버그 수정 (2026-01-30):
-// 1. 진행단계 콤보 로드 - API 직접 호출로 변경
-// 2. 검색필드 조건 적용 - search_field, search_text 파라미터 사용
-// 3. 페이지 크기 기본값 25로 변경 (상단 필터의 pageSize 콤보 삭제됨)
+// - initializeTable의 Promise가 resolve되지 않아 이벤트 리스너가 등록되지 않는 문제 수정
+// - 이벤트 리스너를 테이블 초기화와 독립적으로 바로 등록
 // ===================================
 
 // ===================================
@@ -13,15 +12,15 @@
 // ===================================
 let projectTable = null;
 let currentFilters = {
-    search_field: '',   // ⭐ snake_case로 통일
-    search_text: '',    // ⭐ snake_case로 통일
+    search_field: '',
+    search_text: '',
     manager_id: '',
     field_code: '',
     current_stage: '',
     page: 1,
-    page_size: 25       // ⭐ 기본값 25로 변경
+    page_size: 25
 };
-let selectedRow = null;  // 선택된 Row 추적
+let selectedRow = null;
 
 // ===================================
 // Initialization
@@ -29,12 +28,30 @@ let selectedRow = null;  // 선택된 Row 추적
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 PSMS 초기화 시작...');
     
+    // 프로젝트 목록 페이지인지 확인
+    const projectTableEl = document.getElementById('projectTable');
+    
+    if (!projectTableEl) {
+        console.log('⚠️ projectTable 요소 없음, 초기화 스킵');
+        return;
+    }
+    
     try {
+        // 1. STAGE 설정 로드
         await loadStageConfig();
+        
+        // 2. 필터 초기화
         await initializeFilters();
-        await initializeTable();
+        
+        // 3. 테이블 초기화 (Promise 기다리지 않음)
+        initializeTable();
+        
+        // 4. ⭐ 이벤트 리스너 즉시 등록 (테이블 빌드 기다리지 않음)
         initializeEventListeners();
+        
+        // 5. URL 파라미터 체크
         checkURLParameters();
+        
         console.log('✅ 초기화 완료');
     } catch (error) {
         console.error('❌ 초기화 실패:', error);
@@ -51,7 +68,6 @@ function checkURLParameters() {
     const mode = urlParams.get('mode');
     
     if (pipelineId && page === 'projects-new' && mode === 'edit') {
-        // 편집 모드로 직접 접근한 경우
         console.log('📋 URL 파라미터 - 편집 모드:', pipelineId);
     } else if (pipelineId) {
         console.log('📋 URL 파라미터 발견:', pipelineId);
@@ -63,58 +79,82 @@ function checkURLParameters() {
 
 // ===================================
 // Initialize Filter Options
-// ⭐ 버그 수정: 진행단계 콤보 API 직접 호출
 // ===================================
 async function initializeFilters() {
     try {
         console.log('📡 필터 데이터 로딩...');
         
         // 담당자 로드
-        const managers = await API.get(API_CONFIG.ENDPOINTS.MANAGERS);
         const managerSelect = document.getElementById('filterManager');
-        if (managers && managers.items) {
-            managers.items.forEach(m => {
-                const opt = document.createElement('option');
-                opt.value = m.manager_id || m.login_id;
-                opt.textContent = m.manager_name || m.user_name;
-                managerSelect.appendChild(opt);
-            });
+        if (managerSelect) {
+            try {
+                const managers = await API.get(API_CONFIG.ENDPOINTS.MANAGERS);
+                if (managers && managers.items) {
+                    managers.items.forEach(m => {
+                        const opt = document.createElement('option');
+                        opt.value = m.manager_id || m.login_id;
+                        opt.textContent = m.manager_name || m.user_name;
+                        managerSelect.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+                console.warn('⚠️ 담당자 로드 실패:', e);
+            }
         }
         
         // 사업분야 로드
-        const fields = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/FIELD`);
         const fieldSelect = document.getElementById('filterField');
-        if (fields && fields.items) {
-            fields.items.forEach(f => {
-                const opt = document.createElement('option');
-                opt.value = f.code;
-                opt.textContent = f.code_name;
-                fieldSelect.appendChild(opt);
-            });
+        if (fieldSelect) {
+            try {
+                const fields = await API.get(API_CONFIG.ENDPOINTS.COMBO_DATA + '/FIELD');
+                if (fields && fields.items) {
+                    fields.items.forEach(f => {
+                        const opt = document.createElement('option');
+                        opt.value = f.code;
+                        opt.textContent = f.code_name;
+                        fieldSelect.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+                console.warn('⚠️ 사업분야 로드 실패:', e);
+            }
         }
         
-        // ⭐ 버그 수정: 진행단계 - API에서 직접 로드
+        // 진행단계 로드
         const stageSelect = document.getElementById('filterStage');
-        try {
-            const stages = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/STAGE`);
-            console.log('📥 진행단계 데이터:', stages);
-            
-            if (stages && stages.items && stages.items.length > 0) {
-                stages.items.forEach(s => {
-                    const opt = document.createElement('option');
-                    opt.value = s.code;
-                    opt.textContent = s.code_name;
-                    stageSelect.appendChild(opt);
-                });
-                console.log('✅ 진행단계 콤보 로드 완료:', stages.items.length, '개');
-            } else {
-                // API 응답이 비어있으면 window.STAGE_CONFIG 사용
-                console.warn('⚠️ STAGE API 응답 비어있음, STAGE_CONFIG 사용');
-                loadStageFromConfig(stageSelect);
+        if (stageSelect) {
+            try {
+                const stages = await API.get(API_CONFIG.ENDPOINTS.COMBO_DATA + '/STAGE');
+                console.log('📥 진행단계 데이터:', stages);
+                
+                if (stages && stages.items && stages.items.length > 0) {
+                    stages.items.forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s.code;
+                        opt.textContent = s.code_name;
+                        stageSelect.appendChild(opt);
+                    });
+                    console.log('✅ 진행단계 콤보 로드 완료:', stages.items.length, '개');
+                } else if (window.STAGE_CONFIG && Object.keys(window.STAGE_CONFIG).length > 0) {
+                    console.warn('⚠️ STAGE API 응답 비어있음, STAGE_CONFIG 사용');
+                    Object.keys(window.STAGE_CONFIG).forEach(code => {
+                        const opt = document.createElement('option');
+                        opt.value = code;
+                        opt.textContent = window.STAGE_CONFIG[code].label;
+                        stageSelect.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+                console.warn('⚠️ 진행단계 로드 실패:', e);
+                if (window.STAGE_CONFIG) {
+                    Object.keys(window.STAGE_CONFIG).forEach(code => {
+                        const opt = document.createElement('option');
+                        opt.value = code;
+                        opt.textContent = window.STAGE_CONFIG[code].label;
+                        stageSelect.appendChild(opt);
+                    });
+                }
             }
-        } catch (stageError) {
-            console.warn('⚠️ STAGE API 실패, STAGE_CONFIG 사용:', stageError);
-            loadStageFromConfig(stageSelect);
         }
         
         console.log('✅ 필터 로딩 완료');
@@ -123,312 +163,403 @@ async function initializeFilters() {
     }
 }
 
-/**
- * STAGE_CONFIG에서 진행단계 콤보 로드 (폴백)
- */
-function loadStageFromConfig(stageSelect) {
-    if (window.STAGE_CONFIG && Object.keys(window.STAGE_CONFIG).length > 0) {
-        Object.keys(window.STAGE_CONFIG).forEach(code => {
-            const opt = document.createElement('option');
-            opt.value = code;
-            opt.textContent = window.STAGE_CONFIG[code].label;
-            stageSelect.appendChild(opt);
-        });
-        console.log('✅ STAGE_CONFIG에서 로드 완료');
-    } else {
-        console.error('❌ STAGE_CONFIG도 비어있음');
-    }
-}
-
 // ===================================
 // Initialize Tabulator Table
-// ⭐ 버그 수정: 페이지 크기 기본값 25
+// ⭐ Promise 제거 - 동기적으로 테이블 생성
 // ===================================
 function initializeTable() {
-    return new Promise((resolve, reject) => {
-        console.log('📊 테이블 초기화...');
+    console.log('📊 테이블 초기화...');
+    
+    const tableEl = document.getElementById('projectTable');
+    if (!tableEl) {
+        console.error('❌ projectTable 요소를 찾을 수 없음');
+        return;
+    }
+    
+    projectTable = new Tabulator("#projectTable", {
+        height: "600px",
+        layout: "fitDataStretch",
+        pagination: true,
+        paginationMode: "remote",
+        paginationSize: 25,
+        paginationSizeSelector: [25, 50, 100, 200],
+        placeholder: "데이터가 없습니다",
         
-        projectTable = new Tabulator("#projectTable", {
-            height: "600px",
-            layout: "fitDataStretch",
-            pagination: true,
-            paginationMode: "remote",
-            paginationSize: 25,                       // ⭐ 기본값 25로 변경
-            paginationSizeSelector: [25, 50, 100, 200],
-            placeholder: "데이터가 없습니다",
+        selectable: 1,
+        selectableRangeMode: "click",
+        
+        ajaxURL: API_CONFIG.BASE_URL + API_CONFIG.API_VERSION + API_CONFIG.ENDPOINTS.PROJECTS_LIST,
+        
+        ajaxURLGenerator: function(url, config, params) {
+            const queryParams = {
+                page: params.page || 1,
+                page_size: params.size || 25
+            };
             
-            // Row 선택 설정 (단일 선택)
-            selectable: 1,
-            selectableRangeMode: "click",
-            
-            ajaxURL: `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${API_CONFIG.ENDPOINTS.PROJECTS_LIST}`,
-            
-            // ⭐ 버그 수정: search_field, search_text 파라미터 전달
-            ajaxURLGenerator: function(url, config, params) {
-                const query = new URLSearchParams({
-                    page: params.page || 1,
-                    page_size: params.size || 25,     // ⭐ 기본값 25
-                    ...(currentFilters.search_field && { search_field: currentFilters.search_field }),
-                    ...(currentFilters.search_text && { search_text: currentFilters.search_text }),
-                    ...(currentFilters.manager_id && { manager_id: currentFilters.manager_id }),
-                    ...(currentFilters.field_code && { field_code: currentFilters.field_code }),
-                    ...(currentFilters.current_stage && { current_stage: currentFilters.current_stage })
-                });
-                
-                const finalUrl = `${url}?${query.toString()}`;
-                console.log('📡 API 호출:', finalUrl);
-                return finalUrl;
-            },
-            
-            ajaxResponse: function(url, params, response) {
-                updateStatistics(response);
-                return {
-                    last_page: response.total_pages || 1,
-                    data: response.items || []
-                };
-            },
-            
-            ajaxError: function(error) {
-                console.error('❌ AJAX 에러:', error);
-                return { last_page: 1, data: [] };
-            },
-            
-            columns: [
-                // 체크박스 컬럼
-                {
-                    formatter: "rowSelection",
-                    titleFormatter: "rowSelection",
-                    titleFormatterParams: {
-                        rowRange: "active"
-                    },
-                    hozAlign: "center",
-                    headerSort: false,
-                    width: 50,
-                    frozen: true
-                },
-                {
-                    title: "파이프라인ID",
-                    field: "pipeline_id",
-                    width: 120,
-                    frozen: true,
-                    headerSort: false,
-                    formatter: function(cell) {
-                        const val = cell.getValue();
-                        return `<span class="cell-pipeline-id" onclick="openProjectDetail('${val}')">${val}</span>`;
-                    }
-                },
-                {
-                    title: "분야",
-                    field: "field_name",
-                    width: 100,
-                    headerSort: false,
-                    hozAlign: "center"
-                },
-                {
-                    title: "프로젝트명",
-                    field: "project_name",
-                    minWidth: 300,
-                    headerSort: false,
-                    formatter: function(cell) {
-                        return Utils.truncate(cell.getValue(), 50);
-                    }
-                },
-                {
-                    title: "고객사",
-                    field: "customer_name",
-                    width: 150,
-                    headerSort: false
-                },
-                {
-                    title: "발주처",
-                    field: "ordering_party_name",
-                    width: 150,
-                    headerSort: false
-                },
-                {
-                    title: "진행단계",
-                    field: "current_stage",
-                    width: 120,
-                    hozAlign: "center",
-                    headerSort: false,
-                    formatter: function(cell) {
-                        return getStageBadge(cell.getValue());
-                    }
-                },
-                {
-                    title: "담당자",
-                    field: "manager_name",
-                    width: 100,
-                    hozAlign: "center",
-                    headerSort: false
-                },
-                {
-                    title: "견적금액",
-                    field: "quoted_amount",
-                    width: 130,
-                    hozAlign: "right",
-                    headerSort: false,
-                    formatter: function(cell) {
-                        const val = cell.getValue();
-                        return val ? Utils.formatNumber(val) + ' 원' : '-';
-                    }
-                },
-                {
-                    title: "등록일",
-                    field: "created_at",
-                    width: 110,
-                    hozAlign: "center",
-                    headerSort: false,
-                    formatter: function(cell) {
-                        return Utils.formatDate(cell.getValue());
-                    }
-                }
-            ],
-            
-            // Row 선택 이벤트
-            rowSelected: function(row) {
-                selectedRow = row;
-                updateEditButton();
-                console.log('✅ Row 선택:', row.getData().pipeline_id);
-            },
-            
-            rowDeselected: function(row) {
-                selectedRow = null;
-                updateEditButton();
-                console.log('🔲 Row 선택 해제');
-            },
-            
-            // 테이블 빌드 완료 이벤트
-            tableBuilt: function() {
-                console.log('✅ 테이블 빌드 완료');
-                resolve();
+            if (currentFilters.search_field) {
+                queryParams.search_field = currentFilters.search_field;
             }
-        });
+            if (currentFilters.search_text) {
+                queryParams.search_text = currentFilters.search_text;
+            }
+            if (currentFilters.manager_id) {
+                queryParams.manager_id = currentFilters.manager_id;
+            }
+            if (currentFilters.field_code) {
+                queryParams.field_code = currentFilters.field_code;
+            }
+            if (currentFilters.current_stage) {
+                queryParams.current_stage = currentFilters.current_stage;
+            }
+            
+            const query = new URLSearchParams(queryParams);
+            const finalUrl = url + '?' + query.toString();
+            console.log('📡 API 호출:', finalUrl);
+            return finalUrl;
+        },
         
-        projectTable.on("dataLoaded", function(data) {
-            console.log('✅ 데이터 로드 완료:', data.length, '건');
-            selectedRow = null;
-            updateEditButton();
-        });
+        ajaxResponse: function(url, params, response) {
+            updateStatistics(response);
+            return {
+                last_page: response.total_pages || 1,
+                data: response.items || []
+            };
+        },
+        
+        ajaxError: function(error) {
+            console.error('❌ AJAX 에러:', error);
+            return { last_page: 1, data: [] };
+        },
+        
+        columns: [
+            {
+                formatter: "rowSelection",
+                titleFormatter: "rowSelection",
+                titleFormatterParams: { rowRange: "active" },
+                hozAlign: "center",
+                headerSort: false,
+                width: 50,
+                frozen: true
+            },
+            {
+                title: "파이프라인ID",
+                field: "pipeline_id",
+                width: 120,
+                frozen: true,
+                headerSort: false,
+                formatter: function(cell) {
+                    const val = cell.getValue();
+                    return '<span class="cell-pipeline-id" onclick="openProjectDetail(\'' + val + '\')">' + val + '</span>';
+                }
+            },
+            {
+                title: "분야",
+                field: "field_name",
+                width: 100,
+                headerSort: false,
+                hozAlign: "center"
+            },
+            {
+                title: "프로젝트명",
+                field: "project_name",
+                minWidth: 300,
+                headerSort: false,
+                formatter: function(cell) {
+                    return Utils.truncate(cell.getValue(), 50);
+                }
+            },
+            {
+                title: "고객사",
+                field: "customer_name",
+                width: 150,
+                headerSort: false
+            },
+            {
+                title: "발주처",
+                field: "ordering_party_name",
+                width: 150,
+                headerSort: false
+            },
+            {
+                title: "진행단계",
+                field: "current_stage",
+                width: 120,
+                hozAlign: "center",
+                headerSort: false,
+                formatter: function(cell) {
+                    return getStageBadge(cell.getValue());
+                }
+            },
+            {
+                title: "담당자",
+                field: "manager_name",
+                width: 100,
+                hozAlign: "center",
+                headerSort: false
+            },
+            {
+                title: "견적금액",
+                field: "quoted_amount",
+                width: 130,
+                hozAlign: "right",
+                headerSort: false,
+                formatter: function(cell) {
+                    const val = cell.getValue();
+                    return val ? Utils.formatNumber(val) + ' 원' : '-';
+                }
+            },
+            {
+                title: "등록일",
+                field: "created_at",
+                width: 110,
+                hozAlign: "center",
+                headerSort: false,
+                formatter: function(cell) {
+                    return Utils.formatDate(cell.getValue());
+                }
+            }
+        ],
+        
     });
+    
+    // ⭐ 이벤트는 .on() 메서드로 등록해야 함 (Tabulator 5.x)
+    projectTable.on("rowSelected", function(row) {
+        selectedRow = row;
+        console.log('✅ Row 선택:', row.getData().pipeline_id);
+        updateEditButton();
+    });
+    
+    projectTable.on("rowDeselected", function(row) {
+        selectedRow = null;
+        console.log('🔲 Row 선택 해제');
+        updateEditButton();
+    });
+    
+    // ⭐ 행 클릭 시 선택 (체크박스 외 영역 클릭해도 선택되도록)
+    projectTable.on("rowClick", function(e, row) {
+        console.log('🖱️ 행 클릭');
+        // 이미 선택된 행이면 선택 해제, 아니면 선택
+        if (row.isSelected()) {
+            row.deselect();
+        } else {
+            // 다른 행 선택 해제 후 현재 행 선택
+            projectTable.deselectRow();
+            row.select();
+        }
+    });
+    
+    // ⭐ 더블클릭 시 수정 화면 열기
+    projectTable.on("rowDblClick", function(e, row) {
+        var data = row.getData();
+        console.log('🖱️ 더블클릭:', data.pipeline_id);
+        if (typeof openProjectForm === 'function') {
+            openProjectForm('edit', data.pipeline_id);
+        } else {
+            console.error('❌ openProjectForm 함수 없음');
+        }
+    });
+    
+    // 데이터 로드 완료 이벤트
+    projectTable.on("dataLoaded", function(data) {
+        console.log('✅ 데이터 로드 완료:', data.length, '건');
+        selectedRow = null;
+        updateEditButton();
+    });
+    
+    console.log('✅ 테이블 생성 완료');
 }
 
 // ===================================
 // Update Edit Button State
+// ⭐ 수정: 선택 시 '열기'로 변경
 // ===================================
 function updateEditButton() {
     const btn = document.getElementById('btnAdd');
-    if (!btn) return;
+    if (!btn) {
+        console.warn('⚠️ btnAdd 요소 없음');
+        return;
+    }
     
-    const icon = btn.querySelector('i');
-    const text = btn.querySelector('span') || btn;
+    console.log('🔄 버튼 상태 업데이트, selectedRow:', selectedRow ? 'exists' : 'null');
     
     if (selectedRow) {
-        // 선택된 Row가 있으면 "편집" 모드
-        if (icon) icon.className = 'fas fa-edit';
-        if (text.tagName === 'SPAN') {
-            text.textContent = ' 편집';
-        } else {
-            btn.innerHTML = '<i class="fas fa-edit"></i> 편집';
-        }
-        btn.title = '선택한 프로젝트 편집';
+        btn.innerHTML = '<i class="fas fa-folder-open"></i> 열기';
+        btn.title = '선택한 프로젝트 열기';
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-success');
+        console.log('  → 버튼: 열기');
     } else {
-        // 선택된 Row가 없으면 "신규" 모드
-        if (icon) icon.className = 'fas fa-plus-circle';
-        if (text.tagName === 'SPAN') {
-            text.textContent = ' 신규';
-        } else {
-            btn.innerHTML = '<i class="fas fa-plus-circle"></i> 신규';
-        }
+        btn.innerHTML = '<i class="fas fa-plus-circle"></i> 신규';
         btn.title = '새 프로젝트 추가';
         btn.classList.remove('btn-success');
         btn.classList.add('btn-primary');
+        console.log('  → 버튼: 신규');
     }
 }
 
 // ===================================
 // Initialize Event Listeners
-// ⭐ 버그 수정: 검색필드 조건 적용, pageSize 이벤트 제거
+// ⭐ 핵심 수정: 모든 요소에 null 체크 추가
 // ===================================
 function initializeEventListeners() {
+    console.log('🔧 이벤트 리스너 초기화 시작...');
+    
     // 새로고침 버튼
-    document.getElementById('btnRefresh').addEventListener('click', () => {
-        projectTable.setData();
-    });
+    const btnRefresh = document.getElementById('btnRefresh');
+    if (btnRefresh) {
+        btnRefresh.addEventListener('click', function() {
+            console.log('🔄 새로고침 클릭');
+            if (projectTable) projectTable.setData();
+        });
+        console.log('  ✓ btnRefresh 이벤트 등록');
+    } else {
+        console.warn('  ✗ btnRefresh 요소 없음');
+    }
     
     // 엑셀 내보내기 버튼
-    document.getElementById('btnExport').addEventListener('click', exportToExcel);
+    const btnExport = document.getElementById('btnExport');
+    if (btnExport) {
+        btnExport.addEventListener('click', function() {
+            console.log('📊 엑셀 내보내기 클릭');
+            exportToExcel();
+        });
+        console.log('  ✓ btnExport 이벤트 등록');
+    } else {
+        console.warn('  ✗ btnExport 요소 없음');
+    }
     
-    // ⭐ 신규/편집 버튼 - 수정됨
-    document.getElementById('btnAdd').addEventListener('click', () => {
-        if (selectedRow) {
-            // 선택된 Row가 있으면 편집 모드로 이동
-            const data = selectedRow.getData();
-            console.log('✏️ 편집 모드로 이동:', data.pipeline_id);
-            openProjectForm('edit', data.pipeline_id);
-        } else {
-            // 선택된 Row가 없으면 신규 모드로 이동
-            console.log('➕ 신규 모드로 이동');
-            openProjectForm('new');
-        }
-    });
+    // 신규/열기 버튼
+    const btnAdd = document.getElementById('btnAdd');
+    if (btnAdd) {
+        btnAdd.addEventListener('click', function() {
+            if (selectedRow) {
+                const data = selectedRow.getData();
+                console.log('📂 열기 클릭 - 편집 모드로 이동:', data.pipeline_id);
+                if (typeof openProjectForm === 'function') {
+                    openProjectForm('edit', data.pipeline_id);
+                } else {
+                    console.error('❌ openProjectForm 함수 없음');
+                }
+            } else {
+                console.log('➕ 신규 클릭 - 신규 모드로 이동');
+                if (typeof openProjectForm === 'function') {
+                    openProjectForm('new');
+                } else {
+                    console.error('❌ openProjectForm 함수 없음');
+                }
+            }
+        });
+        console.log('  ✓ btnAdd 이벤트 등록');
+    } else {
+        console.warn('  ✗ btnAdd 요소 없음');
+    }
     
-    // ⭐ 버그 수정: 검색 필터 이벤트 - search_field 사용
-    document.getElementById('searchField').addEventListener('change', (e) => {
-        currentFilters.search_field = e.target.value;
-        console.log('🔍 검색필드 변경:', currentFilters.search_field);
-    });
+    // 검색 필드 콤보박스
+    const searchField = document.getElementById('searchField');
+    if (searchField) {
+        searchField.addEventListener('change', function(e) {
+            currentFilters.search_field = e.target.value;
+            console.log('🔍 검색필드 변경:', currentFilters.search_field);
+        });
+        console.log('  ✓ searchField 이벤트 등록');
+    } else {
+        console.warn('  ✗ searchField 요소 없음');
+    }
     
-    // ⭐ 버그 수정: 검색어 입력 - search_text 사용
-    document.getElementById('searchText').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
+    // 검색어 입력
+    const searchText = document.getElementById('searchText');
+    if (searchText) {
+        searchText.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                currentFilters.search_text = e.target.value;
+                console.log('🔍 검색 실행 (Enter):', currentFilters.search_text);
+                if (projectTable) projectTable.setData();
+            }
+        });
+        searchText.addEventListener('blur', function(e) {
             currentFilters.search_text = e.target.value;
-            console.log('🔍 검색 실행 (Enter):', currentFilters.search_field, currentFilters.search_text);
-            projectTable.setData();
-        }
-    });
+        });
+        console.log('  ✓ searchText 이벤트 등록');
+    } else {
+        console.warn('  ✗ searchText 요소 없음');
+    }
     
-    // 검색 버튼 클릭
-    document.getElementById('btnSearch').addEventListener('click', () => {
-        currentFilters.search_text = document.getElementById('searchText').value;
-        console.log('🔍 검색 실행 (버튼):', currentFilters.search_field, currentFilters.search_text);
-        projectTable.setData();
-    });
+    // 검색 버튼 (있는 경우에만)
+    const btnSearch = document.getElementById('btnSearch');
+    if (btnSearch) {
+        btnSearch.addEventListener('click', function() {
+            var searchTextEl = document.getElementById('searchText');
+            currentFilters.search_text = searchTextEl ? searchTextEl.value : '';
+            console.log('🔍 검색 실행 (버튼):', currentFilters.search_text);
+            if (projectTable) projectTable.setData();
+        });
+        console.log('  ✓ btnSearch 이벤트 등록');
+    }
     
     // 담당자 필터
-    document.getElementById('filterManager').addEventListener('change', (e) => {
-        currentFilters.manager_id = e.target.value;
-        projectTable.setData();
-    });
+    const filterManager = document.getElementById('filterManager');
+    if (filterManager) {
+        filterManager.addEventListener('change', function(e) {
+            currentFilters.manager_id = e.target.value;
+            console.log('🔍 담당자 필터:', currentFilters.manager_id);
+            if (projectTable) projectTable.setData();
+        });
+        console.log('  ✓ filterManager 이벤트 등록');
+    } else {
+        console.warn('  ✗ filterManager 요소 없음');
+    }
     
     // 사업분야 필터
-    document.getElementById('filterField').addEventListener('change', (e) => {
-        currentFilters.field_code = e.target.value;
-        projectTable.setData();
-    });
+    const filterField = document.getElementById('filterField');
+    if (filterField) {
+        filterField.addEventListener('change', function(e) {
+            currentFilters.field_code = e.target.value;
+            console.log('🔍 사업분야 필터:', currentFilters.field_code);
+            if (projectTable) projectTable.setData();
+        });
+        console.log('  ✓ filterField 이벤트 등록');
+    } else {
+        console.warn('  ✗ filterField 요소 없음');
+    }
     
     // 진행단계 필터
-    document.getElementById('filterStage').addEventListener('change', (e) => {
-        currentFilters.current_stage = e.target.value;
-        console.log('🔍 진행단계 필터:', currentFilters.current_stage);
-        projectTable.setData();
-    });
+    const filterStage = document.getElementById('filterStage');
+    if (filterStage) {
+        filterStage.addEventListener('change', function(e) {
+            currentFilters.current_stage = e.target.value;
+            console.log('🔍 진행단계 필터:', currentFilters.current_stage);
+            if (projectTable) projectTable.setData();
+        });
+        console.log('  ✓ filterStage 이벤트 등록');
+    } else {
+        console.warn('  ✗ filterStage 요소 없음');
+    }
     
-    // ⭐ pageSize 이벤트 제거됨 (그리드 하단의 paginationSizeSelector 사용)
+    // 페이지 크기 (있는 경우)
+    const pageSize = document.getElementById('pageSize');
+    if (pageSize) {
+        pageSize.addEventListener('change', function(e) {
+            const size = parseInt(e.target.value, 10);
+            console.log('📄 페이지 크기 변경:', size);
+            if (projectTable) projectTable.setPageSize(size);
+        });
+        console.log('  ✓ pageSize 이벤트 등록');
+    }
     
     // 모달 닫기 버튼
-    document.querySelectorAll('.modal-close').forEach(btn => {
+    document.querySelectorAll('.modal-close').forEach(function(btn) {
         btn.addEventListener('click', closeModal);
     });
     
     // 모달 배경 클릭 시 닫기
-    document.getElementById('projectModal')?.addEventListener('click', (e) => {
-        if (e.target.classList.contains('modal')) {
-            closeModal();
-        }
-    });
+    const projectModal = document.getElementById('projectModal');
+    if (projectModal) {
+        projectModal.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal')) {
+                closeModal();
+            }
+        });
+    }
     
     console.log('✅ 이벤트 리스너 초기화 완료');
 }
@@ -442,18 +573,15 @@ async function openProjectDetail(pipelineId) {
     try {
         Utils.showLoading(true);
         
-        // 전체 상세 정보 API 호출 (속성, 이력 포함)
-        const response = await API.get(`${API_CONFIG.ENDPOINTS.PROJECT_DETAIL}/${pipelineId}/full`);
-        
+        const response = await API.get(API_CONFIG.ENDPOINTS.PROJECT_DETAIL + '/' + pipelineId + '/full');
         console.log('📥 상세 데이터:', response);
         
         Utils.showLoading(false);
         
-        // 모달 렌더링
         renderProjectDetail(response, pipelineId);
         
-        // 모달 열기
-        document.getElementById('projectModal')?.classList.add('active');
+        const modal = document.getElementById('projectModal');
+        if (modal) modal.classList.add('active');
         
     } catch (error) {
         console.error('❌ 상세 조회 실패:', error);
@@ -473,113 +601,61 @@ function renderProjectDetail(response, pipelineId) {
     const attributes = response.attributes || [];
     const histories = response.histories || [];
     
-    const html = `
-        <div class="detail-header">
-            <h2>${project.project_name || pipelineId}</h2>
-            <div class="detail-actions">
-                <button class="btn btn-primary" onclick="editProject('${pipelineId}')">
-                    <i class="fas fa-edit"></i> 편집
-                </button>
-            </div>
-        </div>
-        
-        <div class="detail-tabs">
-            <button class="detail-tab active" onclick="switchDetailTab(this, 'basic')">기본정보</button>
-            <button class="detail-tab" onclick="switchDetailTab(this, 'attributes')">속성정보</button>
-            <button class="detail-tab" onclick="switchDetailTab(this, 'history')">변경이력</button>
-        </div>
-        
-        <div id="detail-basic" class="detail-pane active">
-            <div class="detail-grid">
-                <div class="detail-item">
-                    <label>파이프라인 ID</label>
-                    <span>${project.pipeline_id || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <label>프로젝트명</label>
-                    <span>${project.project_name || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <label>사업분야</label>
-                    <span>${project.field_name || project.field_code || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <label>진행단계</label>
-                    <span>${getStageBadge(project.current_stage)}</span>
-                </div>
-                <div class="detail-item">
-                    <label>담당자</label>
-                    <span>${project.manager_name || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <label>고객사</label>
-                    <span>${project.customer_name || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <label>발주처</label>
-                    <span>${project.ordering_party_name || '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <label>견적금액</label>
-                    <span>${project.quoted_amount ? Utils.formatNumber(project.quoted_amount) + ' 원' : '-'}</span>
-                </div>
-                <div class="detail-item">
-                    <label>수주확률</label>
-                    <span>${project.win_probability ? project.win_probability + '%' : '-'}</span>
-                </div>
-                <div class="detail-item full-width">
-                    <label>비고</label>
-                    <span>${project.notes || '-'}</span>
-                </div>
-            </div>
-        </div>
-        
-        <div id="detail-attributes" class="detail-pane">
-            ${attributes.length > 0 ? `
-                <table class="detail-table">
-                    <thead>
-                        <tr>
-                            <th>속성</th>
-                            <th>값</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${attributes.map(a => `
-                            <tr>
-                                <td>${a.attribute_name || a.attribute_code}</td>
-                                <td>${a.attribute_value || '-'}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            ` : '<p class="no-data">등록된 속성이 없습니다.</p>'}
-        </div>
-        
-        <div id="detail-history" class="detail-pane">
-            ${histories.length > 0 ? `
-                <table class="detail-table">
-                    <thead>
-                        <tr>
-                            <th>일자</th>
-                            <th>진행단계</th>
-                            <th>내용</th>
-                            <th>작성자</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${histories.map(h => `
-                            <tr>
-                                <td>${Utils.formatDate(h.history_date)}</td>
-                                <td>${getStageBadge(h.progress_stage)}</td>
-                                <td>${h.strategy_content || '-'}</td>
-                                <td>${h.creator_name || h.creator_id || '-'}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            ` : '<p class="no-data">등록된 이력이 없습니다.</p>'}
-        </div>
-    `;
+    var attrRows = '';
+    if (attributes.length > 0) {
+        attributes.forEach(function(a) {
+            attrRows += '<tr><td>' + (a.attribute_name || a.attr_name || a.attr_code) + '</td><td>' + (a.attribute_value || a.attr_value || '-') + '</td></tr>';
+        });
+    }
+    
+    var histRows = '';
+    if (histories.length > 0) {
+        histories.forEach(function(h) {
+            histRows += '<tr><td>' + Utils.formatDate(h.history_date || h.base_date) + '</td><td>' + getStageBadge(h.progress_stage) + '</td><td>' + (h.strategy_content || '-') + '</td><td>' + (h.creator_name || h.creator_id || '-') + '</td></tr>';
+        });
+    }
+    
+    var html = '<div class="detail-header">' +
+        '<h2>' + (project.project_name || pipelineId) + '</h2>' +
+        '<div class="detail-actions">' +
+            '<button class="btn btn-primary" onclick="editProject(\'' + pipelineId + '\')">' +
+                '<i class="fas fa-edit"></i> 편집' +
+            '</button>' +
+        '</div>' +
+    '</div>' +
+    
+    '<div class="detail-tabs">' +
+        '<button class="detail-tab active" onclick="switchDetailTab(this, \'basic\')">기본정보</button>' +
+        '<button class="detail-tab" onclick="switchDetailTab(this, \'attributes\')">속성정보</button>' +
+        '<button class="detail-tab" onclick="switchDetailTab(this, \'history\')">변경이력</button>' +
+    '</div>' +
+    
+    '<div id="detail-basic" class="detail-pane active">' +
+        '<div class="detail-grid">' +
+            '<div class="detail-item"><label>파이프라인 ID</label><span>' + (project.pipeline_id || '-') + '</span></div>' +
+            '<div class="detail-item"><label>프로젝트명</label><span>' + (project.project_name || '-') + '</span></div>' +
+            '<div class="detail-item"><label>사업분야</label><span>' + (project.field_name || project.field_code || '-') + '</span></div>' +
+            '<div class="detail-item"><label>진행단계</label><span>' + getStageBadge(project.current_stage) + '</span></div>' +
+            '<div class="detail-item"><label>담당자</label><span>' + (project.manager_name || '-') + '</span></div>' +
+            '<div class="detail-item"><label>고객사</label><span>' + (project.customer_name || '-') + '</span></div>' +
+            '<div class="detail-item"><label>발주처</label><span>' + (project.ordering_party_name || '-') + '</span></div>' +
+            '<div class="detail-item"><label>견적금액</label><span>' + (project.quoted_amount ? Utils.formatNumber(project.quoted_amount) + ' 원' : '-') + '</span></div>' +
+            '<div class="detail-item"><label>수주확률</label><span>' + (project.win_probability ? project.win_probability + '%' : '-') + '</span></div>' +
+            '<div class="detail-item full-width"><label>비고</label><span>' + (project.notes || '-') + '</span></div>' +
+        '</div>' +
+    '</div>' +
+    
+    '<div id="detail-attributes" class="detail-pane">' +
+        (attributes.length > 0 ? 
+            '<table class="detail-table"><thead><tr><th>속성</th><th>값</th></tr></thead><tbody>' + attrRows + '</tbody></table>' 
+            : '<p class="no-data">등록된 속성이 없습니다.</p>') +
+    '</div>' +
+    
+    '<div id="detail-history" class="detail-pane">' +
+        (histories.length > 0 ? 
+            '<table class="detail-table"><thead><tr><th>일자</th><th>진행단계</th><th>내용</th><th>작성자</th></tr></thead><tbody>' + histRows + '</tbody></table>'
+            : '<p class="no-data">등록된 이력이 없습니다.</p>') +
+    '</div>';
     
     modalBody.innerHTML = html;
 }
@@ -588,46 +664,45 @@ function renderProjectDetail(response, pipelineId) {
 // Switch Detail Tab
 // ===================================
 function switchDetailTab(btn, tabId) {
-    // 모든 탭 버튼 비활성화
-    document.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
-    // 모든 탭 컨텐츠 숨김
-    document.querySelectorAll('.detail-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.detail-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.detail-pane').forEach(function(p) { p.classList.remove('active'); });
     
-    // 선택한 탭 활성화
     btn.classList.add('active');
-    document.getElementById(`detail-${tabId}`)?.classList.add('active');
+    var pane = document.getElementById('detail-' + tabId);
+    if (pane) pane.classList.add('active');
 }
 
 // ===================================
-// Edit Project - 수정 화면으로 이동
+// Edit Project
 // ===================================
 function editProject(pipelineId) {
     console.log('✏️ 편집 화면으로 이동:', pipelineId);
-    
-    // 모달 닫기
     closeModal();
-    
-    // 편집 화면으로 이동
-    openProjectForm('edit', pipelineId);
+    if (typeof openProjectForm === 'function') {
+        openProjectForm('edit', pipelineId);
+    }
 }
 
 // ===================================
 // Close Modal
 // ===================================
 function closeModal() {
-    document.getElementById('projectModal')?.classList.remove('active');
+    var modal = document.getElementById('projectModal');
+    if (modal) modal.classList.remove('active');
 }
 
 // ===================================
 // Update Statistics
 // ===================================
 function updateStatistics(response) {
-    document.getElementById('statTotal').textContent = response.total || response.total_records || 0;
+    var statTotal = document.getElementById('statTotal');
+    if (statTotal) {
+        statTotal.textContent = response.total || response.total_records || 0;
+    }
     
-    // 진행단계별 통계 (있는 경우)
     if (response.stats) {
-        Object.keys(response.stats).forEach(stage => {
-            const el = document.getElementById(`stat${stage}`);
+        Object.keys(response.stats).forEach(function(stage) {
+            var el = document.getElementById('stat' + stage);
             if (el) el.textContent = response.stats[stage] || 0;
         });
     }
@@ -638,9 +713,14 @@ function updateStatistics(response) {
 // ===================================
 function exportToExcel() {
     console.log('📊 엑셀 내보내기');
-    projectTable.download("xlsx", "프로젝트_목록.xlsx", {
-        sheetName: "프로젝트"
-    });
+    if (projectTable) {
+        projectTable.download("xlsx", "프로젝트_목록.xlsx", {
+            sheetName: "프로젝트"
+        });
+    } else {
+        console.error('❌ projectTable이 없음');
+        alert('테이블이 초기화되지 않았습니다.');
+    }
 }
 
 // ===================================
@@ -650,4 +730,6 @@ window.openProjectDetail = openProjectDetail;
 window.editProject = editProject;
 window.switchDetailTab = switchDetailTab;
 window.closeModal = closeModal;
-window.projectTable = projectTable;
+window.exportToExcel = exportToExcel;
+
+console.log('📦 app.js 모듈 로드 완료');

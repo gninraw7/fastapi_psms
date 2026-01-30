@@ -160,7 +160,7 @@ async function loadStageConfig() {
         console.log('📡 STAGE 설정 로딩...');
         const response = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/STAGE`);
         
-        if (response && response.items) {
+        if (response && response.items && response.items.length > 0) {
             STAGE_CONFIG = {};
             response.items.forEach((stage, index) => {
                 STAGE_CONFIG[stage.code] = {
@@ -172,26 +172,36 @@ async function loadStageConfig() {
             // ⭐ 버그 수정: window.STAGE_CONFIG도 업데이트
             window.STAGE_CONFIG = STAGE_CONFIG;
             
-            console.log('✅ STAGE 설정 완료:', STAGE_CONFIG);
+            console.log('✅ STAGE 설정 완료:', Object.keys(STAGE_CONFIG).length, '개');
+        } else {
+            console.warn('⚠️ STAGE API 응답 비어있음, 기본값 사용');
+            setDefaultStageConfig();
         }
     } catch (error) {
         console.error('❌ STAGE 설정 로딩 실패:', error);
-        // 폴백: 기본 설정
-        STAGE_CONFIG = {
-            'S01': { label: '1 영업중', class: 'badge-stage-1' },
-            'S02': { label: '2 견적제출', class: 'badge-stage-2' },
-            'S03': { label: '3 제안중', class: 'badge-stage-3' },
-            'S04': { label: '4 입찰중', class: 'badge-stage-4' },
-            'S05': { label: '5 DROP', class: 'badge-stage-5' },
-            'S06': { label: '6 실주', class: 'badge-stage-6' },
-            'S07': { label: '7 수주완료', class: 'badge-stage-7' },
-            'S08': { label: '8 계약완료', class: 'badge-stage-8' },
-            'S09': { label: '9 유지보수', class: 'badge-stage-9' }
-        };
-        
-        // ⭐ 버그 수정: 폴백 시에도 window.STAGE_CONFIG 업데이트
-        window.STAGE_CONFIG = STAGE_CONFIG;
+        setDefaultStageConfig();
     }
+}
+
+/**
+ * 기본 STAGE 설정 (폴백)
+ */
+function setDefaultStageConfig() {
+    STAGE_CONFIG = {
+        'S01': { label: '1 영업중', class: 'badge-stage-1' },
+        'S02': { label: '2 견적제출', class: 'badge-stage-2' },
+        'S03': { label: '3 제안중', class: 'badge-stage-3' },
+        'S04': { label: '4 입찰중', class: 'badge-stage-4' },
+        'S05': { label: '5 DROP', class: 'badge-stage-5' },
+        'S06': { label: '6 실주', class: 'badge-stage-6' },
+        'S07': { label: '7 수주완료', class: 'badge-stage-7' },
+        'S08': { label: '8 계약완료', class: 'badge-stage-8' },
+        'S09': { label: '9 유지보수', class: 'badge-stage-9' }
+    };
+    
+    // window.STAGE_CONFIG도 업데이트
+    window.STAGE_CONFIG = STAGE_CONFIG;
+    console.log('✅ STAGE 기본값 설정 완료');
 }
 
 /**
