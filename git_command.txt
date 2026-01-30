@@ -1,0 +1,29 @@
+# 1. 로그 파일 제외 (보통 로그는 올리지 않음)
+echo "logs/*.log*" >> .gitignore
+echo "logs/server.pid" >> .gitignore
+
+# 2. 소스 파일만 스테이징
+git add gen_pw.py main.py
+git add static/
+git add PASSWORD_HASH_GUIDE.md
+git add generate_password_hash.py
+
+# 3. .gitignore도 추가
+git add .gitignore
+
+# 4. 커밋
+git commit -m "feat: 로그인 기능 추가 및 인증 모듈 구현"
+
+# 5. 푸시
+git push origin main
+
+
+###########################
+
+# 로그 파일 제외하고 모든 파일 추가
+git add --all
+git reset logs/
+
+# 커밋 & 푸시
+git commit -m "feat: 로그인 기능 및 비밀번호 해시 가이드 추가"
+git push origin main

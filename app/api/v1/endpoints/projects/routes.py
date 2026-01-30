@@ -108,6 +108,9 @@ async def get_combo_data(
 
 # app/api/v1/endpoints/projects/routes.py의 /managers 엔드포인트 수정
 
+# ============================================
+# 1.1 담당자 목록 조회 수정
+# ============================================
 @router.get("/managers")
 async def get_managers(db: Session = Depends(get_db)):
     """
@@ -115,6 +118,8 @@ async def get_managers(db: Session = Depends(get_db)):
     
     Returns:
         영업 담당자 목록 (is_sales_rep = 1인 사용자만)
+        
+    수정: items 배열로 반환하도록 변경 (프론트엔드 호환성)
     """
     try:
         app_logger.info("👥 영업 담당자 목록 조회")
@@ -133,20 +138,24 @@ async def get_managers(db: Session = Depends(get_db)):
         result = db.execute(query)
         rows = result.fetchall()
         
-        managers = []
+        # items 배열 형식으로 변환 (프론트엔드 호환)
+        items = []
         for row in rows:
-            managers.append({
+            items.append({
+                'manager_id': row[0],      # login_id를 manager_id로
+                'manager_name': row[1] or row[0],  # user_name을 manager_name으로
                 'login_id': row[0],
                 'user_name': row[1] or row[0],
                 'email': row[2] or '',
                 'department': row[3] or ''
             })
         
-        app_logger.info(f"✅ 영업 담당자 조회 성공 - {len(managers)}명")
+        app_logger.info(f"✅ 영업 담당자 조회 성공 - {len(items)}명")
         
         return {
-            "managers": managers,
-            "total": len(managers)
+            "items": items,       # 프론트엔드에서 items로 접근
+            "managers": items,    # 기존 호환성 유지
+            "total": len(items)
         }
         
     except Exception as e:

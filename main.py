@@ -211,10 +211,17 @@ async def root():
     """루트 엔드포인트 - Web UI 또는 API 정보 반환"""
     app_logger.debug("Root endpoint accessed")
     
+    # login.html이 있으면 반환 (우선순위 1)
+    login_path = os.path.join(STATIC_DIR, "login.html")
+    if os.path.exists(login_path):
+        return FileResponse(login_path)
+    
+    # 없으면 index.html 시도 (기존 동작)
     index_path = os.path.join(STATIC_DIR, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     
+    # 둘 다 없으면 정보 반환
     return {
         "message": "PSMS FastAPI Server - VBA & Web Integrated",
         "version": "2.0.0",
@@ -227,7 +234,20 @@ async def root():
             "redoc": "/redoc"
         }
     }
-
+    
+@app.get("/app")
+async def main_app():
+    """메인 애플리케이션 (인증 후 접근)"""
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    if os.path.exists(index_path):
+        app_logger.info("Main application accessed")
+        return FileResponse(index_path)
+    
+    app_logger.warning("Main application not found")
+    return {
+        "error": "Main application not found",
+        "message": "Please place index.html in the 'static' directory"
+    }
 
 @app.get("/web")
 async def web_app():

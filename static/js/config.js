@@ -11,10 +11,16 @@ const API_CONFIG = {
 		PROJECTS: '/projects',                 // ⭐ CRUD 엔드포인트
         PROJECT_DETAIL: '/project-detail',
 		PROJECT_HISTORY: '/projects/history',  // ⭐ 추가
-        COMBO_DATA: '/projects/combo',
-        MANAGERS: '/projects/managers',
-        CLIENTS_LIST: '/clients/list',        // ✅ 실제 엔드포인트
-        CLIENTS_SEARCH: '/clients/search',    // ✅ 실제 엔드포인트    
+
+        // 거래처 관련
+        CLIENTS_LIST: '/clients/list',
+        CLIENTS_SEARCH: '/clients/search',
+        CLIENTS_SEARCH_SIMPLE: '/clients/search/simple',
+        
+        // ⭐ 공통코드 관련 (변경됨)
+        COMBO_DATA: '/common/codes',         // /projects/combo → /common/codes
+        MANAGERS: '/common/managers',         // /projects/managers → /common/managers
+        CODE_GROUPS: '/common/code-groups',   // 신규
 	},
     
     TIMEOUT: 30000,

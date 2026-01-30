@@ -531,3 +531,127 @@ bashcat >> ~/fastapi_psms/static/css/project-form.css << 'EOF'
     max-width: none !important;
     display: block !important;
 }
+
+<style>
+/* 고객사 검색 모달 */
+.modal-medium {
+    max-width: 700px;
+}
+
+.client-search-results {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-top: 1rem;
+}
+
+.client-search-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.client-search-table th,
+.client-search-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.client-search-table th {
+    background: #f5f5f5;
+    font-weight: 600;
+}
+
+.client-search-table tr:hover {
+    background: #f8f9fa;
+}
+
+/* 페이징 */
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.page-info {
+    color: #666;
+    font-size: 0.875rem;
+}
+
+/* 입력 그룹 */
+.input-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.input-group .form-input {
+    flex: 1;
+}
+
+/* 속성 추가 영역 */
+.attribute-add-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.attribute-add-row .form-select,
+.attribute-add-row .form-input {
+    flex: 1;
+}
+
+/* 테이블 스타일 */
+.attributes-table,
+.histories-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.attributes-table th,
+.attributes-table td,
+.histories-table th,
+.histories-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.attributes-table th,
+.histories-table th {
+    background: #f5f5f5;
+    font-weight: 600;
+}
+
+/* 이력 추가 버튼 */
+.history-add-row {
+    margin-bottom: 1rem;
+}
+
+/* 탭 설명 */
+.tab-description {
+    padding: 1rem;
+    background: #e3f2fd;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    color: #1565c0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* 폼 도움말 */
+.form-help {
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: 0.25rem;
+}
+</style>
