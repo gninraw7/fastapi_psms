@@ -179,6 +179,9 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
     try:
         pipeline_id = data.pipeline_id
         mode = "UPDATE" if pipeline_id else "INSERT"
+
+        attr_count = 0
+        hist_count = 0        
         
         # 프로젝트 기본 정보 저장
         if mode == "INSERT":
