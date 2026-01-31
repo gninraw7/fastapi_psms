@@ -16,8 +16,7 @@
  * - 변경이력 DB 저장 오류 수정 (row_stat 관리)
  * - 속성정보 추가 버튼 렌더링 추가
  * - 변경이력 추가 버튼 렌더링 추가
- * - pipeline_id 전송 추가로 수정 모드 저장 오류 해결
- * - 변경이력 전략 내용 입력란을 textarea로 변경 (자동 높이 조절)
+ * - ⭐ pipeline_id 전송 추가로 수정 모드 저장 오류 해결
  */
 
 // ===================================
@@ -679,32 +678,12 @@ function updateAttribute(index) {
 }
 
 // ===================================
-// ⭐ Textarea 자동 높이 조절 함수
-// ===================================
-function autoResizeTextarea(textarea) {
-    if (!textarea) return;
-    
-    // 높이 초기화
-    textarea.style.height = 'auto';
-    
-    // 내용에 맞춰 높이 조절 (최소 3줄, 최대 10줄)
-    const lineHeight = 24; // 대략적인 한 줄 높이 (px)
-    const minHeight = lineHeight * 3;
-    const maxHeight = lineHeight * 10;
-    
-    const scrollHeight = textarea.scrollHeight;
-    const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
-    
-    textarea.style.height = newHeight + 'px';
-}
-
-// ===================================
 // 3.1 Histories Management (수정됨)
 // ===================================
 function addHistory() {
     const baseDateInput = document.getElementById('new_history_date');
     const stageSelect = document.getElementById('new_history_stage');
-    const contentTextarea = document.getElementById('new_history_content');
+    const contentInput = document.getElementById('new_history_content');
     
     if (!baseDateInput || !stageSelect) {
         console.warn('⚠️ 이력 입력 요소를 찾을 수 없음');
@@ -713,7 +692,7 @@ function addHistory() {
     
     const baseDate = baseDateInput.value;
     const progressStage = stageSelect.value;
-    const strategyContent = contentTextarea ? contentTextarea.value.trim() : '';
+    const strategyContent = contentInput ? contentInput.value.trim() : '';
     
     if (!baseDate) {
         alert('기준일을 입력하세요.');
@@ -744,11 +723,7 @@ function addHistory() {
     // 입력 필드 초기화
     baseDateInput.value = '';
     stageSelect.value = 'S01';  // 기본값으로 리셋
-    if (contentTextarea) {
-        contentTextarea.value = '';
-        // 높이도 초기화
-        contentTextarea.style.height = 'auto';
-    }
+    if (contentInput) contentInput.value = '';
     
     // 렌더링
     renderHistories();
@@ -796,7 +771,7 @@ function deleteHistory(index) {
     renderHistories();
 }
 
-// ✅ 이력 렌더링 함수 (입력 폼 포함 + textarea로 개선)
+// ✅ 이력 렌더링 함수 (입력 폼 포함)
 function renderHistories() {
     const container = document.getElementById('historiesList');
     if (!container) {
@@ -806,18 +781,12 @@ function renderHistories() {
     
     let html = '';
     
-    // ✅ 이력 추가 입력 폼 (textarea로 변경, 자동 높이 조절)
+    // ✅ 이력 추가 입력 폼 (항상 표시)
     html += `
-        <div class="history-add-row" style="display: grid; grid-template-columns: auto auto 1fr auto; gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; align-items: start; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                <label style="font-size: 0.75rem; font-weight: 600; color: #555;">기준일</label>
-                <input type="date" id="new_history_date" class="form-input" style="min-width: 150px;">
-            </div>
-            
-            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                <label style="font-size: 0.75rem; font-weight: 600; color: #555;">진행단계</label>
-                <select id="new_history_stage" class="form-select" style="min-width: 150px;">
-                    <option value="">진행단계 선택</option>
+        <div class="history-add-row" style="display: flex; gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px; align-items: center;">
+            <input type="date" id="new_history_date" class="form-input" style="flex: 1;">
+            <select id="new_history_stage" class="form-select" style="flex: 1;">
+                <option value="">진행단계 선택</option>
     `;
     
     // 진행단계 옵션 추가
@@ -826,39 +795,9 @@ function renderHistories() {
     });
     
     html += `
-                </select>
-            </div>
-            
-            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                <label style="font-size: 0.75rem; font-weight: 600; color: #555;">전략 내용 (여러 줄 입력 가능)</label>
-                <textarea 
-                    id="new_history_content" 
-                    class="form-textarea" 
-                    placeholder="전략 내용을 입력하세요.
-여러 줄로 상세하게 작성할 수 있습니다.
-- 주요 활동 내역
-- 고객 피드백
-- 향후 계획 등"
-                    style="
-                        width: 100%; 
-                        min-height: 90px;
-                        max-height: 240px;
-                        padding: 0.75rem; 
-                        border: 1px solid #ddd; 
-                        border-radius: 6px; 
-                        font-family: inherit; 
-                        font-size: 0.875rem; 
-                        line-height: 1.5;
-                        resize: vertical;
-                        transition: border-color 0.2s, box-shadow 0.2s;
-                    "
-                    oninput="autoResizeTextarea(this)"
-                    onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)';"
-                    onblur="this.style.borderColor='#ddd'; this.style.boxShadow='none';"
-                ></textarea>
-            </div>
-            
-            <button type="button" class="btn btn-primary" onclick="addHistory()" style="align-self: end; white-space: nowrap; padding: 0.75rem 1.5rem; height: fit-content;">
+            </select>
+            <input type="text" id="new_history_content" class="form-input" placeholder="전략 내용 입력" style="flex: 2;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="addHistory()">
                 <i class="fas fa-plus"></i> 추가
             </button>
         </div>
@@ -869,10 +808,9 @@ function renderHistories() {
     
     if (visibleHists.length === 0) {
         html += `
-            <div style="text-align: center; padding: 3rem; color: #999; background: #fafafa; border-radius: 8px; border: 2px dashed #e0e0e0;">
-                <i class="fas fa-history" style="font-size: 3rem; margin-bottom: 1rem; color: #ccc;"></i>
-                <p style="font-size: 1rem; font-weight: 500;">등록된 이력이 없습니다.</p>
-                <p style="font-size: 0.875rem; color: #999; margin-top: 0.5rem;">위 입력 폼에서 새로운 이력을 추가해보세요.</p>
+            <div style="text-align: center; padding: 2rem; color: #666;">
+                <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+                <p>등록된 이력이 없습니다.</p>
             </div>
         `;
     } else {
@@ -883,32 +821,22 @@ function renderHistories() {
             const realIndex = histories.indexOf(hist);
             
             const statusBadge = hist.row_stat === 'N' ? 
-                '<span class="badge badge-new" style="background: #4caf50; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">신규</span>' : 
-                (hist.row_stat === 'U' ? '<span class="badge badge-modified" style="background: #ff9800; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">수정됨</span>' : '');
-            
-            // 여러 줄 텍스트 표시를 위해 줄바꿈을 <br>로 변환
-            const formattedContent = (hist.strategy_content || '-').replace(/\n/g, '<br>');
+                '<span class="badge badge-new" style="background: #4caf50; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">신규</span>' : 
+                (hist.row_stat === 'U' ? '<span class="badge badge-modified" style="background: #ff9800; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">수정됨</span>' : '');
             
             html += `
-                <div class="history-item" style="display: flex; gap: 1rem; padding: 1rem; background: white; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: box-shadow 0.2s;" onmouseenter="this.style.boxShadow='0 4px 8px rgba(0,0,0,0.1)'" onmouseleave="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)'">
-                    <div class="history-info" style="flex: 1; display: grid; grid-template-columns: 100px 120px 1fr; gap: 1rem; align-items: start;">
-                        <div class="history-date" style="font-weight: 600; color: #333;">
-                            <i class="far fa-calendar-alt" style="color: #667eea; margin-right: 0.25rem;"></i>
-                            ${Utils.formatDate(hist.base_date)}
-                        </div>
-                        <div class="history-stage" style="font-weight: 500; color: #555;">
-                            <i class="fas fa-flag" style="color: #667eea; margin-right: 0.25rem;"></i>
-                            ${hist.stage_name || hist.progress_stage}${statusBadge}
-                        </div>
-                        <div class="history-content" style="color: #666; line-height: 1.6; white-space: pre-wrap; word-break: break-word;">
-                            ${formattedContent}
-                        </div>
+                <div class="history-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: white; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 0.5rem;">
+                    <div class="history-info" style="flex: 1; display: flex; gap: 1rem; align-items: center;">
+                        <div class="history-date" style="font-weight: 600; min-width: 100px;">${Utils.formatDate(hist.base_date)}</div>
+                        <div class="history-stage" style="min-width: 120px;">${hist.stage_name || hist.progress_stage}</div>
+                        <div class="history-content" style="flex: 1; color: #666;">${hist.strategy_content || '-'}</div>
+                        ${statusBadge}
                     </div>
-                    <div class="history-actions" style="display: flex; gap: 0.5rem; flex-shrink: 0;">
-                        <button type="button" class="btn-icon" onclick="editHistory(${realIndex})" title="수정" style="background: #2196f3; color: white; border: none; padding: 0.5rem 0.75rem; border-radius: 4px; cursor: pointer; transition: background 0.2s;" onmouseenter="this.style.background='#1976d2'" onmouseleave="this.style.background='#2196f3'">
+                    <div class="history-actions" style="display: flex; gap: 0.5rem;">
+                        <button type="button" class="btn-icon" onclick="editHistory(${realIndex})" title="수정" style="background: #2196f3; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button type="button" class="btn-icon btn-danger" onclick="deleteHistory(${realIndex})" title="삭제" style="background: #f44336; color: white; border: none; padding: 0.5rem 0.75rem; border-radius: 4px; cursor: pointer; transition: background 0.2s;" onmouseenter="this.style.background='#d32f2f'" onmouseleave="this.style.background='#f44336'">
+                        <button type="button" class="btn-icon btn-danger" onclick="deleteHistory(${realIndex})" title="삭제" style="background: #f44336; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -920,14 +848,6 @@ function renderHistories() {
     }
     
     container.innerHTML = html;
-    
-    // ⭐ textarea 이벤트 리스너 재설정
-    setTimeout(() => {
-        const textarea = document.getElementById('new_history_content');
-        if (textarea) {
-            autoResizeTextarea(textarea);
-        }
-    }, 0);
     
     console.log('📊 이력 렌더링:', {
         total: histories.length,
@@ -1143,6 +1063,5 @@ window.openClientSearchModal = openClientSearchModal;
 window.closeClientSearchModal = closeClientSearchModal;
 window.searchClients = searchClients;
 window.selectClient = selectClient;
-window.autoResizeTextarea = autoResizeTextarea;  // ⭐ 추가
 
 console.log('📦 Project Form 모듈 로드 완료');
