@@ -255,98 +255,102 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
             })
         
         # 프로젝트 속성 저장
-        attr_count = 0
-        for attr in data.attributes:
-            row_stat = attr.get("row_stat", "")
-            
-            if row_stat == "N":  # 신규
-                if attr.get("attr_code"):
-                    db.execute(text("""
-                        INSERT INTO project_attributes (pipeline_id, attr_code, attr_value, created_by)
-                        VALUES (:pipeline_id, :attr_code, :attr_value, :user_id)
-                    """), {
-                        "pipeline_id": pipeline_id,
-                        "attr_code": attr["attr_code"],
-                        "attr_value": attr.get("attr_value", ""),
-                        "user_id": data.user_id
-                    })
-                    attr_count += 1
-                    
-            elif row_stat == "U":  # 수정
-                if attr.get("attr_code"):
-                    db.execute(text("""
-                        UPDATE project_attributes 
-                        SET attr_value = :attr_value, updated_by = :user_id
-                        WHERE pipeline_id = :pipeline_id AND attr_code = :attr_code
-                    """), {
-                        "pipeline_id": pipeline_id,
-                        "attr_code": attr["attr_code"],
-                        "attr_value": attr.get("attr_value", ""),
-                        "user_id": data.user_id
-                    })
-                    attr_count += 1
-                    
-            elif row_stat == "D":  # 삭제
-                if attr.get("attr_code"):
-                    db.execute(text("""
-                        DELETE FROM project_attributes 
-                        WHERE pipeline_id = :pipeline_id AND attr_code = :attr_code
-                    """), {
-                        "pipeline_id": pipeline_id,
-                        "attr_code": attr["attr_code"]
-                    })
-                    attr_count += 1
+        if hasattr(data, 'attributes') and data.attributes is not None and len(data.attributes) > 0:
+            # ⚠️ attributes 키가 있고, 빈 배열이 아닐 때만 처리
+            attr_count = 0
+            for attr in data.attributes:
+                row_stat = attr.get("row_stat", "")
+                
+                if row_stat == "N":  # 신규
+                    if attr.get("attr_code"):
+                        db.execute(text("""
+                            INSERT INTO project_attributes (pipeline_id, attr_code, attr_value, created_by)
+                            VALUES (:pipeline_id, :attr_code, :attr_value, :user_id)
+                        """), {
+                            "pipeline_id": pipeline_id,
+                            "attr_code": attr["attr_code"],
+                            "attr_value": attr.get("attr_value", ""),
+                            "user_id": data.user_id
+                        })
+                        attr_count += 1
+                        
+                elif row_stat == "U":  # 수정
+                    if attr.get("attr_code"):
+                        db.execute(text("""
+                            UPDATE project_attributes 
+                            SET attr_value = :attr_value, updated_by = :user_id
+                            WHERE pipeline_id = :pipeline_id AND attr_code = :attr_code
+                        """), {
+                            "pipeline_id": pipeline_id,
+                            "attr_code": attr["attr_code"],
+                            "attr_value": attr.get("attr_value", ""),
+                            "user_id": data.user_id
+                        })
+                        attr_count += 1
+                        
+                elif row_stat == "D":  # 삭제
+                    if attr.get("attr_code"):
+                        db.execute(text("""
+                            DELETE FROM project_attributes 
+                            WHERE pipeline_id = :pipeline_id AND attr_code = :attr_code
+                        """), {
+                            "pipeline_id": pipeline_id,
+                            "attr_code": attr["attr_code"]
+                        })
+                        attr_count += 1
         
         # 프로젝트 이력 저장
-        hist_count = 0
-        for hist in data.histories:
-            row_stat = hist.get("row_stat", "")
-            
-            if row_stat == "N":  # 신규
-                db.execute(text("""
-                    INSERT INTO project_history (
-                        pipeline_id, base_date, progress_stage, strategy_content, creator_id, created_by
-                    ) VALUES (
-                        :pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, :created_by
-                    )
-                """), {
-                    "pipeline_id": pipeline_id,
-                    "base_date": hist.get("base_date"),
-                    "progress_stage": hist.get("progress_stage"),
-                    "strategy_content": hist.get("strategy_content", ""),
-                    "creator_id": data.user_id,
-                    "created_by": data.user_id
-                })
-                hist_count += 1
+        if hasattr(data, 'histories') and data.histories is not None and len(data.histories) > 0:
+            # ⚠️ histories 키가 있고, 빈 배열이 아닐 때만 처리
+            hist_count = 0
+            for hist in data.histories:
+                row_stat = hist.get("row_stat", "")
                 
-            elif row_stat == "U":  # 수정
-                history_id = hist.get("history_id")
-                if history_id:
+                if row_stat == "N":  # 신규
                     db.execute(text("""
-                        UPDATE project_history 
-                        SET base_date = :base_date, 
-                            progress_stage = :progress_stage, 
-                            strategy_content = :strategy_content,
-                            updated_by = :user_id
-                        WHERE history_id = :history_id
+                        INSERT INTO project_history (
+                            pipeline_id, base_date, progress_stage, strategy_content, creator_id, created_by
+                        ) VALUES (
+                            :pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, :created_by
+                        )
                     """), {
-                        "history_id": history_id,
+                        "pipeline_id": pipeline_id,
                         "base_date": hist.get("base_date"),
                         "progress_stage": hist.get("progress_stage"),
                         "strategy_content": hist.get("strategy_content", ""),
-                        "user_id": data.user_id
+                        "creator_id": data.user_id,
+                        "created_by": data.user_id
                     })
                     hist_count += 1
-                
-            elif row_stat == "D":  # 삭제
-                history_id = hist.get("history_id")
-                if history_id:
-                    db.execute(text("""
-                        DELETE FROM project_history WHERE history_id = :history_id
-                    """), {
-                        "history_id": history_id
-                    })
-                    hist_count += 1
+                    
+                elif row_stat == "U":  # 수정
+                    history_id = hist.get("history_id")
+                    if history_id:
+                        db.execute(text("""
+                            UPDATE project_history 
+                            SET base_date = :base_date, 
+                                progress_stage = :progress_stage, 
+                                strategy_content = :strategy_content,
+                                updated_by = :user_id
+                            WHERE history_id = :history_id
+                        """), {
+                            "history_id": history_id,
+                            "base_date": hist.get("base_date"),
+                            "progress_stage": hist.get("progress_stage"),
+                            "strategy_content": hist.get("strategy_content", ""),
+                            "user_id": data.user_id
+                        })
+                        hist_count += 1
+                    
+                elif row_stat == "D":  # 삭제
+                    history_id = hist.get("history_id")
+                    if history_id:
+                        db.execute(text("""
+                            DELETE FROM project_history WHERE history_id = :history_id
+                        """), {
+                            "history_id": history_id
+                        })
+                        hist_count += 1
         
         db.commit()
         

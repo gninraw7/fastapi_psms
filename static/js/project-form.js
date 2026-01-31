@@ -747,14 +747,29 @@ async function saveProject() {
             quoted_amount: parseInt(document.getElementById('quoted_amount').value) || 0,
             win_probability: parseInt(document.getElementById('win_probability')?.value) || 0,
             notes: document.getElementById('notes')?.value?.trim() || '',
-            attributes: attributesToSave,
-            histories: historiesToSave,
             user_id: window.currentUser?.login_id || 'system'
         };
         
-        console.log('💾 저장 데이터:', projectData);
-        console.log('   - 속성 변경:', attributesToSave.length, '건');
-        console.log('   - 이력 변경:', historiesToSave.length, '건');
+        // ⭐ 핵심 수정: 변경사항이 있을 때만 키를 추가
+        console.log('💾 저장 데이터 준비:');
+        console.log('   - 속성 배열:', attributes.length, '개 (row_stat 있음:', attributesToSave.length, '개)');
+        console.log('   - 이력 배열:', histories.length, '개 (row_stat 있음:', historiesToSave.length, '개)');
+        
+        if (attributesToSave.length > 0) {
+            projectData.attributes = attributesToSave;
+            console.log('   ✅ 속성 변경 전송:', attributesToSave);
+        } else {
+            console.log('   ⚠️ 속성 변경 없음 → attributes 키 생략');
+        }
+        
+        if (historiesToSave.length > 0) {
+            projectData.histories = historiesToSave;
+            console.log('   ✅ 이력 변경 전송:', historiesToSave);
+        } else {
+            console.log('   ⚠️ 이력 변경 없음 → histories 키 생략');
+        }
+        
+        console.log('📤 최종 전송 데이터:', projectData);
         
         // API 호출
         let response;
