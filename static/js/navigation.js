@@ -162,6 +162,9 @@ function initializePage(pageId) {
  */
 function openProjectForm(mode = 'new', pipelineId = null) {
     console.log('📝 프로젝트 폼 열기:', mode, pipelineId);
+    console.log('   - initializeProjectForm 존재?', typeof initializeProjectForm !== 'undefined');
+    console.log('   - window.initializeProjectForm 존재?', typeof window.initializeProjectForm !== 'undefined');
+ 
     
     // URL 파라미터 설정
     let url = `${window.location.pathname}?page=projects-new&mode=${mode}`;
@@ -182,12 +185,15 @@ function openProjectForm(mode = 'new', pipelineId = null) {
     if (targetPage) {
         targetPage.classList.add('active');
         
-        // 폼 초기화
-        setTimeout(() => {
-            if (typeof initializeProjectForm !== 'undefined') {
-                initializeProjectForm(mode, pipelineId);
-            }
-        }, 50);
+        // ✅ setTimeout 제거하고 바로 호출
+        console.log('🔧 initializeProjectForm 호출 시작:', mode, pipelineId);
+        if (typeof initializeProjectForm !== 'undefined') {
+            initializeProjectForm(mode, pipelineId);
+        } else {
+            console.error('❌ initializeProjectForm 함수를 찾을 수 없습니다!');
+        }
+    } else {
+        console.error('❌ page-projects-new 요소를 찾을 수 없습니다!');
     }
 }
 

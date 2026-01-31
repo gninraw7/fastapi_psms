@@ -771,13 +771,8 @@ async function saveProject() {
         
         console.log('📤 최종 전송 데이터:', projectData);
         
-        // API 호출
-        let response;
-        if (formMode === 'new') {
-            response = await API.post(API_CONFIG.ENDPOINTS.PROJECTS, projectData);
-        } else {
-            response = await API.put(`${API_CONFIG.ENDPOINTS.PROJECTS}/${currentPipelineId}`, projectData);
-        }
+        // ⭐ API 호출 - 신규/수정 모두 POST /project-detail/save 사용
+        const response = await API.post(API_CONFIG.ENDPOINTS.PROJECT_SAVE, projectData);
         
         console.log('✅ 저장 응답:', response);
         
@@ -846,6 +841,12 @@ function cancelProjectForm() {
     }
 }
 
+window.addEventListener('projectFormOpen', (e) => {
+    const { mode, pipelineId } = e.detail;
+    console.log('📨 projectFormOpen 이벤트 수신:', mode, pipelineId);
+    initializeProjectForm(mode, pipelineId);
+});
+
 // Export to window
 window.initializeProjectForm = initializeProjectForm;
 window.addAttribute = addAttribute;
@@ -861,3 +862,5 @@ window.openClientSearchModal = openClientSearchModal;
 window.closeClientSearchModal = closeClientSearchModal;
 window.searchClients = searchClients;
 window.selectClient = selectClient;
+
+console.log('📦 Project Form 모듈 로드 완료');

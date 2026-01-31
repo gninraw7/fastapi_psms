@@ -18,6 +18,7 @@ const API_CONFIG = {
         PROJECTS_LIST: '/projects/list',
         PROJECTS: '/projects',
         PROJECT_DETAIL: '/project-detail',
+        PROJECT_SAVE: '/project-detail/save', 
         PROJECT_HISTORY: '/projects/history',
         
         // 거래처 관련
