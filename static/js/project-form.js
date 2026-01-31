@@ -11,8 +11,12 @@
  * 
  * 버그 수정 (2026-01-31):
  * - 고객사/발주처 정보 조회 오류 수정
+ * - 고객사 검색 API 엔드포인트 수정 (CLIENTS_SEARCH → CLIENTS_SEARCH_SIMPLE)
  * - 속성정보 DB 저장 오류 수정 (row_stat 관리)
  * - 변경이력 DB 저장 오류 수정 (row_stat 관리)
+ * - 속성정보 추가 버튼 렌더링 추가
+ * - 변경이력 추가 버튼 렌더링 추가
+ * - ⭐ pipeline_id 전송 추가로 수정 모드 저장 오류 해결
  */
 
 // ===================================
@@ -73,6 +77,10 @@ async function initializeProjectForm(mode = 'new', pipelineId = null) {
         
         // 3.1 신규 등록시 진행단계 기본값 'S01'
         document.getElementById('current_stage').value = 'S01';
+        
+        // 속성/이력 렌더링 (빈 상태로)
+        renderAttributes();
+        renderHistories();
     }
 }
 
@@ -302,8 +310,6 @@ function resetForm() {
     
     attributes = [];
     histories = [];
-    renderAttributes();
-    renderHistories();
 }
 
 // ===================================
@@ -377,9 +383,16 @@ async function searchClients(page = 1) {
         const searchInput = document.getElementById('clientSearchInput');
         const searchText = searchInput ? searchInput.value.trim() : '';
         
+        console.log('🔍 고객사 검색:', { searchText, page });
+        
         Utils.showLoading(true);
         
-        const response = await API.get(`${API_CONFIG.ENDPOINTS.CLIENTS_SEARCH}?search_text=${encodeURIComponent(searchText)}&page=${page}&page_size=10`);
+        // ✅ 수정: CLIENTS_SEARCH_SIMPLE 엔드포인트 사용
+        const url = `${API_CONFIG.ENDPOINTS.CLIENTS_SEARCH_SIMPLE}?search_text=${encodeURIComponent(searchText)}`;
+        console.log('📡 API 호출:', url);
+        
+        const response = await API.get(url);
+        console.log('📥 검색 결과:', response);
         
         Utils.showLoading(false);
         
@@ -396,7 +409,10 @@ function renderClientSearchResults(response) {
     const container = document.getElementById('clientSearchResults');
     if (!container) return;
     
-    const items = response.items || [];
+    // ✅ response가 배열인 경우와 객체인 경우 모두 처리
+    const items = Array.isArray(response) ? response : (response.items || response.clients || []);
+    
+    console.log('📊 검색 결과 렌더링:', items.length, '건');
     
     if (items.length === 0) {
         container.innerHTML = '<p style="text-align: center; padding: 20px; color: #666;">검색 결과가 없습니다.</p>';
@@ -406,8 +422,8 @@ function renderClientSearchResults(response) {
     let html = '<div class="client-results-list">';
     items.forEach(client => {
         html += `
-            <div class="client-result-item" onclick="selectClient(${client.client_id}, '${client.client_name.replace(/'/g, "\\'")}')">
-                <div class="client-result-name">${client.client_name}</div>
+            <div class="client-result-item" onclick="selectClient(${client.client_id}, '${(client.client_name || '').replace(/'/g, "\\'")}')">
+                <div class="client-result-name">${client.client_name || ''}</div>
                 <div class="client-result-info">
                     ${client.business_number ? `<span>사업자: ${client.business_number}</span>` : ''}
                     ${client.ceo_name ? `<span>대표: ${client.ceo_name}</span>` : ''}
@@ -419,8 +435,16 @@ function renderClientSearchResults(response) {
     
     container.innerHTML = html;
     
-    // 페이징 렌더링
-    renderClientPagination(response);
+    // ✅ 페이징은 response에 total_pages가 있을 때만 렌더링
+    if (response.total_pages) {
+        renderClientPagination(response);
+    } else {
+        // 페이징 정보가 없으면 페이징 컨테이너 숨김
+        const paginationContainer = document.getElementById('clientSearchPagination');
+        if (paginationContainer) {
+            paginationContainer.innerHTML = '';
+        }
+    }
 }
 
 function renderClientPagination(response) {
@@ -439,6 +463,8 @@ function renderClientPagination(response) {
 
 // 고객사 선택
 function selectClient(clientId, clientName) {
+    console.log('✅ 거래처 선택:', { clientSearchTarget, clientId, clientName });
+    
     if (clientSearchTarget === 'customer') {
         selectedCustomerId = clientId;
         const customerIdEl = document.getElementById('customer_id');
@@ -557,54 +583,80 @@ function deleteAttribute(index) {
     renderAttributes();
 }
 
-// ✅ 속성 렌더링 함수
+// ✅ 속성 렌더링 함수 (입력 폼 포함)
 function renderAttributes() {
     const container = document.getElementById('attributesList');
-    if (!container) return;
+    if (!container) {
+        console.error('❌ attributesList 컨테이너를 찾을 수 없음');
+        return;
+    }
+    
+    let html = '';
+    
+    // ✅ 속성 추가 입력 폼 (항상 표시)
+    html += `
+        <div class="attribute-add-row" style="display: flex; gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px; align-items: center;">
+            <select id="new_attr_code" class="form-select" style="flex: 1;">
+                <option value="">속성 선택</option>
+    `;
+    
+    // 속성 옵션 추가
+    attributeOptions.forEach(opt => {
+        html += `<option value="${opt.code}">${opt.code_name}</option>`;
+    });
+    
+    html += `
+            </select>
+            <input type="text" id="new_attr_value" class="form-input" placeholder="속성 값 입력" style="flex: 1;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="addAttribute()">
+                <i class="fas fa-plus"></i> 추가
+            </button>
+        </div>
+    `;
     
     // 삭제 표시된 것 제외하고 표시
     const visibleAttrs = attributes.filter(a => a.row_stat !== 'D');
     
     if (visibleAttrs.length === 0) {
-        container.innerHTML = `
+        html += `
             <div style="text-align: center; padding: 2rem; color: #666;">
                 <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 1rem;"></i>
                 <p>등록된 속성이 없습니다.</p>
             </div>
         `;
-        return;
+    } else {
+        html += '<div class="attributes-list">';
+        
+        visibleAttrs.forEach((attr) => {
+            // 실제 배열에서의 인덱스 찾기
+            const realIndex = attributes.indexOf(attr);
+            
+            const statusBadge = attr.row_stat === 'N' ? 
+                '<span class="badge badge-new" style="background: #4caf50; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">신규</span>' : 
+                (attr.row_stat === 'U' ? '<span class="badge badge-modified" style="background: #ff9800; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">수정됨</span>' : '');
+            
+            html += `
+                <div class="attribute-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: white; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 0.5rem;">
+                    <div class="attribute-info" style="flex: 1;">
+                        <strong>${attr.attr_name || attr.attr_code}</strong>
+                        <span class="attribute-value" style="margin-left: 1rem; color: #666;">${attr.attr_value || '-'}</span>
+                        ${statusBadge}
+                    </div>
+                    <div class="attribute-actions" style="display: flex; gap: 0.5rem;">
+                        <button type="button" class="btn-icon" onclick="editAttribute(${realIndex})" title="수정" style="background: #2196f3; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button type="button" class="btn-icon btn-danger" onclick="deleteAttribute(${realIndex})" title="삭제" style="background: #f44336; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
     }
     
-    let html = '<div class="attributes-list">';
-    
-    visibleAttrs.forEach((attr) => {
-        // 실제 배열에서의 인덱스 찾기
-        const realIndex = attributes.indexOf(attr);
-        
-        const statusBadge = attr.row_stat === 'N' ? 
-            '<span class="badge badge-new">신규</span>' : 
-            (attr.row_stat === 'U' ? '<span class="badge badge-modified">수정됨</span>' : '');
-        
-        html += `
-            <div class="attribute-item">
-                <div class="attribute-info">
-                    <strong>${attr.attr_name || attr.attr_code}</strong>
-                    <span class="attribute-value">${attr.attr_value || '-'}</span>
-                    ${statusBadge}
-                </div>
-                <div class="attribute-actions">
-                    <button type="button" class="btn-icon" onclick="editAttribute(${realIndex})" title="수정">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button type="button" class="btn-icon btn-danger" onclick="deleteAttribute(${realIndex})" title="삭제">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-    });
-    
-    html += '</div>';
     container.innerHTML = html;
     
     console.log('📊 속성 렌더링:', {
@@ -719,55 +771,82 @@ function deleteHistory(index) {
     renderHistories();
 }
 
-// ✅ 이력 렌더링 함수
+// ✅ 이력 렌더링 함수 (입력 폼 포함)
 function renderHistories() {
     const container = document.getElementById('historiesList');
-    if (!container) return;
+    if (!container) {
+        console.error('❌ historiesList 컨테이너를 찾을 수 없음');
+        return;
+    }
+    
+    let html = '';
+    
+    // ✅ 이력 추가 입력 폼 (항상 표시)
+    html += `
+        <div class="history-add-row" style="display: flex; gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: #f8f9fa; border-radius: 8px; align-items: center;">
+            <input type="date" id="new_history_date" class="form-input" style="flex: 1;">
+            <select id="new_history_stage" class="form-select" style="flex: 1;">
+                <option value="">진행단계 선택</option>
+    `;
+    
+    // 진행단계 옵션 추가
+    stageOptions.forEach(opt => {
+        html += `<option value="${opt.code}" ${opt.code === 'S01' ? 'selected' : ''}>${opt.code_name}</option>`;
+    });
+    
+    html += `
+            </select>
+            <input type="text" id="new_history_content" class="form-input" placeholder="전략 내용 입력" style="flex: 2;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="addHistory()">
+                <i class="fas fa-plus"></i> 추가
+            </button>
+        </div>
+    `;
     
     // 삭제 표시된 것 제외하고 표시
     const visibleHists = histories.filter(h => h.row_stat !== 'D');
     
     if (visibleHists.length === 0) {
-        container.innerHTML = `
+        html += `
             <div style="text-align: center; padding: 2rem; color: #666;">
                 <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 1rem;"></i>
                 <p>등록된 이력이 없습니다.</p>
             </div>
         `;
-        return;
+    } else {
+        html += '<div class="histories-list">';
+        
+        visibleHists.forEach((hist) => {
+            // 실제 배열에서의 인덱스 찾기
+            const realIndex = histories.indexOf(hist);
+            
+            const statusBadge = hist.row_stat === 'N' ? 
+                '<span class="badge badge-new" style="background: #4caf50; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">신규</span>' : 
+                (hist.row_stat === 'U' ? '<span class="badge badge-modified" style="background: #ff9800; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">수정됨</span>' : '');
+            
+            html += `
+                <div class="history-item" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: white; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 0.5rem;">
+                    <div class="history-info" style="flex: 1; display: flex; gap: 1rem; align-items: center;">
+                        <div class="history-date" style="font-weight: 600; min-width: 100px;">${Utils.formatDate(hist.base_date)}</div>
+                        <div class="history-stage" style="min-width: 120px;">${hist.stage_name || hist.progress_stage}</div>
+                        <div class="history-content" style="flex: 1; color: #666;">${hist.strategy_content || '-'}</div>
+                        ${statusBadge}
+                    </div>
+                    <div class="history-actions" style="display: flex; gap: 0.5rem;">
+                        <button type="button" class="btn-icon" onclick="editHistory(${realIndex})" title="수정" style="background: #2196f3; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button type="button" class="btn-icon btn-danger" onclick="deleteHistory(${realIndex})" title="삭제" style="background: #f44336; color: white; border: none; padding: 0.5rem; border-radius: 4px; cursor: pointer;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
     }
     
-    let html = '<div class="histories-list">';
-    
-    visibleHists.forEach((hist) => {
-        // 실제 배열에서의 인덱스 찾기
-        const realIndex = histories.indexOf(hist);
-        
-        const statusBadge = hist.row_stat === 'N' ? 
-            '<span class="badge badge-new">신규</span>' : 
-            (hist.row_stat === 'U' ? '<span class="badge badge-modified">수정됨</span>' : '');
-        
-        html += `
-            <div class="history-item">
-                <div class="history-info">
-                    <div class="history-date">${Utils.formatDate(hist.base_date)}</div>
-                    <div class="history-stage">${hist.stage_name || hist.progress_stage}</div>
-                    <div class="history-content">${hist.strategy_content || '-'}</div>
-                    ${statusBadge}
-                </div>
-                <div class="history-actions">
-                    <button type="button" class="btn-icon" onclick="editHistory(${realIndex})" title="수정">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button type="button" class="btn-icon btn-danger" onclick="deleteHistory(${realIndex})" title="삭제">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-    });
-    
-    html += '</div>';
     container.innerHTML = html;
     
     console.log('📊 이력 렌더링:', {
@@ -851,8 +930,9 @@ async function saveProject() {
                 row_stat: h.row_stat
             }));
         
-        // 데이터 수집
+        // ⭐ 데이터 수집 (pipeline_id 포함)
         const projectData = {
+            pipeline_id: formMode === 'edit' ? currentPipelineId : null,  // ⭐ 핵심: 수정 모드일 때 pipeline_id 전송
             project_name: projectName,
             field_code: fieldCode,
             current_stage: currentStage,
@@ -867,6 +947,7 @@ async function saveProject() {
         
         // ⭐ 핵심 수정: 변경사항이 있을 때만 키를 추가
         console.log('💾 저장 데이터 준비:');
+        console.log('   - pipeline_id:', projectData.pipeline_id);
         console.log('   - 속성 배열:', attributes.length, '개 (row_stat 있음:', attributesToSave.length, '개)');
         console.log('   - 이력 배열:', histories.length, '개 (row_stat 있음:', historiesToSave.length, '개)');
         
