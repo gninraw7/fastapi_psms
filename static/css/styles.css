@@ -1332,3 +1332,23 @@ body {
         width: 100%;
     }
 }
+
+/* 마크다운 포맷팅 옵션 */
+.markdown-format-option {
+    transition: all 0.3s ease;
+}
+
+.markdown-format-option:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+}
+
+/* 가이드 모달 */
+.guide-section {
+    padding: 0;
+}
+
+kbd {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    font-weight: 600;
+}

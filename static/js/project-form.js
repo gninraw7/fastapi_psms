@@ -90,6 +90,9 @@ async function initializeProjectForm(mode = 'new', pipelineId = null) {
         // 속성/이력 렌더링 (빈 상태로)
         renderAttributes();
         renderHistories();
+
+        // ⭐ 마크다운 포맷팅 초기화 (새로 추가)
+        initMarkdownFormatting();
     }
 }
 
@@ -899,6 +902,9 @@ function editHistory(index) {
         contentTextarea.value = hist.strategy_content || '';
         // 높이 자동 조절
         autoResizeTextarea(contentTextarea);
+
+        // ⭐ 마크다운 포맷팅 바인딩 추가
+        bindMarkdownFormatting(contentTextarea);
     }
     
     // 모달 표시
@@ -1188,6 +1194,9 @@ function renderHistories() {
         const textarea = document.getElementById('new_history_content');
         if (textarea) {
             autoResizeTextarea(textarea);
+
+            // ⭐ 마크다운 포맷팅 바인딩 추가
+            bindMarkdownFormatting(textarea);
         }
     }, 0);
     

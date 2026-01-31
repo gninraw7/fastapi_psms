@@ -406,10 +406,94 @@
                             <i class="fas fa-info-circle"></i>
                             프로젝트 진행 이력을 관리합니다. 신규 등록시 기본 단계는 "1 영업중(S01)", 수정시에는 현재 진행단계가 기본값으로 설정됩니다.
                         </div>
+                        
+                        <!-- ⭐ 마크다운 포맷팅 옵션 (신규 추가) -->
+                        <div class="markdown-format-option" style="
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            padding: 0.875rem 1.25rem;
+                            background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf3 100%);
+                            border-radius: 8px;
+                            margin-bottom: 1rem;
+                            border: 1px solid #d8dce6;
+                            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+                        ">
+                            <label for="enable_markdown_formatting" style="
+                                display: flex;
+                                align-items: center;
+                                gap: 0.75rem;
+                                cursor: pointer;
+                                user-select: none;
+                                flex: 1;
+                            ">
+                                <!-- 체크박스 -->
+                                <input 
+                                    type="checkbox" 
+                                    id="enable_markdown_formatting"
+                                    onchange="toggleMarkdownFormatting(this.checked)"
+                                    style="
+                                        width: 20px;
+                                        height: 20px;
+                                        cursor: pointer;
+                                        accent-color: #667eea;
+                                    "
+                                >
+                                
+                                <span style="
+                                    font-weight: 600;
+                                    color: #2c3e50;
+                                    font-size: 0.9rem;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 0.5rem;
+                                ">
+                                    <i class="fas fa-magic" style="color: #667eea;"></i>
+                                    스마트 포맷팅 사용
+                                    <span style="
+                                        font-size: 0.75rem;
+                                        font-weight: 400;
+                                        color: #7f8c8d;
+                                        background: white;
+                                        padding: 0.15rem 0.5rem;
+                                        border-radius: 4px;
+                                    ">
+                                        마크다운 자동 변환
+                                    </span>
+                                </span>
+                            </label>
+                            
+                            <!-- 도움말 버튼 -->
+                            <button 
+                                type="button"
+                                onclick="showMarkdownGuide()"
+                                style="
+                                    background: white;
+                                    border: 1.5px solid #667eea;
+                                    color: #667eea;
+                                    padding: 0.5rem 1rem;
+                                    border-radius: 6px;
+                                    font-size: 0.85rem;
+                                    font-weight: 600;
+                                    cursor: pointer;
+                                    transition: all 0.2s;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 0.5rem;
+                                "
+                                onmouseover="this.style.background='#667eea'; this.style.color='white'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(102,126,234,0.3)';"
+                                onmouseout="this.style.background='white'; this.style.color='#667eea'; this.style.transform='translateY(0)'; this.style.boxShadow='none';"
+                            >
+                                <i class="fas fa-book-open"></i>
+                                문법 가이드
+                            </button>
+                        </div>
+                        
                         <div id="historiesList">
                             <!-- renderHistories()에서 동적 생성 -->
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -803,16 +887,6 @@
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
-    <script src="/static/js/config.js?v=2.5"></script>
-    <script src="/static/js/auth.js?v=2.5"></script>
-    <script src="/static/js/utils.js?v=2.5"></script>
-    <script src="/static/js/navigation.js?v=2.5"></script>
-    <script src="/static/js/project-form.js?v=2.5"></script>  <!-- ⭐ 이게 있어야 함! -->
-    <script src="/static/js/app.js?v=2.5"></script>
-    <script src="/static/js/mobile.js?v=2.5"></script>
-
     <!-- ============================================ -->
     <!-- 변경이력 수정 모달 (신규 추가) -->
     <!-- ============================================ -->
@@ -898,6 +972,240 @@
             </div>
         </div>
     </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
+    <script src="/static/js/config.js?v=2.5"></script>
+    <script src="/static/js/auth.js?v=2.5"></script>
+    <script src="/static/js/utils.js?v=2.5"></script>
+    <script src="/static/js/navigation.js?v=2.5"></script>
+    <script src="/static/js/project-form.js?v=2.5"></script>  <!-- ⭐ 이게 있어야 함! -->
+    <script src="/static/js/app.js?v=2.5"></script>
+    <script src="/static/js/mobile.js?v=2.5"></script>
+    <script src="/static/js/markdown-formatter.js"></script>
+
+
+    <!-- ============================================ -->
+    <!-- ⭐ 마크다운 가이드 모달 (신규 추가) -->
+    <!-- ============================================ -->
+    <div id="markdownGuideModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 700px; width: 90%;">
+            <div class="modal-header">
+                <h2>
+                    <i class="fas fa-book-open"></i>
+                    마크다운 문법 가이드
+                </h2>
+                <button class="modal-close" onclick="closeMarkdownGuide()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div style="display: grid; gap: 1.5rem;">
+                    
+                    <!-- 기본 사용법 -->
+                    <div style="background: #e8f5e9; padding: 1rem; border-radius: 8px; border-left: 4px solid #4caf50;">
+                        <h4 style="color: #2e7d32; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-lightbulb"></i>
+                            기본 사용법
+                        </h4>
+                        <p style="margin: 0; color: #1b5e20; line-height: 1.6;">
+                            라인 시작 부분에 기호를 입력하고 <strong>스페이스</strong>를 누르면 자동으로 변환됩니다.
+                            <br><strong>Enter</strong> 키를 누르면 다음 줄에 같은 형식이 자동으로 추가됩니다.
+                        </p>
+                    </div>
+                    
+                    <!-- 글머리 기호 -->
+                    <div class="guide-section">
+                        <h3 style="color: #667eea; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-list-ul"></i>
+                            글머리 기호 (Bullet Points)
+                        </h3>
+                        
+                        <div style="display: grid; gap: 1rem;">
+                            <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; align-items: center;">
+                                <div style="background: #f8f9fa; padding: 1rem; border-radius: 6px; font-family: 'Courier New', monospace; border: 1px solid #e0e0e0;">
+                                    <div style="color: #666; font-size: 0.8rem; margin-bottom: 0.5rem;">입력:</div>
+                                    <div>* 첫 번째 항목</div>
+                                    <div>- 두 번째 항목</div>
+                                    <div>+ 세 번째 항목</div>
+                                </div>
+                                
+                                <div style="font-size: 1.5rem; color: #667eea;">→</div>
+                                
+                                <div style="background: white; padding: 1rem; border-radius: 6px; border: 1px solid #e0e0e0;">
+                                    <div style="color: #666; font-size: 0.8rem; margin-bottom: 0.5rem;">결과:</div>
+                                    <div>• 첫 번째 항목</div>
+                                    <div>• 두 번째 항목</div>
+                                    <div>• 세 번째 항목</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 번호 목록 -->
+                    <div class="guide-section">
+                        <h3 style="color: #667eea; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-list-ol"></i>
+                            번호 목록 (Numbered List)
+                        </h3>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; align-items: center;">
+                            <div style="background: #f8f9fa; padding: 1rem; border-radius: 6px; font-family: 'Courier New', monospace; border: 1px solid #e0e0e0;">
+                                <div style="color: #666; font-size: 0.8rem; margin-bottom: 0.5rem;">입력:</div>
+                                <div>1. 첫 번째</div>
+                                <div style="color: #999; font-style: italic;">(Enter 누르면 자동으로 2.)</div>
+                                <div>2. 두 번째</div>
+                                <div>3. 세 번째</div>
+                            </div>
+                            
+                            <div style="font-size: 1.5rem; color: #667eea;">✓</div>
+                            
+                            <div style="background: white; padding: 1rem; border-radius: 6px; border: 1px solid #e0e0e0;">
+                                <div style="color: #666; font-size: 0.8rem; margin-bottom: 0.5rem;">결과:</div>
+                                <div>1. 첫 번째</div>
+                                <div>2. 두 번째</div>
+                                <div>3. 세 번째</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 체크리스트 -->
+                    <div class="guide-section">
+                        <h3 style="color: #667eea; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-check-square"></i>
+                            체크리스트 (Checklist)
+                        </h3>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; align-items: center;">
+                            <div style="background: #f8f9fa; padding: 1rem; border-radius: 6px; font-family: 'Courier New', monospace; border: 1px solid #e0e0e0;">
+                                <div style="color: #666; font-size: 0.8rem; margin-bottom: 0.5rem;">입력:</div>
+                                <div>[ ] 미완료 작업</div>
+                                <div>[x] 완료된 작업</div>
+                                <div>[X] 완료 (대문자)</div>
+                            </div>
+                            
+                            <div style="font-size: 1.5rem; color: #667eea;">→</div>
+                            
+                            <div style="background: white; padding: 1rem; border-radius: 6px; border: 1px solid #e0e0e0;">
+                                <div style="color: #666; font-size: 0.8rem; margin-bottom: 0.5rem;">결과:</div>
+                                <div>☐ 미완료 작업</div>
+                                <div>☑ 완료된 작업</div>
+                                <div>☑ 완료 (대문자)</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 들여쓰기 -->
+                    <div class="guide-section">
+                        <h3 style="color: #667eea; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-indent"></i>
+                            들여쓰기 (Indentation)
+                        </h3>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; align-items: center;">
+                            <div style="background: #f8f9fa; padding: 1rem; border-radius: 6px; font-family: 'Courier New', monospace; border: 1px solid #e0e0e0;">
+                                <div style="color: #666; font-size: 0.8rem; margin-bottom: 0.5rem;">입력:</div>
+                                <div>* 상위 항목</div>
+                                <div style="padding-left: 2rem;">* 하위 항목 (Tab)</div>
+                                <div style="padding-left: 4rem;">* 더 하위 (Tab x2)</div>
+                            </div>
+                            
+                            <div style="font-size: 1.5rem; color: #667eea;">→</div>
+                            
+                            <div style="background: white; padding: 1rem; border-radius: 6px; border: 1px solid #e0e0e0;">
+                                <div style="color: #666; font-size: 0.8rem; margin-bottom: 0.5rem;">결과:</div>
+                                <div>• 상위 항목</div>
+                                <div style="padding-left: 2rem;">• 하위 항목</div>
+                                <div style="padding-left: 4rem;">• 더 하위</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 키보드 단축키 -->
+                    <div style="background: #fff3e0; padding: 1rem; border-radius: 8px; border-left: 4px solid #ff9800;">
+                        <h4 style="color: #e65100; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-keyboard"></i>
+                            키보드 단축키
+                        </h4>
+                        <div style="display: grid; gap: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: white; border-radius: 4px;">
+                                <span style="font-weight: 600;"><kbd style="background: #f5f5f5; padding: 0.25rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; font-family: monospace;">Tab</kbd></span>
+                                <span>들여쓰기</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: white; border-radius: 4px;">
+                                <span style="font-weight: 600;"><kbd style="background: #f5f5f5; padding: 0.25rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; font-family: monospace;">Shift + Tab</kbd></span>
+                                <span>내어쓰기</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: white; border-radius: 4px;">
+                                <span style="font-weight: 600;"><kbd style="background: #f5f5f5; padding: 0.25rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; font-family: monospace;">Enter</kbd></span>
+                                <span>다음 줄에 같은 형식 자동 생성</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: white; border-radius: 4px;">
+                                <span style="font-weight: 600;"><kbd style="background: #f5f5f5; padding: 0.25rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; font-family: monospace;">Enter</kbd> (빈 줄)</span>
+                                <span>포맷 종료</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 실전 예제 -->
+                    <div style="background: #e3f2fd; padding: 1rem; border-radius: 8px; border-left: 4px solid #2196f3;">
+                        <h4 style="color: #0d47a1; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fas fa-star"></i>
+                            실전 예제
+                        </h4>
+                        <div style="background: white; padding: 1rem; border-radius: 6px; font-family: 'Courier New', monospace; line-height: 1.8; border: 1px solid #90caf9;">
+                            <div>• 고객사 미팅 완료</div>
+                            <div style="padding-left: 2rem;">• 주요 요구사항 확인</div>
+                            <div style="padding-left: 2rem;">• 예산 및 일정 논의</div>
+                            <div>• 제안서 작성 계획</div>
+                            <div style="padding-left: 2rem;">1. 기술 스펙 정리</div>
+                            <div style="padding-left: 2rem;">2. 견적 산출</div>
+                            <div style="padding-left: 2rem;">3. 발표 자료 준비</div>
+                            <div>• 다음 액션 아이템</div>
+                            <div style="padding-left: 2rem;">☐ 기술팀 검토 요청</div>
+                            <div style="padding-left: 2rem;">☐ 견적서 초안 작성</div>
+                            <div style="padding-left: 2rem;">☑ 미팅 노트 공유</div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="closeMarkdownGuide()" style="padding: 0.75rem 2rem;">
+                    <i class="fas fa-check"></i> 확인
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ⭐ 마크다운 가이드 모달 함수
+    function showMarkdownGuide() {
+        const modal = document.getElementById('markdownGuideModal');
+        if (modal) {
+            modal.classList.add('active');
+            modal.style.display = 'flex';
+        }
+    }
+
+    function closeMarkdownGuide() {
+        const modal = document.getElementById('markdownGuideModal');
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+    }
+
+    // 모달 외부 클릭 시 닫기
+    window.addEventListener('click', function(event) {
+        const modal = document.getElementById('markdownGuideModal');
+        if (modal && event.target === modal) {
+            closeMarkdownGuide();
+        }
+    });
+    </script>
 
 </body>
 </html>
