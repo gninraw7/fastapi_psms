@@ -5,13 +5,6 @@
 // 버그 수정 (2026-01-30):
 // - initializeTable의 Promise가 resolve되지 않아 이벤트 리스너가 등록되지 않는 문제 수정
 // - 이벤트 리스너를 테이블 초기화와 독립적으로 바로 등록
-//
-// 기능 추가 (2026-02-01):
-// - ⭐ 진행단계 아이콘 표시 (StageIcons 모듈 사용)
-// - 프로젝트 목록 그리드: 배지 스타일 (아이콘 + 배경색 + 테두리)
-// - 프로젝트 상세 정보: 배지 스타일
-// - 변경이력 목록: 인라인 스타일 (아이콘 + 텍스트)
-// - 폴백 지원: StageIcons 미로드 시 기존 getStageBadge 사용
 // ===================================
 
 // ===================================
@@ -288,37 +281,14 @@ function initializeTable() {
                 headerSort: false
             },
             {
-            {
                 title: "진행단계",
                 field: "current_stage",
-                width: 160,  // ⭐ 너비 증가 (아이콘 + 배지 공간)
+                width: 120,
                 hozAlign: "center",
                 headerSort: false,
                 formatter: function(cell) {
-                    const stageCode = cell.getValue();
-                    
-                    // 값이 없으면 기본 표시
-                    if (!stageCode) return '-';
-                    
-                    // ⭐ StageIcons가 로드되었는지 확인
-                    if (typeof StageIcons === 'undefined') {
-                        // StageIcons가 없으면 기존 방식 사용
-                        if (typeof getStageBadge !== 'undefined') {
-                            return getStageBadge(stageCode);
-                        }
-                        return stageCode;
-                    }
-                    
-                    // ⭐ StageIcons를 사용하여 배지 스타일로 렌더링
-                    const config = StageIcons.getConfig(stageCode);
-                    const stageName = config.label ? `${stageCode.replace('S0', '')} ${config.label}` : stageCode;
-                    
-                    return StageIcons.render(stageCode, stageName, { 
-                        size: 'sm', 
-                        style: 'badge'  // 배지 스타일 (배경색 + 테두리)
-                    });
+                    return getStageBadge(cell.getValue());
                 }
-            },
             },
             {
                 title: "담당자",
@@ -621,28 +591,6 @@ async function openProjectDetail(pipelineId) {
 }
 
 // ===================================
-// ⭐ 진행단계 렌더링 헬퍼 함수
-// ===================================
-function renderStageForDetail(stageCode) {
-    if (!stageCode) return '-';
-    
-    // StageIcons 사용 가능 시
-    if (typeof StageIcons !== 'undefined') {
-        var config = StageIcons.getConfig(stageCode);
-        var stageName = config.label ? stageCode.replace('S0', '') + ' ' + config.label : stageCode;
-        return StageIcons.render(stageCode, stageName, { size: 'sm', style: 'badge' });
-    }
-    
-    // 폴백: getStageBadge 사용
-    if (typeof getStageBadge !== 'undefined') {
-        return getStageBadge(stageCode);
-    }
-    
-    // 최종 폴백: 코드만 표시
-    return stageCode;
-}
-
-// ===================================
 // Render Project Detail
 // ===================================
 function renderProjectDetail(response, pipelineId) {
@@ -663,17 +611,7 @@ function renderProjectDetail(response, pipelineId) {
     var histRows = '';
     if (histories.length > 0) {
         histories.forEach(function(h) {
-            // ⭐ 진행단계 렌더링 (StageIcons 사용)
-            var stageHtml = h.progress_stage || '-';
-            if (h.progress_stage && typeof StageIcons !== 'undefined') {
-                var config = StageIcons.getConfig(h.progress_stage);
-                var stageName = config.label ? h.progress_stage.replace('S0', '') + ' ' + config.label : h.progress_stage;
-                stageHtml = StageIcons.render(h.progress_stage, stageName, { size: 'sm', style: 'inline' });
-            } else if (h.progress_stage && typeof getStageBadge !== 'undefined') {
-                stageHtml = getStageBadge(h.progress_stage);
-            }
-            
-            histRows += '<tr><td>' + Utils.formatDate(h.history_date || h.base_date) + '</td><td>' + stageHtml + '</td><td>' + (h.strategy_content || '-') + '</td><td>' + (h.creator_name || h.creator_id || '-') + '</td></tr>';
+            histRows += '<tr><td>' + Utils.formatDate(h.history_date || h.base_date) + '</td><td>' + getStageBadge(h.progress_stage) + '</td><td>' + (h.strategy_content || '-') + '</td><td>' + (h.creator_name || h.creator_id || '-') + '</td></tr>';
         });
     }
     
@@ -697,7 +635,7 @@ function renderProjectDetail(response, pipelineId) {
             '<div class="detail-item"><label>파이프라인 ID</label><span>' + (project.pipeline_id || '-') + '</span></div>' +
             '<div class="detail-item"><label>프로젝트명</label><span>' + (project.project_name || '-') + '</span></div>' +
             '<div class="detail-item"><label>사업분야</label><span>' + (project.field_name || project.field_code || '-') + '</span></div>' +
-            '<div class="detail-item"><label>진행단계</label><span>' + renderStageForDetail(project.current_stage) + '</span></div>' +
+            '<div class="detail-item"><label>진행단계</label><span>' + getStageBadge(project.current_stage) + '</span></div>' +
             '<div class="detail-item"><label>담당자</label><span>' + (project.manager_name || '-') + '</span></div>' +
             '<div class="detail-item"><label>고객사</label><span>' + (project.customer_name || '-') + '</span></div>' +
             '<div class="detail-item"><label>발주처</label><span>' + (project.ordering_party_name || '-') + '</span></div>' +

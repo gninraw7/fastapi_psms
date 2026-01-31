@@ -108,18 +108,34 @@ async function loadFormComboBoxes() {
         const stageSelect = document.getElementById('current_stage');
         stageSelect.innerHTML = '<option value="">선택하세요</option>';
         console.log('📥 진행단계 데이터:', stages);
-        
+
         if (stages && stages.items) {
-            // ⭐ sort_order 정보 포함하여 저장
             stageOptions = stages.items;
             stages.items.forEach(s => {
                 const opt = document.createElement('option');
                 opt.value = s.code;
+                
+                // ⭐ 데이터 속성에 아이콘 정보 저장
+                const config = StageIcons.getConfig(s.code);
+                opt.setAttribute('data-icon', config.icon);
+                opt.setAttribute('data-color', config.color);
+                opt.style.color = config.color;
+                
                 opt.textContent = s.code_name;
                 stageSelect.appendChild(opt);
             });
             
-            console.log('📊 진행단계 옵션 로드 완료:', stageOptions.length, '개');
+            // ⭐ 선택된 옵션에 대한 시각적 피드백 추가
+            stageSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                if (selectedOption) {
+                    const color = selectedOption.getAttribute('data-color');
+                    if (color) {
+                        this.style.color = color;
+                        this.style.fontWeight = '600';
+                    }
+                }
+            });
         }
         
         // 1.1 사업분야 콤보박스 (FIELD)
@@ -882,15 +898,47 @@ function editHistory(index) {
     const stageSelect = document.getElementById('edit_history_stage');
     if (stageSelect) {
         stageSelect.innerHTML = '<option value="">진행단계 선택</option>';
+
         stageOptions.forEach(opt => {
             const option = document.createElement('option');
             option.value = opt.code;
+            
+            // ⭐ 데이터 속성에 아이콘 정보 저장
+            const config = StageIcons.getConfig(opt.code);
+            option.setAttribute('data-icon', config.icon);
+            option.setAttribute('data-color', config.color);
+            option.style.color = config.color;
+            
             option.textContent = opt.code_name;
             if (opt.code === hist.progress_stage) {
                 option.selected = true;
             }
             stageSelect.appendChild(option);
         });
+        
+        // ⭐ 선택 변경 시 색상 업데이트
+        if (stageSelect) {
+            stageSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                if (selectedOption) {
+                    const color = selectedOption.getAttribute('data-color');
+                    if (color) {
+                        this.style.color = color;
+                        this.style.fontWeight = '600';
+                    }
+                }
+            });
+            
+            // ⭐ 초기 색상 설정
+            const currentOption = stageSelect.options[stageSelect.selectedIndex];
+            if (currentOption) {
+                const color = currentOption.getAttribute('data-color');
+                if (color) {
+                    stageSelect.style.color = color;
+                    stageSelect.style.fontWeight = '600';
+                }
+            }
+        }        
     }
     
     // 기존 데이터 채우기
@@ -1164,10 +1212,15 @@ function renderHistories() {
                             <i class="far fa-calendar-alt" style="color: #667eea; margin-right: 0.25rem;"></i>
                             ${Utils.formatDate(hist.base_date)}
                         </div>
-                        <div class="history-stage" style="font-weight: 500; color: #555;">
-                            <i class="fas fa-flag" style="color: #667eea; margin-right: 0.25rem;"></i>
-                            ${hist.stage_name || hist.progress_stage}${statusBadge}
+                        <div class="history-stage" style="font-weight: 500;">
+                        ${StageIcons.render(
+                            hist.progress_stage, 
+                            hist.stage_name || hist.progress_stage, 
+                            { size: 'sm' }
+                        )}
+                        ${statusBadge}
                         </div>
+                    
                         <div class="history-content" style="color: #666; line-height: 1.6; white-space: pre-wrap; word-break: break-word;">
                             ${formattedContent}
                         </div>
