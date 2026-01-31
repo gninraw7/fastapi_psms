@@ -288,7 +288,6 @@ function initializeTable() {
                 headerSort: false
             },
             {
-            {
                 title: "진행단계",
                 field: "current_stage",
                 width: 160,  // ⭐ 너비 증가 (아이콘 + 배지 공간)
@@ -318,7 +317,6 @@ function initializeTable() {
                         style: 'badge'  // 배지 스타일 (배경색 + 테두리)
                     });
                 }
-            },
             },
             {
                 title: "담당자",
