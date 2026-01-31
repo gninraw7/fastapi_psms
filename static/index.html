@@ -404,7 +404,7 @@
                     <div id="tab-history" class="tab-pane">
                         <div class="tab-description">
                             <i class="fas fa-info-circle"></i>
-                            프로젝트 진행 이력을 관리합니다. 신규 등록시 기본 단계는 "1 영업중(S01)"입니다.
+                            프로젝트 진행 이력을 관리합니다. 신규 등록시 기본 단계는 "1 영업중(S01)", 수정시에는 현재 진행단계가 기본값으로 설정됩니다.
                         </div>
                         <div id="historiesList">
                             <!-- renderHistories()에서 동적 생성 -->
@@ -812,5 +812,92 @@
     <script src="/static/js/project-form.js?v=2.5"></script>  <!-- ⭐ 이게 있어야 함! -->
     <script src="/static/js/app.js?v=2.5"></script>
     <script src="/static/js/mobile.js?v=2.5"></script>
+
+    <!-- ============================================ -->
+    <!-- 변경이력 수정 모달 (신규 추가) -->
+    <!-- ============================================ -->
+    <div id="historyEditModal" class="modal" style="display: none;">
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2>
+                    <i class="fas fa-edit"></i>
+                    변경이력 수정
+                </h2>
+                <button class="modal-close" onclick="closeHistoryEditModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- 수정 폼 -->
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <!-- 기준일 -->
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #333;">
+                            <i class="far fa-calendar-alt" style="color: #667eea; margin-right: 0.5rem;"></i>
+                            기준일 <span class="required">*</span>
+                        </label>
+                        <input type="date" id="edit_history_date" class="form-input" required>
+                    </div>
+                    
+                    <!-- 진행단계 -->
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #333;">
+                            <i class="fas fa-flag" style="color: #667eea; margin-right: 0.5rem;"></i>
+                            진행단계 <span class="required">*</span>
+                        </label>
+                        <select id="edit_history_stage" class="form-select" required>
+                            <option value="">진행단계 선택</option>
+                            <!-- JavaScript에서 동적으로 채움 -->
+                        </select>
+                    </div>
+                    
+                    <!-- 전략 내용 -->
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #333;">
+                            <i class="fas fa-file-alt" style="color: #667eea; margin-right: 0.5rem;"></i>
+                            전략 내용
+                        </label>
+                        <textarea 
+                            id="edit_history_content" 
+                            class="form-textarea" 
+                            placeholder="전략 내용을 입력하세요.
+    여러 줄로 상세하게 작성할 수 있습니다.
+    - 주요 활동 내역
+    - 고객 피드백
+    - 향후 계획 등"
+                            style="
+                                width: 100%; 
+                                min-height: 120px;
+                                max-height: 300px;
+                                padding: 0.75rem; 
+                                border: 1px solid #ddd; 
+                                border-radius: 6px; 
+                                font-family: inherit; 
+                                font-size: 0.875rem; 
+                                line-height: 1.5;
+                                resize: vertical;
+                                transition: border-color 0.2s, box-shadow 0.2s;
+                            "
+                            oninput="autoResizeTextarea(this)"
+                            onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)';"
+                            onblur="this.style.borderColor='#ddd'; this.style.boxShadow='none';"
+                        ></textarea>
+                        <small style="display: block; margin-top: 0.5rem; color: #666; font-size: 0.75rem;">
+                            <i class="fas fa-info-circle"></i> Enter 키로 줄바꿈하여 여러 줄을 입력할 수 있습니다.
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end; padding: 1rem 1.5rem; background: #f8f9fa; border-top: 1px solid #e0e0e0;">
+                <button type="button" class="btn btn-secondary" onclick="closeHistoryEditModal()">
+                    <i class="fas fa-times"></i> 취소
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveHistoryEdit()">
+                    <i class="fas fa-check"></i> 확인
+                </button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

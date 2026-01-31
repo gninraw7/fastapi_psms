@@ -18,11 +18,6 @@
  * - 변경이력 추가 버튼 렌더링 추가
  * - pipeline_id 전송 추가로 수정 모드 저장 오류 해결
  * - 변경이력 전략 내용 입력란을 textarea로 변경 (자동 높이 조절)
- * - 변경이력 수정 모달 추가 (prompt 대신 모달 사용)
- * - ⭐ 변경이력 진행단계 스마트 관리 기능 추가:
- *   1) 수정 모드 시 기본정보 탭의 진행단계를 이력 입력 기본값으로 설정
- *   2) 이력 추가 시 진행단계가 기본정보보다 나중이면 자동 업데이트 제안
- *   3) sort_order 기반 진행단계 비교
  */
 
 // ===================================
@@ -42,9 +37,6 @@ let clientSearchPage = 1;
 let clientSearchTarget = '';  // 'customer' or 'ordering_party'
 let selectedCustomerId = null;
 let selectedOrderingPartyId = null;
-
-// ⭐ 변경이력 수정 모달 상태
-let editingHistoryIndex = null;
 
 // ===================================
 // Initialize Project Form
@@ -107,7 +99,6 @@ async function loadFormComboBoxes() {
         console.log('📥 진행단계 데이터:', stages);
         
         if (stages && stages.items) {
-            // ⭐ sort_order 정보 포함하여 저장
             stageOptions = stages.items;
             stages.items.forEach(s => {
                 const opt = document.createElement('option');
@@ -115,8 +106,6 @@ async function loadFormComboBoxes() {
                 opt.textContent = s.code_name;
                 stageSelect.appendChild(opt);
             });
-            
-            console.log('📊 진행단계 옵션 로드 완료:', stageOptions.length, '개');
         }
         
         // 1.1 사업분야 콤보박스 (FIELD)
@@ -710,71 +699,6 @@ function autoResizeTextarea(textarea) {
 }
 
 // ===================================
-// ⭐ 진행단계 비교 유틸리티 함수
-// ===================================
-function compareStage(stageCode1, stageCode2) {
-    /**
-     * 두 진행단계 코드를 비교
-     * @returns {number} -1: stage1이 더 앞, 0: 같음, 1: stage1이 더 뒤
-     */
-    const stage1 = stageOptions.find(s => s.code === stageCode1);
-    const stage2 = stageOptions.find(s => s.code === stageCode2);
-    
-    if (!stage1 || !stage2) return 0;
-    
-    const order1 = stage1.sort_order || 0;
-    const order2 = stage2.sort_order || 0;
-    
-    if (order1 < order2) return -1;
-    if (order1 > order2) return 1;
-    return 0;
-}
-
-function getStageName(stageCode) {
-    /**
-     * 진행단계 코드로 이름 조회
-     */
-    const stage = stageOptions.find(s => s.code === stageCode);
-    return stage ? stage.code_name : stageCode;
-}
-
-// ===================================
-// ⭐ 기본정보 탭 진행단계 업데이트 함수
-// ===================================
-async function updateBasicInfoStage(newStageCode, source = 'history') {
-    /**
-     * 기본정보 탭의 진행단계를 업데이트
-     * @param {string} newStageCode - 새로운 진행단계 코드
-     * @param {string} source - 업데이트 소스 ('history' 또는 'edit')
-     */
-    const currentStageEl = document.getElementById('current_stage');
-    if (!currentStageEl) {
-        console.error('❌ current_stage 요소를 찾을 수 없음');
-        return false;
-    }
-    
-    const currentStageCode = currentStageEl.value;
-    const currentStageName = getStageName(currentStageCode);
-    const newStageName = getStageName(newStageCode);
-    
-    const message = source === 'history' 
-        ? `변경이력의 진행단계(${newStageName})가 현재 진행단계(${currentStageName})보다 나중입니다.\n\n기본정보 탭의 진행단계를 '${newStageName}'로 업데이트하시겠습니까?`
-        : `이력 수정으로 진행단계가 '${newStageName}'로 변경되었습니다.\n\n기본정보 탭의 진행단계도 '${newStageName}'로 업데이트하시겠습니까?`;
-    
-    if (confirm(message)) {
-        currentStageEl.value = newStageCode;
-        console.log('✅ 기본정보 탭 진행단계 업데이트:', {
-            from: currentStageCode,
-            to: newStageCode,
-            source: source
-        });
-        return true;
-    }
-    
-    return false;
-}
-
-// ===================================
 // 3.1 Histories Management (수정됨)
 // ===================================
 function addHistory() {
@@ -805,22 +729,6 @@ function addHistory() {
     const selectedOption = stageOptions.find(opt => opt.code === progressStage);
     const stageName = selectedOption ? selectedOption.code_name : progressStage;
     
-    // ⭐ 기본정보 탭 진행단계와 비교
-    const currentStageEl = document.getElementById('current_stage');
-    const currentStageCode = currentStageEl ? currentStageEl.value : '';
-    
-    if (currentStageCode && compareStage(progressStage, currentStageCode) > 0) {
-        // 새 이력의 진행단계가 더 나중인 경우
-        console.log('📊 진행단계 비교:', {
-            current: currentStageCode,
-            new: progressStage,
-            result: '신규 이력이 더 나중'
-        });
-        
-        // 비동기로 업데이트 (사용자 확인 후)
-        updateBasicInfoStage(progressStage, 'history');
-    }
-    
     // ✅ 신규 이력 추가 (row_stat: 'N' 설정 필수)
     histories.push({
         history_id: null,  // 신규는 ID 없음
@@ -835,9 +743,10 @@ function addHistory() {
     
     // 입력 필드 초기화
     baseDateInput.value = '';
-    stageSelect.value = formMode === 'edit' && currentStageCode ? currentStageCode : 'S01';  // ⭐ 기본값 유지
+    stageSelect.value = 'S01';  // 기본값으로 리셋
     if (contentTextarea) {
         contentTextarea.value = '';
+        // 높이도 초기화
         contentTextarea.style.height = 'auto';
     }
     
@@ -845,192 +754,24 @@ function addHistory() {
     renderHistories();
 }
 
-// ===================================
-// ⭐ 변경이력 수정 모달 상태 변수
-// ===================================
-// (이미 상단에 선언되어 있음)
-
-// ===================================
-// ⭐ 변경이력 수정 - 모달 사용 (기존 prompt 방식에서 개선)
-// ===================================
+// ✅ 이력 수정 함수
 function editHistory(index) {
     const hist = histories[index];
     
-    // 수정 중인 인덱스 저장
-    editingHistoryIndex = index;
+    // 수정 UI 표시 (간단하게 prompt 사용)
+    const newContent = prompt('전략 내용을 입력하세요:', hist.strategy_content || '');
     
-    // 모달 열기
-    const modal = document.getElementById('historyEditModal');
-    if (!modal) {
-        console.error('❌ historyEditModal을 찾을 수 없음');
-        // 모달이 없으면 기존 prompt 방식으로 폴백
-        const newContent = prompt('전략 내용을 입력하세요:', hist.strategy_content || '');
-        if (newContent !== null && newContent !== hist.strategy_content) {
-            histories[index].strategy_content = newContent.trim();
-            if (hist.row_stat !== 'N' && hist.row_stat !== 'D') {
-                histories[index].row_stat = 'U';
-            }
-            renderHistories();
-        }
-        return;
-    }
-    
-    // 진행단계 select 옵션 채우기
-    const stageSelect = document.getElementById('edit_history_stage');
-    if (stageSelect) {
-        stageSelect.innerHTML = '<option value="">진행단계 선택</option>';
-        stageOptions.forEach(opt => {
-            const option = document.createElement('option');
-            option.value = opt.code;
-            option.textContent = opt.code_name;
-            if (opt.code === hist.progress_stage) {
-                option.selected = true;
-            }
-            stageSelect.appendChild(option);
-        });
-    }
-    
-    // 기존 데이터 채우기
-    const dateInput = document.getElementById('edit_history_date');
-    if (dateInput) dateInput.value = hist.base_date || '';
-    
-    const contentTextarea = document.getElementById('edit_history_content');
-    if (contentTextarea) {
-        contentTextarea.value = hist.strategy_content || '';
-        // 높이 자동 조절
-        autoResizeTextarea(contentTextarea);
-    }
-    
-    // 모달 표시
-    modal.classList.add('active');
-    modal.style.display = 'flex';
-    
-    console.log('✏️ 이력 수정 모달 열림:', { index, hist });
-}
-
-// ===================================
-// ⭐ 변경이력 수정 저장 (새로 추가된 함수)
-// ===================================
-function saveHistoryEdit() {
-    if (editingHistoryIndex === null) {
-        console.error('❌ 수정 중인 이력 인덱스가 없음');
-        return;
-    }
-    
-    const dateInput = document.getElementById('edit_history_date');
-    const stageSelect = document.getElementById('edit_history_stage');
-    const contentTextarea = document.getElementById('edit_history_content');
-    
-    if (!dateInput || !stageSelect || !contentTextarea) {
-        console.error('❌ 수정 폼 요소를 찾을 수 없음');
-        return;
-    }
-    
-    const newDate = dateInput.value;
-    const newStage = stageSelect.value;
-    const newContent = contentTextarea.value.trim();
-    
-    // 필수 입력 확인
-    if (!newDate) {
-        alert('기준일을 입력하세요.');
-        dateInput.focus();
-        return;
-    }
-    
-    if (!newStage) {
-        alert('진행단계를 선택하세요.');
-        stageSelect.focus();
-        return;
-    }
-    
-    const hist = histories[editingHistoryIndex];
-    
-    // 변경사항 확인
-    const hasChanges = 
-        newDate !== hist.base_date || 
-        newStage !== hist.progress_stage || 
-        newContent !== (hist.strategy_content || '');
-    
-    if (!hasChanges) {
-        // 변경사항 없음
-        closeHistoryEditModal();
-        return;
-    }
-    
-    // 진행단계명 찾기
-    const selectedOption = stageOptions.find(opt => opt.code === newStage);
-    const stageName = selectedOption ? selectedOption.code_name : newStage;
-    
-    // ⭐ 진행단계가 변경된 경우 기본정보 탭과 비교
-    if (newStage !== hist.progress_stage) {
-        const currentStageEl = document.getElementById('current_stage');
-        const currentStageCode = currentStageEl ? currentStageEl.value : '';
+    if (newContent !== null && newContent !== hist.strategy_content) {
+        histories[index].strategy_content = newContent.trim();
         
-        if (currentStageCode && compareStage(newStage, currentStageCode) > 0) {
-            console.log('📊 진행단계 비교 (수정):', {
-                current: currentStageCode,
-                new: newStage,
-                result: '수정된 이력이 더 나중'
-            });
-            
-            // 비동기로 업데이트
-            updateBasicInfoStage(newStage, 'edit');
+        // ✅ 신규(N)가 아니고 삭제(D)가 아니면 수정(U)으로 표시
+        if (hist.row_stat !== 'N' && hist.row_stat !== 'D') {
+            histories[index].row_stat = 'U';
+            console.log('✅ 이력 수정:', { index, history_id: hist.history_id, row_stat: 'U' });
         }
+        
+        renderHistories();
     }
-    
-    // 데이터 업데이트
-    histories[editingHistoryIndex].base_date = newDate;
-    histories[editingHistoryIndex].progress_stage = newStage;
-    histories[editingHistoryIndex].strategy_content = newContent;
-    histories[editingHistoryIndex].stage_name = stageName;
-    
-    // ✅ 신규(N)가 아니고 삭제(D)가 아니면 수정(U)으로 표시
-    if (hist.row_stat !== 'N' && hist.row_stat !== 'D') {
-        histories[editingHistoryIndex].row_stat = 'U';
-        console.log('✅ 이력 수정:', { 
-            index: editingHistoryIndex, 
-            history_id: hist.history_id, 
-            row_stat: 'U',
-            changes: { newDate, newStage, newContent }
-        });
-    } else if (hist.row_stat === 'N') {
-        console.log('✅ 신규 이력 수정:', { 
-            index: editingHistoryIndex,
-            changes: { newDate, newStage, newContent }
-        });
-    }
-    
-    // 모달 닫기
-    closeHistoryEditModal();
-    
-    // 렌더링
-    renderHistories();
-}
-
-// ===================================
-// ⭐ 변경이력 수정 모달 닫기 (새로 추가된 함수)
-// ===================================
-function closeHistoryEditModal() {
-    const modal = document.getElementById('historyEditModal');
-    if (modal) {
-        modal.classList.remove('active');
-        modal.style.display = 'none';
-    }
-    
-    // 입력 필드 초기화
-    const dateInput = document.getElementById('edit_history_date');
-    if (dateInput) dateInput.value = '';
-    
-    const stageSelect = document.getElementById('edit_history_stage');
-    if (stageSelect) stageSelect.value = '';
-    
-    const contentTextarea = document.getElementById('edit_history_content');
-    if (contentTextarea) {
-        contentTextarea.value = '';
-        contentTextarea.style.height = 'auto';
-    }
-    
-    editingHistoryIndex = null;
 }
 
 // ✅ 이력 삭제 함수
@@ -1063,11 +804,6 @@ function renderHistories() {
         return;
     }
     
-    // ⭐ 현재 진행단계 가져오기 (수정 모드일 때 기본값으로 사용)
-    const currentStageEl = document.getElementById('current_stage');
-    const currentStageCode = currentStageEl ? currentStageEl.value : '';
-    const defaultStage = (formMode === 'edit' && currentStageCode) ? currentStageCode : 'S01';
-    
     let html = '';
     
     // ✅ 이력 추가 입력 폼 (textarea로 변경, 자동 높이 조절)
@@ -1084,10 +820,9 @@ function renderHistories() {
                     <option value="">진행단계 선택</option>
     `;
     
-    // ⭐ 진행단계 옵션 추가 (기본값 설정)
+    // 진행단계 옵션 추가
     stageOptions.forEach(opt => {
-        const isSelected = opt.code === defaultStage;
-        html += `<option value="${opt.code}" ${isSelected ? 'selected' : ''}>${opt.code_name}</option>`;
+        html += `<option value="${opt.code}" ${opt.code === 'S01' ? 'selected' : ''}>${opt.code_name}</option>`;
     });
     
     html += `
@@ -1100,7 +835,10 @@ function renderHistories() {
                     id="new_history_content" 
                     class="form-textarea" 
                     placeholder="전략 내용을 입력하세요.
-여러 줄로 상세하게 작성할 수 있습니다."
+여러 줄로 상세하게 작성할 수 있습니다.
+- 주요 활동 내역
+- 고객 피드백
+- 향후 계획 등"
                     style="
                         width: 100%; 
                         min-height: 90px;
@@ -1192,8 +930,6 @@ function renderHistories() {
     }, 0);
     
     console.log('📊 이력 렌더링:', {
-        mode: formMode,
-        defaultStage: defaultStage,
         total: histories.length,
         visible: visibleHists.length,
         new: histories.filter(h => h.row_stat === 'N').length,
@@ -1388,24 +1124,6 @@ window.addEventListener('projectFormOpen', (e) => {
     initializeProjectForm(mode, pipelineId);
 });
 
-// ⭐ 모달 외부 클릭 시 닫기 (새로 추가)
-window.addEventListener('click', function(event) {
-    const modal = document.getElementById('historyEditModal');
-    if (modal && event.target === modal) {
-        closeHistoryEditModal();
-    }
-});
-
-// ⭐ ESC 키로 모달 닫기 (새로 추가)
-window.addEventListener('keydown', function(event) {
-    if (event.key === 'Escape') {
-        const modal = document.getElementById('historyEditModal');
-        if (modal && modal.classList.contains('active')) {
-            closeHistoryEditModal();
-        }
-    }
-});
-
 // Export to window
 window.initializeProjectForm = initializeProjectForm;
 window.addAttribute = addAttribute;
@@ -1425,8 +1143,6 @@ window.openClientSearchModal = openClientSearchModal;
 window.closeClientSearchModal = closeClientSearchModal;
 window.searchClients = searchClients;
 window.selectClient = selectClient;
-window.autoResizeTextarea = autoResizeTextarea;
-window.saveHistoryEdit = saveHistoryEdit;  // ⭐ 추가
-window.closeHistoryEditModal = closeHistoryEditModal;  // ⭐ 추가
+window.autoResizeTextarea = autoResizeTextarea;  // ⭐ 추가
 
 console.log('📦 Project Form 모듈 로드 완료');
