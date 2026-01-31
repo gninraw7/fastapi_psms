@@ -9,10 +9,9 @@
  * 2.1 속성정보 탭 - PROJECT_ATTRIBUTE 콤보박스
  * 3.1 변경이력 탭 - progress_stage 콤보박스, 기본값 S01
  * 
- * 버그 수정 (2026-01-31):
- * - 고객사/발주처 정보 조회 오류 수정
- * - 속성정보 DB 저장 오류 수정 (row_stat 관리)
- * - 변경이력 DB 저장 오류 수정 (row_stat 관리)
+ * 버그 수정 (2026-01-30):
+ * - 아이콘 중복 표시 문제 해결 (formTitle 텍스트만 변경)
+ * - 속성/이력 저장 로직 수정
  */
 
 // ===================================
@@ -77,34 +76,47 @@ async function initializeProjectForm(mode = 'new', pipelineId = null) {
 }
 
 // ===================================
-// Load ComboBoxes
+// Load ComboBoxes (수정됨)
 // ===================================
 async function loadFormComboBoxes() {
     try {
-        console.log('📦 콤보박스 데이터 로딩 시작...');
+        console.log('🔄 콤보박스 로딩 시작...');
         
-        // 1.1 진행단계 콤보박스 (STAGE)
-        const stages = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/STAGE`);
+        // 1.1 진행단계 (STAGE) - API에서 로드
         const stageSelect = document.getElementById('current_stage');
         stageSelect.innerHTML = '<option value="">선택하세요</option>';
-        console.log('📥 진행단계 데이터:', stages);
         
-        if (stages && stages.items) {
-            stageOptions = stages.items;
-            stages.items.forEach(s => {
-                const opt = document.createElement('option');
-                opt.value = s.code;
-                opt.textContent = s.code_name;
-                stageSelect.appendChild(opt);
-            });
+        try {
+            // 새로운 API 엔드포인트 사용
+            const stages = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/STAGE`);
+            console.log('📥 진행단계 데이터:', stages);
+            
+            if (stages && stages.items) {
+                stageOptions = stages.items;
+                stages.items.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.code;
+                    opt.textContent = s.code_name;
+                    stageSelect.appendChild(opt);
+                });
+            }
+        } catch (e) {
+            console.warn('⚠️ STAGE API 실패, 기본값 사용:', e);
+            // 기본 STAGE_CONFIG 사용
+            if (window.STAGE_CONFIG) {
+                Object.keys(window.STAGE_CONFIG).forEach(code => {
+                    const opt = document.createElement('option');
+                    opt.value = code;
+                    opt.textContent = window.STAGE_CONFIG[code].label;
+                    stageSelect.appendChild(opt);
+                });
+            }
         }
         
-        // 1.1 사업분야 콤보박스 (FIELD)
+        // 사업분야 (FIELD)
         const fields = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/FIELD`);
         const fieldSelect = document.getElementById('field_code');
         fieldSelect.innerHTML = '<option value="">선택하세요</option>';
-        console.log('📥 사업분야 데이터:', fields);
-        
         if (fields && fields.items) {
             fields.items.forEach(f => {
                 const opt = document.createElement('option');
@@ -114,7 +126,7 @@ async function loadFormComboBoxes() {
             });
         }
         
-        // 1.1 담당자 콤보박스
+        // 1.1 담당자 - 응답 형식 수정 반영
         const managers = await API.get(API_CONFIG.ENDPOINTS.MANAGERS);
         const managerSelect = document.getElementById('manager_id');
         managerSelect.innerHTML = '<option value="">선택하세요</option>';
@@ -167,67 +179,36 @@ async function loadProjectData(pipelineId) {
             document.getElementById('field_code').value = project.field_code || '';
             document.getElementById('current_stage').value = project.current_stage || project.progress_stage || '';
             document.getElementById('manager_id').value = project.manager_id || '';
-            
-            // ✅ 고객사/발주처 수정 (디버깅 강화)
-            console.log('🏢 고객사/발주처 정보:', {
+
+            // ✅ 고객사/발주처 수정 (디버깅 로그 추가)
+            console.log('고객사 정보:', {
                 customer_id: project.customer_id,
                 customer_name: project.customer_name,
                 ordering_party_id: project.ordering_party_id,
                 ordering_party_name: project.ordering_party_name
             });
             
-            // 고객사 설정
-            if (project.customer_id) {
-                selectedCustomerId = project.customer_id;
-                
-                const customerIdEl = document.getElementById('customer_id');
-                const customerNameEl = document.getElementById('customer_name');
-                
-                if (customerIdEl && customerNameEl) {
-                    customerIdEl.value = project.customer_id;
-                    customerNameEl.value = project.customer_name || '';
-                    
-                    // ✅ 값이 제대로 설정되었는지 즉시 확인
-                    console.log('✅ 고객사 설정 완료:', {
-                        id_value: customerIdEl.value,
-                        name_value: customerNameEl.value
-                    });
-                } else {
-                    console.error('❌ 고객사 input 요소를 찾을 수 없음:', {
-                        customerIdEl: !!customerIdEl,
-                        customerNameEl: !!customerNameEl
-                    });
-                }
-            } else {
-                console.warn('⚠️ 고객사 ID가 없습니다.');
-            }
-            
             // 발주처 설정
             if (project.ordering_party_id) {
                 selectedOrderingPartyId = project.ordering_party_id;
-                
                 const orderingPartyIdEl = document.getElementById('ordering_party_id');
                 const orderingPartyNameEl = document.getElementById('ordering_party_name');
                 
-                if (orderingPartyIdEl && orderingPartyNameEl) {
+                if (orderingPartyIdEl) {
                     orderingPartyIdEl.value = project.ordering_party_id;
-                    orderingPartyNameEl.value = project.ordering_party_name || '';
-                    
-                    // ✅ 값이 제대로 설정되었는지 즉시 확인
-                    console.log('✅ 발주처 설정 완료:', {
-                        id_value: orderingPartyIdEl.value,
-                        name_value: orderingPartyNameEl.value
-                    });
+                    console.log('✅ ordering_party_id 설정:', project.ordering_party_id);
                 } else {
-                    console.error('❌ 발주처 input 요소를 찾을 수 없음:', {
-                        orderingPartyIdEl: !!orderingPartyIdEl,
-                        orderingPartyNameEl: !!orderingPartyNameEl
-                    });
+                    console.error('❌ ordering_party_id 요소를 찾을 수 없음');
                 }
-            } else {
-                console.log('ℹ️ 발주처가 설정되지 않았습니다.');
-            }
-            
+                
+                if (orderingPartyNameEl) {
+                    orderingPartyNameEl.value = project.ordering_party_name || '';
+                    console.log('✅ ordering_party_name 설정:', project.ordering_party_name);
+                } else {
+                    console.error('❌ ordering_party_name 요소를 찾을 수 없음');
+                }
+            }   
+
             document.getElementById('quoted_amount').value = project.quoted_amount || '';
             
             // 1.3 수주확률, 비고 (신규 필드)
@@ -237,23 +218,23 @@ async function loadProjectData(pipelineId) {
             const notesEl = document.getElementById('notes');
             if (notesEl) notesEl.value = project.notes || '';
             
-            // ✅ 속성 로드 - 기존 데이터는 row_stat을 빈값으로 (수정 시 'U'로 변경)
+            // 속성 로드 - 기존 데이터는 row_stat을 빈값으로 (수정 시 'U'로 변경)
             attributes = (response.attributes || []).map(attr => ({
                 attr_code: attr.attr_code,
                 attr_value: attr.attr_value || '',
                 attr_name: attr.attr_name || '',
-                row_stat: ''  // 기존 데이터: 빈값 (변경 시 'U')
+                row_stat: ''  // 기존 데이터는 빈값
             }));
             renderAttributes();
             
-            // ✅ 이력 로드 - 기존 데이터는 row_stat을 빈값으로
+            // 이력 로드 - 기존 데이터는 row_stat을 빈값으로
             histories = (response.histories || []).map(hist => ({
                 history_id: hist.history_id,
                 base_date: hist.base_date,
                 progress_stage: hist.progress_stage,
                 strategy_content: hist.strategy_content || '',
                 stage_name: hist.stage_name || '',
-                row_stat: ''  // 기존 데이터: 빈값 (변경 시 'U')
+                row_stat: ''  // 기존 데이터는 빈값
             }));
             renderHistories();
             
@@ -323,41 +304,39 @@ function initializeFormTabs() {
             
             // 선택한 탭 활성화
             btn.classList.add('active');
-            const targetPane = document.getElementById('tab-' + targetTab);
-            if (targetPane) {
-                targetPane.classList.add('active');
-            }
+            document.getElementById(`tab-${targetTab}`).classList.add('active');
         });
     });
 }
 
 // ===================================
-// Client Search Modal
+// Client Search (고객사/발주처)
 // ===================================
 function initializeClientSearch() {
     // 고객사 검색 버튼
-    const customerBtn = document.getElementById('customer_search_btn');
-    const customerInput = document.getElementById('customer_name');
+    const customerSearchBtn = document.getElementById('customer_search_btn');
+    const customerNameInput = document.getElementById('customer_name');
     
-    if (customerBtn) {
-        customerBtn.addEventListener('click', () => openClientSearchModal('customer'));
+    if (customerSearchBtn) {
+        customerSearchBtn.addEventListener('click', () => openClientSearchModal('customer'));
     }
-    if (customerInput) {
-        customerInput.addEventListener('click', () => openClientSearchModal('customer'));
+    if (customerNameInput) {
+        customerNameInput.addEventListener('click', () => openClientSearchModal('customer'));
     }
     
     // 발주처 검색 버튼
-    const orderingBtn = document.getElementById('ordering_party_search_btn');
-    const orderingInput = document.getElementById('ordering_party_name');
+    const orderingPartySearchBtn = document.getElementById('ordering_party_search_btn');
+    const orderingPartyNameInput = document.getElementById('ordering_party_name');
     
-    if (orderingBtn) {
-        orderingBtn.addEventListener('click', () => openClientSearchModal('ordering_party'));
+    if (orderingPartySearchBtn) {
+        orderingPartySearchBtn.addEventListener('click', () => openClientSearchModal('ordering_party'));
     }
-    if (orderingInput) {
-        orderingInput.addEventListener('click', () => openClientSearchModal('ordering_party'));
+    if (orderingPartyNameInput) {
+        orderingPartyNameInput.addEventListener('click', () => openClientSearchModal('ordering_party'));
     }
 }
 
+// 고객사 검색 모달 열기
 async function openClientSearchModal(target) {
     clientSearchTarget = target;
     clientSearchPage = 1;
@@ -366,72 +345,57 @@ async function openClientSearchModal(target) {
     if (modal) {
         modal.style.display = 'flex';
         document.getElementById('clientSearchInput').value = '';
-        document.getElementById('clientSearchResults').innerHTML = '<p style="text-align: center; padding: 20px; color: #666;">검색어를 입력하세요</p>';
+        await searchClients();
     }
 }
 
+// 고객사 검색
 async function searchClients(page = 1) {
+    const searchInput = document.getElementById('clientSearchInput');
+    const keyword = searchInput?.value?.trim() || '';
+    
     try {
-        clientSearchPage = page;
+        const response = await API.get(`${API_CONFIG.ENDPOINTS.CLIENTS}?keyword=${encodeURIComponent(keyword)}&page=${page}&page_size=10`);
+        console.log('📥 고객사 검색 결과:', response);
         
-        const searchInput = document.getElementById('clientSearchInput');
-        const searchText = searchInput ? searchInput.value.trim() : '';
-        
-        Utils.showLoading(true);
-        
-        const response = await API.get(`${API_CONFIG.ENDPOINTS.CLIENTS_SEARCH}?search_text=${encodeURIComponent(searchText)}&page=${page}&page_size=10`);
-        
-        Utils.showLoading(false);
-        
-        renderClientSearchResults(response);
-        
+        renderClientSearchResults(response.items || response.clients || []);
+        renderClientPagination(response.total || 0, page);
     } catch (error) {
-        console.error('❌ 거래처 검색 실패:', error);
-        Utils.showLoading(false);
-        alert('거래처 검색 중 오류가 발생했습니다.');
+        console.error('❌ 고객사 검색 실패:', error);
     }
 }
 
-function renderClientSearchResults(response) {
+// 검색 결과 렌더링
+function renderClientSearchResults(clients) {
     const container = document.getElementById('clientSearchResults');
     if (!container) return;
     
-    const items = response.items || [];
-    
-    if (items.length === 0) {
-        container.innerHTML = '<p style="text-align: center; padding: 20px; color: #666;">검색 결과가 없습니다.</p>';
+    if (clients.length === 0) {
+        container.innerHTML = '<p class="no-data">검색 결과가 없습니다.</p>';
         return;
     }
     
-    let html = '<div class="client-results-list">';
-    items.forEach(client => {
-        html += `
-            <div class="client-result-item" onclick="selectClient(${client.client_id}, '${client.client_name.replace(/'/g, "\\'")}')">
-                <div class="client-result-name">${client.client_name}</div>
-                <div class="client-result-info">
-                    ${client.business_number ? `<span>사업자: ${client.business_number}</span>` : ''}
-                    ${client.ceo_name ? `<span>대표: ${client.ceo_name}</span>` : ''}
-                </div>
-            </div>
-        `;
-    });
-    html += '</div>';
-    
-    container.innerHTML = html;
-    
-    // 페이징 렌더링
-    renderClientPagination(response);
+    container.innerHTML = clients.map(client => `
+        <div class="client-item" onclick="selectClient(${client.client_id}, '${client.client_name}')">
+            <span class="client-name">${client.client_name}</span>
+            <span class="client-type">${client.client_type || ''}</span>
+        </div>
+    `).join('');
 }
 
-function renderClientPagination(response) {
-    const container = document.getElementById('clientSearchPagination');
+// 페이지네이션 렌더링
+function renderClientPagination(total, currentPage) {
+    const container = document.getElementById('clientPagination');
     if (!container) return;
     
-    const totalPages = response.total_pages || 1;
-    const currentPage = response.current_page || 1;
+    const totalPages = Math.ceil(total / 10);
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
     
     let html = '';
-    for (let i = 1; i <= totalPages; i++) {
+    for (let i = 1; i <= totalPages && i <= 5; i++) {
         html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="searchClients(${i})">${i}</button>`;
     }
     container.innerHTML = html;
@@ -444,15 +408,11 @@ function selectClient(clientId, clientName) {
         const customerIdEl = document.getElementById('customer_id');
         if (customerIdEl) customerIdEl.value = clientId;
         document.getElementById('customer_name').value = clientName;
-        
-        console.log('✅ 고객사 선택:', { clientId, clientName });
     } else {
         selectedOrderingPartyId = clientId;
         const orderingPartyIdEl = document.getElementById('ordering_party_id');
         if (orderingPartyIdEl) orderingPartyIdEl.value = clientId;
         document.getElementById('ordering_party_name').value = clientName;
-        
-        console.log('✅ 발주처 선택:', { clientId, clientName });
     }
     
     closeClientSearchModal();
@@ -470,7 +430,6 @@ function closeClientSearchModal() {
 // 2.1 Attributes Management (수정됨)
 // ===================================
 function addAttribute() {
-    // 2.1 속성 추가
     const attrCodeSelect = document.getElementById('new_attr_code');
     const attrValueInput = document.getElementById('new_attr_value');
     
@@ -487,8 +446,11 @@ function addAttribute() {
         return;
     }
     
-    // 2.1 중복 체크 (삭제 표시된 것 제외)
-    const isDuplicate = attributes.some(attr => attr.attr_code === attrCode && attr.row_stat !== 'D');
+    // 중복 체크 (삭제 표시된 것 제외)
+    const isDuplicate = attributes.some(attr => 
+        attr.attr_code === attrCode && attr.row_stat !== 'D'
+    );
+    
     if (isDuplicate) {
         alert('이미 등록된 속성입니다. 동일한 속성은 중복 등록할 수 없습니다.');
         return;
@@ -506,7 +468,7 @@ function addAttribute() {
         row_stat: 'N'  // ✅ 신규 표시
     });
     
-    console.log('✅ 속성 추가:', { attrCode, attrValue, attrName, row_stat: 'N' });
+    console.log('✅ 속성 추가:', { attrCode, attrValue, row_stat: 'N' });
     
     // 입력 필드 초기화
     attrCodeSelect.value = '';
@@ -516,26 +478,29 @@ function addAttribute() {
     renderAttributes();
 }
 
-// ✅ 속성 수정 함수
+// ✅ 속성 수정 함수 수정
 function editAttribute(index) {
     const attr = attributes[index];
     
     const newValue = prompt('속성 값을 입력하세요:', attr.attr_value || '');
     
-    if (newValue !== null && newValue !== attr.attr_value) {
-        attributes[index].attr_value = newValue.trim();
-        
-        // ✅ 신규(N)가 아니고 삭제(D)가 아니면 수정(U)으로 표시
-        if (attr.row_stat !== 'N' && attr.row_stat !== 'D') {
-            attributes[index].row_stat = 'U';
-            console.log('✅ 속성 수정:', { index, attr_code: attr.attr_code, row_stat: 'U' });
+    if (newValue !== null) {
+        // ✅ 값이 변경되었고 기존 데이터라면 'U'로 표시
+        if (newValue !== attr.attr_value) {
+            attributes[index].attr_value = newValue.trim();
+            
+            // 신규(N)가 아니고 삭제(D)가 아니면 수정(U)으로 표시
+            if (attr.row_stat !== 'N' && attr.row_stat !== 'D') {
+                attributes[index].row_stat = 'U';
+                console.log('✅ 속성 수정:', { index, attr_code: attr.attr_code, row_stat: 'U' });
+            }
         }
         
         renderAttributes();
     }
 }
 
-// ✅ 속성 삭제 함수
+// ✅ 속성 삭제 함수 수정
 function deleteAttribute(index) {
     const attr = attributes[index];
     
@@ -557,7 +522,7 @@ function deleteAttribute(index) {
     renderAttributes();
 }
 
-// ✅ 속성 렌더링 함수
+// ✅ 속성 렌더링 함수 수정
 function renderAttributes() {
     const container = document.getElementById('attributesList');
     if (!container) return;
@@ -577,7 +542,7 @@ function renderAttributes() {
     
     let html = '<div class="attributes-list">';
     
-    visibleAttrs.forEach((attr) => {
+    visibleAttrs.forEach((attr, displayIndex) => {
         // 실제 배열에서의 인덱스 찾기
         const realIndex = attributes.indexOf(attr);
         
@@ -614,15 +579,6 @@ function renderAttributes() {
         updated: attributes.filter(a => a.row_stat === 'U').length,
         deleted: attributes.filter(a => a.row_stat === 'D').length
     });
-}
-
-// 레거시 함수 호환성 유지
-function removeAttribute(index) {
-    deleteAttribute(index);
-}
-
-function updateAttribute(index) {
-    editAttribute(index);
 }
 
 // ===================================
@@ -666,7 +622,7 @@ function addHistory() {
         row_stat: 'N'  // ✅ 신규 표시
     });
     
-    console.log('✅ 이력 추가:', { baseDate, progressStage, stageName, row_stat: 'N' });
+    console.log('✅ 이력 추가:', { baseDate, progressStage, row_stat: 'N' });
     
     // 입력 필드 초기화
     baseDateInput.value = '';
@@ -677,7 +633,7 @@ function addHistory() {
     renderHistories();
 }
 
-// ✅ 이력 수정 함수
+// ✅ 이력 수정 함수 수정
 function editHistory(index) {
     const hist = histories[index];
     
@@ -697,7 +653,7 @@ function editHistory(index) {
     }
 }
 
-// ✅ 이력 삭제 함수
+// ✅ 이력 삭제 함수 수정
 function deleteHistory(index) {
     const hist = histories[index];
     
@@ -719,7 +675,7 @@ function deleteHistory(index) {
     renderHistories();
 }
 
-// ✅ 이력 렌더링 함수
+// ✅ 이력 렌더링 함수 수정
 function renderHistories() {
     const container = document.getElementById('historiesList');
     if (!container) return;
@@ -739,7 +695,7 @@ function renderHistories() {
     
     let html = '<div class="histories-list">';
     
-    visibleHists.forEach((hist) => {
+    visibleHists.forEach((hist, displayIndex) => {
         // 실제 배열에서의 인덱스 찾기
         const realIndex = histories.indexOf(hist);
         
@@ -779,27 +735,12 @@ function renderHistories() {
     });
 }
 
-// 레거시 함수 호환성 유지
-function removeHistory(index) {
-    deleteHistory(index);
-}
-
-function updateHistory(index) {
-    editHistory(index);
-}
-
 // ===================================
-// Save Project
+// Save Project (✅ 수정됨 - 속성/이력 별도 저장)
 // ===================================
 async function saveProject() {
     try {
-        console.log('💾 ========================================');
-        console.log('💾 프로젝트 저장 시작');
-        console.log('💾 formMode:', formMode);
-        console.log('💾 currentPipelineId:', currentPipelineId);
-        console.log('💾 ========================================');
-        
-        // 필수 입력 확인
+        // 필수 입력 검증
         const projectName = document.getElementById('project_name').value.trim();
         const fieldCode = document.getElementById('field_code').value;
         const currentStage = document.getElementById('current_stage').value;
@@ -956,7 +897,6 @@ function cancelProjectForm() {
     }
 }
 
-// Event listener for custom event
 window.addEventListener('projectFormOpen', (e) => {
     const { mode, pipelineId } = e.detail;
     console.log('📨 projectFormOpen 이벤트 수신:', mode, pipelineId);
@@ -968,13 +908,9 @@ window.initializeProjectForm = initializeProjectForm;
 window.addAttribute = addAttribute;
 window.removeAttribute = removeAttribute;
 window.updateAttribute = updateAttribute;
-window.editAttribute = editAttribute;
-window.deleteAttribute = deleteAttribute;
 window.addHistory = addHistory;
 window.removeHistory = removeHistory;
 window.updateHistory = updateHistory;
-window.editHistory = editHistory;
-window.deleteHistory = deleteHistory;
 window.saveProject = saveProject;
 window.cancelProjectForm = cancelProjectForm;
 window.closeProjectForm = closeProjectForm;
