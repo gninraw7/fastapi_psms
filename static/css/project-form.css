@@ -855,3 +855,59 @@ bashcat >> ~/fastapi_psms/static/css/project-form.css << 'EOF'
         width: 15% !important;
     }
 }
+/* 닫기(X) 버튼 - 식별성 개선 */
+.btn-close-icon {
+    background: rgba(255, 255, 255, 0.3) !important;
+    border: 2px solid rgba(255, 255, 255, 0.8) !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.btn-close-icon:hover {
+    background: rgba(255, 255, 255, 0.5) !important;
+    border-color: white !important;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* 목록 버튼 - 식별성 개선 */
+.btn-outline-secondary {
+    background: rgba(255, 255, 255, 0.25) !important;
+    border: 2px solid rgba(255, 255, 255, 0.8) !important;
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.btn-outline-secondary:hover {
+    background: rgba(255, 255, 255, 0.45) !important;
+    border-color: white !important;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* 닫기(X) 버튼 */
+.btn-close-icon {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border: 2px solid white !important;
+    color: #667eea !important;
+    font-weight: 700;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.btn-close-icon:hover {
+    background: white !important;
+    color: #5568d3 !important;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* 목록 버튼 */
+.btn-outline-secondary {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border: 2px solid white !important;
+    color: #667eea !important;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.btn-outline-secondary:hover {
+    background: white !important;
+    color: #5568d3 !important;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
