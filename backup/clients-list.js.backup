@@ -7,7 +7,7 @@
 // - [신규] 버튼 클릭 시 openClientForm('new') 호출
 // - 더블클릭 시 openClientForm('edit', clientId) 호출
 // - 액션 버튼 색상 개선 (파란색 수정, 빨간색 삭제)
-// - navigateToClientForm을 openClientForm으로 통합
+// - 액션 버튼에서 전역 함수 호출 (editClientFromAction, deleteClientFromAction)
 // ===================================
 
 // ===================================
@@ -273,7 +273,7 @@ function initializeClientsTable() {
                 hozAlign: "center",
                 formatter: function(cell) {
                     const clientId = cell.getRow().getData().client_id;
-                    // ⭐ 개선: navigateToClientForm 대신 editClientFromAction 사용
+                    // ⭐ 개선: 버튼 색상 변경 (파란색 수정, 빨간색 삭제) + 어두운 배경
                     return `
                         <button 
                             class="btn-icon" 
@@ -302,19 +302,15 @@ function initializeClientsTable() {
         updateSelectionActionBar(rows.length);
     });
     
-    // ⭐ 개선: 더블클릭 시 openClientForm 호출 (navigation.js와 통합)
+    // ⭐ 개선: 더블클릭 시 openClientForm 호출
     clientsTable.on("rowDblClick", function(e, row) {
         const clientId = row.getData().client_id;
         console.log('🖱️ 더블클릭:', clientId);
-        
-        // ⭐ 우선순위: openClientForm > navigateToClientForm
         if (typeof openClientForm === 'function') {
             openClientForm('edit', clientId);
-        } else if (typeof navigateToClientForm === 'function') {
-            navigateToClientForm('edit', clientId);
         } else {
-            console.error('❌ 거래처 폼 열기 함수 없음');
-            alert('거래처 폼을 열 수 없습니다. 페이지를 새로고침하세요.');
+            console.error('❌ openClientForm 함수 없음');
+            navigateToClientForm('edit', clientId);
         }
     });
     
@@ -325,15 +321,10 @@ function initializeClientsTable() {
 // Update Statistics
 // ===================================
 function updateClientStatistics(response) {
-    const statTotal = document.getElementById('statTotal');
-    const statActive = document.getElementById('statActive');
-    const statInactive = document.getElementById('statInactive');
-    const statFiltered = document.getElementById('statFiltered');
-    
-    if (statTotal) statTotal.textContent = response.total || 0;
-    if (statActive) statActive.textContent = response.active_count || 0;
-    if (statInactive) statInactive.textContent = response.inactive_count || 0;
-    if (statFiltered) statFiltered.textContent = response.filtered_count || response.total || 0;
+    document.getElementById('statTotal').textContent = response.total || 0;
+    document.getElementById('statActive').textContent = response.active_count || 0;
+    document.getElementById('statInactive').textContent = response.inactive_count || 0;
+    document.getElementById('statFiltered').textContent = response.filtered_count || response.total || 0;
 }
 
 // ===================================
@@ -355,20 +346,14 @@ function initializeClientEventListeners() {
     if (btnNew) {
         btnNew.addEventListener('click', () => {
             console.log('➕ 신규 거래처 버튼 클릭');
-            
-            // ⭐ 우선순위: openClientForm > navigateToClientForm
             if (typeof openClientForm === 'function') {
                 openClientForm('new');
-            } else if (typeof navigateToClientForm === 'function') {
-                navigateToClientForm('new');
             } else {
-                console.error('❌ 거래처 폼 열기 함수 없음');
-                alert('거래처 폼을 열 수 없습니다. 페이지를 새로고침하세요.');
+                console.error('❌ openClientForm 함수 없음');
+                navigateToClientForm('new');
             }
         });
         console.log('  ✓ btnNewClient 이벤트 등록 (openClientForm 호출)');
-    } else {
-        console.warn('  ✗ btnNewClient 요소 없음 - HTML에 id="btnNewClient" 버튼이 필요합니다');
     }
     
     console.log('✅ 거래처 이벤트 리스너 등록 완료');
@@ -380,15 +365,10 @@ function initializeClientEventListeners() {
 function applyClientFilters() {
     console.log('🔍 필터 적용 중...');
     
-    const searchField = document.getElementById('clientSearchField');
-    const searchText = document.getElementById('clientSearchText');
-    const industryType = document.getElementById('clientIndustryType');
-    const isActive = document.getElementById('clientIsActive');
-    
-    currentClientFilters.search_field = searchField ? searchField.value : '';
-    currentClientFilters.search_text = searchText ? searchText.value : '';
-    currentClientFilters.industry_type = industryType ? industryType.value : '';
-    currentClientFilters.is_active = isActive ? isActive.value : '';
+    currentClientFilters.search_field = document.getElementById('clientSearchField').value;
+    currentClientFilters.search_text = document.getElementById('clientSearchText').value;
+    currentClientFilters.industry_type = document.getElementById('clientIndustryType').value;
+    currentClientFilters.is_active = document.getElementById('clientIsActive').value;
     currentClientFilters.page = 1;
     
     console.log('📋 필터 조건:', currentClientFilters);
@@ -401,15 +381,10 @@ function applyClientFilters() {
 function resetClientFilters() {
     console.log('🔄 필터 초기화');
     
-    const searchField = document.getElementById('clientSearchField');
-    const searchText = document.getElementById('clientSearchText');
-    const industryType = document.getElementById('clientIndustryType');
-    const isActive = document.getElementById('clientIsActive');
-    
-    if (searchField) searchField.value = '';
-    if (searchText) searchText.value = '';
-    if (industryType) industryType.value = '';
-    if (isActive) isActive.value = '';
+    document.getElementById('clientSearchField').value = '';
+    document.getElementById('clientSearchText').value = '';
+    document.getElementById('clientIndustryType').value = '';
+    document.getElementById('clientIsActive').value = '';
     
     currentClientFilters = {
         search_field: '',
@@ -432,13 +407,11 @@ function updateSelectionActionBar(count) {
     const actionBar = document.getElementById('clientSelectionActionBar');
     const countSpan = document.getElementById('clientSelectionCount');
     
-    if (actionBar && countSpan) {
-        if (count > 0) {
-            actionBar.style.display = 'flex';
-            countSpan.textContent = count;
-        } else {
-            actionBar.style.display = 'none';
-        }
+    if (count > 0) {
+        actionBar.style.display = 'flex';
+        countSpan.textContent = count;
+    } else {
+        actionBar.style.display = 'none';
     }
 }
 
@@ -449,31 +422,20 @@ function clearClientSelection() {
 }
 
 // ===================================
-// Navigation Functions (기존 방식 유지 + openClientForm 통합)
+// Navigation Functions
 // ===================================
 function navigateToClientForm(mode, clientId = null) {
-    console.log('📍 navigateToClientForm 호출:', mode, clientId);
+    console.log('📍 페이지 이동:', mode, clientId);
     
-    // ⭐ 우선순위: openClientForm 사용 (navigation.js와 통합)
-    if (typeof openClientForm === 'function') {
-        console.log('  → openClientForm 사용');
-        openClientForm(mode, clientId);
-        return;
-    }
-    
-    // 폴백: loadPage 사용 (기존 방식)
     if (typeof loadPage === 'function') {
-        console.log('  → loadPage 사용 (폴백)');
         if (mode === 'new') {
             loadPage('clients-form', { mode: 'new' });
         } else if (mode === 'edit' && clientId) {
             loadPage('clients-form', { mode: 'edit', client_id: clientId });
         }
-        return;
+    } else {
+        console.error('❌ loadPage 함수를 찾을 수 없음');
     }
-    
-    console.error('❌ openClientForm, loadPage 함수 모두 없음');
-    alert('거래처 폼을 열 수 없습니다. 페이지를 새로고침하세요.');
 }
 
 function navigateToClientList() {
@@ -491,7 +453,12 @@ function navigateToClientList() {
 // ===================================
 function editClientFromAction(clientId) {
     console.log('✏️ 액션 버튼 - 수정:', clientId);
-    navigateToClientForm('edit', clientId);
+    if (typeof openClientForm === 'function') {
+        openClientForm('edit', clientId);
+    } else {
+        console.error('❌ openClientForm 함수 없음');
+        navigateToClientForm('edit', clientId);
+    }
 }
 
 function deleteClientFromAction(clientId) {
@@ -596,10 +563,10 @@ function bulkExportClients() {
 // ===================================
 // Export to window
 // ===================================
-window.editClientFromAction = editClientFromAction;      // ⭐ 신규 추가 (액션 버튼용)
-window.deleteClientFromAction = deleteClientFromAction;  // ⭐ 신규 추가 (액션 버튼용)
-window.navigateToClientForm = navigateToClientForm;      // 기존 유지 (호환성)
-window.navigateToClientList = navigateToClientList;      // 기존 유지
+window.editClientFromAction = editClientFromAction;      // ⭐ 신규 추가
+window.deleteClientFromAction = deleteClientFromAction;  // ⭐ 신규 추가
+window.navigateToClientForm = navigateToClientForm;
+window.navigateToClientList = navigateToClientList;
 window.deleteClientById = deleteClientById;
 window.bulkDeleteClients = bulkDeleteClients;
 window.exportClientsToExcel = exportClientsToExcel;

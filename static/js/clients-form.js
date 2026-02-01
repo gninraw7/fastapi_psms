@@ -1,5 +1,11 @@
 // ===================================
 // 거래처 등록/수정 폼 관리
+// 
+// 수정 내역 (2026-02-01):
+// - API 응답 형태 호환성 개선 (data.client || data)
+// - navigateToClientList 함수 개선 (openClientsList 우선)
+// - 삭제 버튼 ID 업데이트 (deleteClientBtn, deleteClientBtnBottom)
+// - 에러 처리 강화
 // ===================================
 
 // 전역 변수
@@ -35,18 +41,11 @@ function initializeClientFormPage(mode, clientId) {
         currentClientId = clientId ? parseInt(clientId) : null;
         
         // DOM 요소 확인
-        const formTitleElement = document.getElementById('clientFormTitleText');
-        const deleteBtn = document.getElementById('btnDeleteClient');
-        const deleteBtnBottom = document.getElementById('btnDeleteClientBottom');
-        
-        if (!formTitleElement) {
-            console.warn('⚠️ 거래처 폼 페이지가 아직 로드되지 않음');
-            return;
-        }
+        const deleteBtn = document.getElementById('deleteClientBtn');
+        const deleteBtnBottom = document.getElementById('deleteClientBtnBottom');
         
         if (currentMode === 'edit' && currentClientId) {
             // 수정 모드
-            formTitleElement.textContent = '거래처 수정';
             if (deleteBtn) deleteBtn.style.display = 'inline-block';
             if (deleteBtnBottom) deleteBtnBottom.style.display = 'inline-block';
             
@@ -54,7 +53,6 @@ function initializeClientFormPage(mode, clientId) {
             loadClientData(currentClientId);
         } else {
             // 신규 등록 모드
-            formTitleElement.textContent = '신규 거래처 등록';
             if (deleteBtn) deleteBtn.style.display = 'none';
             if (deleteBtnBottom) deleteBtnBottom.style.display = 'none';
             
@@ -77,19 +75,6 @@ function initializeClientFormPage(mode, clientId) {
  */
 function initializeNewClientForm() {
     console.log('📝 신규 거래처 폼 초기화');
-    
-    // 폼 리셋
-    const form = document.getElementById('clientForm');
-    if (form) {
-        form.reset();
-    }
-    
-    // 히든 필드 설정
-    const clientIdInput = document.getElementById('clientId');
-    const clientModeInput = document.getElementById('clientMode');
-    
-    if (clientIdInput) clientIdInput.value = '';
-    if (clientModeInput) clientModeInput.value = 'new';
     
     // 활성 상태 기본값
     const isActiveCheckbox = document.getElementById('isActive');
@@ -119,24 +104,43 @@ async function loadClientData(clientId) {
         }
         
         const data = await response.json();
-        const client = data.client;
+        
+        // ⭐ 수정: API 응답 형태 호환성 개선
+        // {client: {...}} 형태 또는 {...} 직접 반환 모두 지원
+        const client = data.client || data;
+        
+        if (!client || !client.client_id) {
+            throw new Error('거래처 데이터가 없습니다');
+        }
+        
+        console.log('📦 거래처 데이터:', client);
         
         // 폼 필드 채우기
-        document.getElementById('clientId').value = client.client_id || '';
-        document.getElementById('clientMode').value = 'edit';
-        document.getElementById('clientName').value = client.client_name || '';
-        document.getElementById('businessNumber').value = client.business_number || '';
-        document.getElementById('ceoName').value = client.ceo_name || '';
-        document.getElementById('industryType').value = client.industry_type || '';
-        document.getElementById('establishedDate').value = client.established_date || '';
-        document.getElementById('employeeCount').value = client.employee_count || '';
-        document.getElementById('address').value = client.address || '';
-        document.getElementById('phone').value = client.phone || '';
-        document.getElementById('fax').value = client.fax || '';
-        document.getElementById('email').value = client.email || '';
-        document.getElementById('homepage').value = client.homepage || '';
-        document.getElementById('isActive').checked = client.is_active !== false;
-        document.getElementById('remarks').value = client.remarks || '';
+        const setFieldValue = (id, value) => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.value = value || '';
+            }
+        };
+        
+        setFieldValue('clientName', client.client_name);
+        setFieldValue('businessNumber', client.business_number);
+        setFieldValue('ceoName', client.ceo_name);
+        setFieldValue('industryType', client.industry_type);
+        setFieldValue('establishedDate', client.established_date);
+        setFieldValue('employeeCount', client.employee_count);
+        setFieldValue('address', client.address);
+        setFieldValue('phone', client.phone);
+        setFieldValue('fax', client.fax);
+        setFieldValue('email', client.email);
+        setFieldValue('homepage', client.homepage);
+        setFieldValue('remarks', client.remarks);
+        
+        // 체크박스
+        const isActiveCheckbox = document.getElementById('isActive');
+        if (isActiveCheckbox) {
+            isActiveCheckbox.checked = client.is_active !== false;
+        }
         
         hideLoading();
         
@@ -145,7 +149,7 @@ async function loadClientData(clientId) {
     } catch (error) {
         console.error('❌ 거래처 데이터 로드 실패:', error);
         hideLoading();
-        alert('거래처 정보를 불러오는데 실패했습니다.');
+        alert('거래처 정보를 불러오는데 실패했습니다: ' + error.message);
     }
 }
 
@@ -190,7 +194,7 @@ function formatPhoneNumber(e) {
     
     if (value.startsWith('02')) {
         // 서울 지역번호
-        if (value.length > 9) value = value.slice(0, 10);
+        if (value.length > 10) value = value.slice(0, 10);
         if (value.length > 6) {
             value = value.slice(0, 2) + '-' + value.slice(2, 6) + '-' + value.slice(6);
         } else if (value.length > 2) {
@@ -221,28 +225,37 @@ function formatPhoneNumber(e) {
  * 폼 유효성 검사
  */
 function validateClientForm() {
-    const clientName = document.getElementById('clientName').value.trim();
-    const businessNumber = document.getElementById('businessNumber').value.trim();
-    const email = document.getElementById('email').value.trim();
+    const clientName = document.getElementById('clientName');
+    const businessNumber = document.getElementById('businessNumber');
+    const email = document.getElementById('email');
+    
+    if (!clientName) {
+        alert('폼 요소를 찾을 수 없습니다.');
+        return false;
+    }
+    
+    const clientNameValue = clientName.value.trim();
+    const businessNumberValue = businessNumber ? businessNumber.value.trim() : '';
+    const emailValue = email ? email.value.trim() : '';
     
     // 필수 항목 검사
-    if (!clientName) {
+    if (!clientNameValue) {
         alert('거래처명을 입력하세요.');
-        document.getElementById('clientName').focus();
+        clientName.focus();
         return false;
     }
     
     // 사업자번호 검사 (입력된 경우만)
-    if (businessNumber && businessNumber.replace(/[^0-9]/g, '').length !== 10) {
+    if (businessNumberValue && businessNumberValue.replace(/[^0-9]/g, '').length !== 10) {
         alert('사업자번호는 10자리 숫자로 입력하세요.');
-        document.getElementById('businessNumber').focus();
+        if (businessNumber) businessNumber.focus();
         return false;
     }
     
     // 이메일 검사 (입력된 경우만)
-    if (email && !isValidEmail(email)) {
+    if (emailValue && !isValidEmail(emailValue)) {
         alert('올바른 이메일 형식이 아닙니다.');
-        document.getElementById('email').focus();
+        if (email) email.focus();
         return false;
     }
     
@@ -271,21 +284,32 @@ async function saveClientForm() {
     try {
         showLoading();
         
-        // 폼 데이터 수집
+        // 폼 데이터 수집 (안전하게)
+        const getValue = (id) => {
+            const element = document.getElementById(id);
+            return element ? element.value.trim() : '';
+        };
+        
+        const getNumberValue = (id) => {
+            const element = document.getElementById(id);
+            const value = element ? element.value.trim() : '';
+            return value ? parseInt(value) : null;
+        };
+        
         const formData = {
-            client_name: document.getElementById('clientName').value.trim(),
-            business_number: document.getElementById('businessNumber').value.trim() || null,
-            ceo_name: document.getElementById('ceoName').value.trim() || null,
-            industry_type: document.getElementById('industryType').value || null,
-            established_date: document.getElementById('establishedDate').value || null,
-            employee_count: document.getElementById('employeeCount').value ? parseInt(document.getElementById('employeeCount').value) : null,
-            address: document.getElementById('address').value.trim() || null,
-            phone: document.getElementById('phone').value.trim() || null,
-            fax: document.getElementById('fax').value.trim() || null,
-            email: document.getElementById('email').value.trim() || null,
-            homepage: document.getElementById('homepage').value.trim() || null,
-            is_active: document.getElementById('isActive').checked,
-            remarks: document.getElementById('remarks').value.trim() || null
+            client_name: getValue('clientName'),
+            business_number: getValue('businessNumber') || null,
+            ceo_name: getValue('ceoName') || null,
+            industry_type: getValue('industryType') || null,
+            established_date: getValue('establishedDate') || null,
+            employee_count: getNumberValue('employeeCount'),
+            address: getValue('address') || null,
+            phone: getValue('phone') || null,
+            fax: getValue('fax') || null,
+            email: getValue('email') || null,
+            homepage: getValue('homepage') || null,
+            is_active: document.getElementById('isActive') ? document.getElementById('isActive').checked : true,
+            remarks: getValue('remarks') || null
         };
         
         let url, method;
@@ -299,6 +323,9 @@ async function saveClientForm() {
             url = '/api/v1/clients';
             method = 'POST';
         }
+        
+        console.log('📤 API 호출:', method, url);
+        console.log('📦 데이터:', formData);
         
         const response = await fetch(url, {
             method: method,
@@ -377,10 +404,17 @@ async function deleteClient() {
  * 거래처 목록으로 이동
  */
 function navigateToClientList() {
+    console.log('📍 거래처 목록으로 이동');
+    
+    // ⭐ 우선순위 적용
     if (typeof openClientsList === 'function') {
+        console.log('  → openClientsList 사용');
         openClientsList();
+    } else if (typeof loadPage === 'function') {
+        console.log('  → loadPage 사용');
+        loadPage('clients-list');
     } else {
-        // Fallback
+        console.log('  → URL 이동 (폴백)');
         window.location.href = '/app?page=clients-list';
     }
 }
@@ -389,10 +423,21 @@ function navigateToClientList() {
  * 거래처 폼으로 이동
  */
 function navigateToClientForm(mode, clientId) {
+    console.log('📍 거래처 폼으로 이동:', mode, clientId);
+    
+    // ⭐ 우선순위 적용
     if (typeof openClientForm === 'function') {
+        console.log('  → openClientForm 사용');
         openClientForm(mode, clientId);
+    } else if (typeof loadPage === 'function') {
+        console.log('  → loadPage 사용');
+        let url = `/app?page=clients-form&mode=${mode}`;
+        if (clientId) {
+            url += `&client_id=${clientId}`;
+        }
+        loadPage('clients-form', { mode: mode, client_id: clientId });
     } else {
-        // Fallback
+        console.log('  → URL 이동 (폴백)');
         let url = `/app?page=clients-form&mode=${mode}`;
         if (clientId) {
             url += `&client_id=${clientId}`;

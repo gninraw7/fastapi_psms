@@ -1,128 +1,137 @@
 <!-- ===================================
      거래처 관리 - 목록 화면 (UI 통일)
      clients-list.html
+     
+     수정 내역 (2026-02-01):
+     - [신규] 버튼에 id="btnNewClient" 추가
+     - onclick 함수 통합 (navigateToClientForm)
      =================================== -->
 
-<main class="app-main">
-    <!-- 통계 패널 -->
-    <div class="stats-panel">
-        <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                <i class="fas fa-building"></i>
-            </div>
-            <div class="stat-content">
-                <div class="stat-value" id="statTotal">0</div>
-                <div class="stat-label">전체 거래처</div>
-            </div>
-        </div>
-        
-        <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
-                <i class="fas fa-check-circle"></i>
-            </div>
-            <div class="stat-content">
-                <div class="stat-value" id="statActive">0</div>
-                <div class="stat-label">활성 거래처</div>
-            </div>
-        </div>
-        
-        <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
-                <i class="fas fa-pause-circle"></i>
-            </div>
-            <div class="stat-content">
-                <div class="stat-value" id="statInactive">0</div>
-                <div class="stat-label">비활성 거래처</div>
-            </div>
-        </div>
-        
-        <div class="stat-card">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-                <i class="fas fa-filter"></i>
-            </div>
-            <div class="stat-content">
-                <div class="stat-value" id="statFiltered">0</div>
-                <div class="stat-label">필터링 결과</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 필터 패널 -->
-    <div class="filter-panel">
-        <div class="filter-row">
-            <div class="filter-group">
-                <label><i class="fas fa-search"></i> 검색 구분</label>
-                <select id="clientSearchField" class="form-select">
-                    <option value="">전체</option>
-                    <option value="client_name">거래처명</option>
-                    <option value="business_number">사업자번호</option>
-                    <option value="ceo_name">대표자명</option>
-                    <option value="phone">전화번호</option>
-                </select>
+     <main class="app-main">
+        <!-- 통계 패널 -->
+        <div class="stats-panel">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <i class="fas fa-building"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="statTotal">0</div>
+                    <div class="stat-label">전체 거래처</div>
+                </div>
             </div>
             
-            <div class="filter-group" style="flex: 2;">
-                <label><i class="fas fa-keyboard"></i> 검색어</label>
-                <input 
-                    type="text" 
-                    id="clientSearchText" 
-                    class="form-input" 
-                    placeholder="검색어를 입력하세요"
-                />
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="statActive">0</div>
+                    <div class="stat-label">활성 거래처</div>
+                </div>
             </div>
             
-            <div class="filter-group" style="flex: 0 0 auto;">
-                <label>&nbsp;</label>
-                <button class="btn btn-secondary" onclick="applyClientFilters()">
-                    <i class="fas fa-search"></i> 검색
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                    <i class="fas fa-pause-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="statInactive">0</div>
+                    <div class="stat-label">비활성 거래처</div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <i class="fas fa-filter"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="statFiltered">0</div>
+                    <div class="stat-label">필터링 결과</div>
+                </div>
+            </div>
+        </div>
+    
+        <!-- 필터 패널 -->
+        <div class="filter-panel">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label><i class="fas fa-search"></i> 검색 구분</label>
+                    <select id="clientSearchField" class="form-select">
+                        <option value="">전체</option>
+                        <option value="client_name">거래처명</option>
+                        <option value="business_number">사업자번호</option>
+                        <option value="ceo_name">대표자명</option>
+                        <option value="phone">전화번호</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group" style="flex: 2;">
+                    <label><i class="fas fa-keyboard"></i> 검색어</label>
+                    <input 
+                        type="text" 
+                        id="clientSearchText" 
+                        class="form-input" 
+                        placeholder="검색어를 입력하세요"
+                    />
+                </div>
+                
+                <div class="filter-group" style="flex: 0 0 auto;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-secondary" onclick="applyClientFilters()">
+                        <i class="fas fa-search"></i> 검색
+                    </button>
+                </div>
+                
+                <div class="filter-group">
+                    <label><i class="fas fa-industry"></i> 업종</label>
+                    <select id="clientIndustryType" class="form-select">
+                        <option value="">전체</option>
+                        <option value="제조업">제조업</option>
+                        <option value="서비스업">서비스업</option>
+                        <option value="건설업">건설업</option>
+                        <option value="IT/소프트웨어">IT/소프트웨어</option>
+                        <option value="유통/도소매">유통/도소매</option>
+                        <option value="금융/보험">금융/보험</option>
+                        <option value="교육">교육</option>
+                        <option value="의료/헬스케어">의료/헬스케어</option>
+                        <option value="공공기관">공공기관</option>
+                        <option value="기타">기타</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label><i class="fas fa-toggle-on"></i> 활성 상태</label>
+                    <select id="clientIsActive" class="form-select">
+                        <option value="">전체</option>
+                        <option value="true">활성</option>
+                        <option value="false">비활성</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="filter-actions">
+                <!-- ⭐ 수정: id 추가 -->
+                <button 
+                    id="btnNewClient" 
+                    class="btn btn-primary" 
+                    onclick="navigateToClientForm('new')"
+                >
+                    <i class="fas fa-plus-circle"></i> 신규
+                </button>
+                <button class="btn btn-info" onclick="resetClientFilters()">
+                    <i class="fas fa-sync-alt"></i> 새로고침
+                </button>
+                <button class="btn btn-success" onclick="exportClientsToExcel()">
+                    <i class="fas fa-file-excel"></i> 엑셀
                 </button>
             </div>
-            
-            <div class="filter-group">
-                <label><i class="fas fa-industry"></i> 업종</label>
-                <select id="clientIndustryType" class="form-select">
-                    <option value="">전체</option>
-                    <option value="제조업">제조업</option>
-                    <option value="서비스업">서비스업</option>
-                    <option value="건설업">건설업</option>
-                    <option value="IT/소프트웨어">IT/소프트웨어</option>
-                    <option value="유통/도소매">유통/도소매</option>
-                    <option value="금융/보험">금융/보험</option>
-                    <option value="교육">교육</option>
-                    <option value="의료/헬스케어">의료/헬스케어</option>
-                    <option value="공공기관">공공기관</option>
-                    <option value="기타">기타</option>
-                </select>
-            </div>
-            
-            <div class="filter-group">
-                <label><i class="fas fa-toggle-on"></i> 활성 상태</label>
-                <select id="clientIsActive" class="form-select">
-                    <option value="">전체</option>
-                    <option value="true">활성</option>
-                    <option value="false">비활성</option>
-                </select>
-            </div>
         </div>
-        
-        <div class="filter-actions">
-            <button class="btn btn-primary" onclick="navigateToClientForm('new')">
-                <i class="fas fa-plus-circle"></i> 신규
-            </button>
-            <button class="btn btn-info" onclick="resetClientFilters()">
-                <i class="fas fa-sync-alt"></i> 새로고침
-            </button>
-            <button class="btn btn-success" onclick="exportClientsToExcel()">
-                <i class="fas fa-file-excel"></i> 엑셀
-            </button>
+    
+        <!-- 테이블 패널 -->
+        <div class="table-panel">
+            <div id="clientsTable"></div>
         </div>
-    </div>
-
-    <!-- 테이블 패널 -->
-    <div class="table-panel">
-        <div id="clientsTable"></div>
-    </div>
-</main>
-
-<!-- 거래처 목록 전용 JavaScript -->
-<script src="/static/js/clients-list.js?v=1.0.1"></script>
+    </main>
+    
+    <!-- 거래처 목록 전용 JavaScript는 index.html에서 한 번만 로드 -->
+    

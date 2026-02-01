@@ -1,117 +1,6 @@
 // ===================================
-// Page Navigation System - v2.0
-// 기존 모든 기능 보존 + Breadcrumb 추가
+// Page Navigation System
 // ===================================
-
-// ⭐ 페이지 정보 매핑 (Breadcrumb용 신규 추가)
-const PAGE_INFO = {
-    'projects-list': {
-        title: '프로젝트 목록',
-        icon: 'fas fa-list',
-        path: ['영업', '프로젝트 목록'],
-        theme: 'breadcrumb-projects'
-    },
-    'projects-new': {
-        title: '신규 프로젝트',
-        icon: 'fas fa-plus-circle',
-        path: ['영업', '신규 프로젝트'],
-        theme: 'breadcrumb-projects'
-    },
-    'sales-dashboard': {
-        title: '영업 현황',
-        icon: 'fas fa-chart-line',
-        path: ['영업', '영업 현황'],
-        theme: 'breadcrumb-sales'
-    },
-    'clients-list': {
-        title: '거래처 관리',
-        icon: 'fas fa-building',
-        path: ['거래처', '거래처 관리'],
-        theme: 'breadcrumb-clients'
-    },
-    'clients-form': {
-        title: '거래처 등록',
-        icon: 'fas fa-building',
-        path: ['거래처', '거래처 등록'],
-        theme: 'breadcrumb-clients'
-    },
-    'contracts-list': {
-        title: '계약 목록',
-        icon: 'fas fa-file-signature',
-        path: ['계약', '계약 목록'],
-        theme: 'breadcrumb-contracts'
-    },
-    'contracts-new': {
-        title: '계약 등록',
-        icon: 'fas fa-plus-circle',
-        path: ['계약', '계약 등록'],
-        theme: 'breadcrumb-contracts'
-    },
-    'revenue-list': {
-        title: '매출 목록',
-        icon: 'fas fa-won-sign',
-        path: ['매출', '매출 목록'],
-        theme: 'breadcrumb-revenue'
-    },
-    'revenue-new': {
-        title: '매출 등록',
-        icon: 'fas fa-plus-circle',
-        path: ['매출', '매출 등록'],
-        theme: 'breadcrumb-revenue'
-    },
-    'users': {
-        title: '사용자 관리',
-        icon: 'fas fa-users',
-        path: ['관리자', '사용자 관리'],
-        theme: 'breadcrumb-admin'
-    },
-    'common-codes': {
-        title: '공통코드 관리',
-        icon: 'fas fa-code',
-        path: ['관리자', '공통코드 관리'],
-        theme: 'breadcrumb-admin'
-    }
-};
-
-/**
- * ⭐ Breadcrumb 업데이트 (신규 추가)
- */
-function updateBreadcrumb(pageId) {
-    const info = PAGE_INFO[pageId];
-    if (!info) return;
-    
-    // 모든 페이지에서 기존 breadcrumb 제거
-    document.querySelectorAll('.page-breadcrumb').forEach(bc => bc.remove());
-    
-    // 현재 페이지 찾기
-    const currentPage = document.getElementById(`page-${pageId}`);
-    if (!currentPage) return;
-    
-    // 페이지 내 main 컨테이너 찾기
-    const mainContainer = currentPage.querySelector('main') || currentPage.querySelector('.page-container');
-    if (!mainContainer) return;
-    
-    // Breadcrumb HTML 생성
-    const breadcrumbHTML = `
-        <div class="page-breadcrumb ${info.theme}">
-            <div class="breadcrumb-content">
-                <i class="breadcrumb-icon ${info.icon}"></i>
-                <div class="breadcrumb-text">
-                    <h1 class="breadcrumb-title">${info.title}</h1>
-                    <div class="breadcrumb-path">
-                        ${info.path.map((p, i) => `
-                            <span>${p}</span>
-                            ${i < info.path.length - 1 ? '<i class="breadcrumb-separator fas fa-chevron-right"></i>' : ''}
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // 첫 번째 요소 앞에 삽입
-    mainContainer.insertAdjacentHTML('afterbegin', breadcrumbHTML);
-}
 
 /**
  * 페이지 전환
@@ -145,10 +34,7 @@ function navigateTo(pageId) {
         targetPage.style.visibility = 'visible';
         targetPage.style.opacity = '1';
         
-        // ⭐ Breadcrumb 업데이트 (신규 추가)
-        updateBreadcrumb(pageId);
-        
-        // 페이지별 초기화 (기존 로직 완전 보존)
+        // 페이지별 초기화
         if (pageId === 'sales') {
             if (typeof initializeSales === 'function') initializeSales();
         } else if (pageId === 'project-detail') {
@@ -203,7 +89,7 @@ function initializePage(pageId) {
             }
             break;
             
-        // ⭐ 거래처 관리 페이지 초기화 (기존 유지)
+        // ⭐ 거래처 관리 페이지 초기화 (신규 추가)
         case 'clients':
         case 'clients-list':
             console.log('🏢 거래처 목록 페이지 초기화');
@@ -267,7 +153,7 @@ function initializePage(pageId) {
             // TODO: 시스템 설정 초기화 로직
             break;
 			
-        // ⭐ 모바일 페이지 (기존 유지)
+        // ⭐ 모바일 페이지 추가
         case 'mobile-projects':
             console.log('📱 모바일 프로젝트 목록 초기화');
             if (typeof initializeMobileProjects !== 'undefined') {
@@ -295,7 +181,7 @@ function initializePage(pageId) {
 }
 
 /**
- * 특정 모드로 프로젝트 폼 열기 (기존 기능 보존 + Breadcrumb 업데이트 추가)
+ * 특정 모드로 프로젝트 폼 열기
  * @param {string} mode - 'new' 또는 'edit'
  * @param {string} pipelineId - 편집 모드일 때 프로젝트 ID
  */
@@ -315,7 +201,7 @@ function openProjectForm(mode = 'new', pipelineId = null) {
         history.pushState({page: 'projects-new', mode, pipelineId}, '', url);
     }
     
-    // 페이지 전환 (기존 방식 유지)
+    // 페이지 전환
     document.querySelectorAll('.page-content').forEach(page => {
         page.classList.remove('active');
     });
@@ -324,18 +210,7 @@ function openProjectForm(mode = 'new', pipelineId = null) {
     if (targetPage) {
         targetPage.classList.add('active');
         
-        // ⭐ Breadcrumb 업데이트 (신규 추가)
-        updateBreadcrumb('projects-new');
-        
-        // ⭐ Breadcrumb 제목 동적 변경 (신규 추가)
-        setTimeout(() => {
-            const breadcrumbTitle = document.querySelector('.breadcrumb-title');
-            if (breadcrumbTitle) {
-                breadcrumbTitle.textContent = mode === 'edit' ? '프로젝트 수정' : '신규 프로젝트';
-            }
-        }, 10);
-        
-        // ✅ setTimeout 제거하고 바로 호출 (기존 로직)
+        // ✅ setTimeout 제거하고 바로 호출
         console.log('🔧 initializeProjectForm 호출 시작:', mode, pipelineId);
         if (typeof initializeProjectForm !== 'undefined') {
             initializeProjectForm(mode, pipelineId);
@@ -348,7 +223,7 @@ function openProjectForm(mode = 'new', pipelineId = null) {
 }
 
 /**
- * ⭐ 거래처 폼 열기 (기존 유지 + Breadcrumb 추가)
+ * ⭐ 거래처 폼 열기 (신규 추가)
  * @param {string} mode - 'new' 또는 'edit'
  * @param {number} clientId - 편집 모드일 때 거래처 ID
  */
@@ -374,17 +249,6 @@ function openClientForm(mode = 'new', clientId = null) {
     if (targetPage) {
         targetPage.classList.add('active');
         
-        // ⭐ Breadcrumb 업데이트 (신규 추가)
-        updateBreadcrumb('clients-form');
-        
-        // ⭐ Breadcrumb 제목 동적 변경 (신규 추가)
-        setTimeout(() => {
-            const breadcrumbTitle = document.querySelector('.breadcrumb-title');
-            if (breadcrumbTitle) {
-                breadcrumbTitle.textContent = mode === 'edit' ? '거래처 수정' : '거래처 등록';
-            }
-        }, 10);
-        
         // clients-form.js에서 자동으로 초기화됨
         console.log('✅ 거래처 폼 페이지 활성화');
     } else {
@@ -393,7 +257,7 @@ function openClientForm(mode = 'new', clientId = null) {
 }
 
 /**
- * ⭐ 거래처 목록으로 이동 (기존 유지)
+ * ⭐ 거래처 목록으로 이동 (신규 추가)
  */
 function openClientsList() {
     console.log('🏢 거래처 목록으로 이동');
@@ -408,7 +272,7 @@ function openClientsList() {
 }
 
 /**
- * 내정보 모달 열기 (기존 유지)
+ * 내정보 모달 열기
  */
 function openMyInfo() {
     console.log('👤 내정보 열기');
@@ -426,7 +290,7 @@ function openMyInfo() {
 }
 
 /**
- * 로그아웃 (기존 유지)
+ * 로그아웃
  */
 async function logout() {
     console.log('🚪 로그아웃 요청');
@@ -450,7 +314,7 @@ async function logout() {
 }
 
 /**
- * 현재 활성화된 페이지 ID 가져오기 (기존 유지)
+ * 현재 활성화된 페이지 ID 가져오기
  */
 function getCurrentPageId() {
     const activePage = document.querySelector('.page-content.active');
@@ -461,14 +325,14 @@ function getCurrentPageId() {
 }
 
 /**
- * 페이지 존재 여부 확인 (기존 유지)
+ * 페이지 존재 여부 확인
  */
 function pageExists(pageId) {
     return document.getElementById(`page-${pageId}`) !== null;
 }
 
 // ===================================
-// Event Listeners (기존 완전 보존)
+// Event Listeners
 // ===================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -578,7 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ===================================
-// Export to window (기존 완전 보존 + 신규 추가)
+// Export to window
 // ===================================
 window.navigateTo = navigateTo;
 window.initializePage = initializePage;
@@ -589,6 +453,5 @@ window.openMyInfo = openMyInfo;
 window.logout = logout;
 window.getCurrentPageId = getCurrentPageId;
 window.pageExists = pageExists;
-window.updateBreadcrumb = updateBreadcrumb;    // ⭐ 신규 추가
 
 console.log('📦 Navigation 모듈 로드 완료');

@@ -12,8 +12,6 @@
 // - 프로젝트 상세 정보: 배지 스타일
 // - 변경이력 목록: 인라인 스타일 (아이콘 + 텍스트)
 // - 폴백 지원: StageIcons 미로드 시 기존 getStageBadge 사용
-// - [신규] 버튼 클릭 시 openProjectForm('new') 호출
-// - 더블클릭 시 openProjectForm('edit', pipelineId) 호출
 // ===================================
 
 // ===================================
@@ -378,7 +376,7 @@ function initializeTable() {
         }
     });
     
-    // ⭐ 더블클릭 시 수정 화면 열기 (개선됨)
+    // ⭐ 더블클릭 시 수정 화면 열기
     projectTable.on("rowDblClick", function(e, row) {
         var data = row.getData();
         console.log('🖱️ 더블클릭:', data.pipeline_id);
@@ -430,7 +428,6 @@ function updateEditButton() {
 // ===================================
 // Initialize Event Listeners
 // ⭐ 핵심 수정: 모든 요소에 null 체크 추가
-// ⭐ 개선: [신규] 버튼 클릭 시 openProjectForm('new') 호출
 // ===================================
 function initializeEventListeners() {
     console.log('🔧 이벤트 리스너 초기화 시작...');
@@ -459,7 +456,7 @@ function initializeEventListeners() {
         console.warn('  ✗ btnExport 요소 없음');
     }
     
-    // ⭐ 신규/열기 버튼 (개선: openProjectForm 호출)
+    // 신규/열기 버튼
     const btnAdd = document.getElementById('btnAdd');
     if (btnAdd) {
         btnAdd.addEventListener('click', function() {
@@ -480,7 +477,7 @@ function initializeEventListeners() {
                 }
             }
         });
-        console.log('  ✓ btnAdd 이벤트 등록 (openProjectForm 호출)');
+        console.log('  ✓ btnAdd 이벤트 등록');
     } else {
         console.warn('  ✗ btnAdd 요소 없음');
     }

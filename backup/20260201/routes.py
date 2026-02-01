@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-거래처 관리 API 엔드포인트 - 완전 버전
+거래처 관리 API 엔드포인트 - 개선 버전
 app/api/v1/endpoints/clients/routes.py
 
-기존 모든 기능 유지 + 페이징/필터링 기능 강화
-검색 개선 (2026-02-01):
-- search_field가 없으면 전체 필드 검색 (client_name, business_number, ceo_name, phone)
+기존 기능 유지 + 페이징/필터링 기능 강화
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Form, Body
 from sqlalchemy.orm import Session
@@ -58,7 +56,7 @@ class ClientUpdateRequest(BaseModel):
 
 
 # ============================================
-# 거래처 목록 조회 (페이징 + 강화된 필터링) - 검색 로직 개선
+# 거래처 목록 조회 (페이징 + 강화된 필터링) - 신규 개선
 # ============================================
 @router.get("/list")
 async def get_clients_list(
@@ -73,12 +71,10 @@ async def get_clients_list(
     """
     거래처 목록 조회 (페이징, 다중 필터, 통계 포함)
     
-    ⭐ 개선: search_field가 없으면 전체 필드 검색
-    
     Args:
         page: 페이지 번호 (기본: 1)
         page_size: 페이지 크기 (기본: 25, 최대: 200)
-        search_field: 검색 필드 선택 (없으면 전체 검색)
+        search_field: 검색 필드 선택
         search_text: 검색어
         industry_type: 업종 필터
         is_active: 활성 상태 필터
@@ -128,33 +124,21 @@ async def get_clients_list(
         filter_condition = ""
         
         # ===================================
-        # ⭐ 검색 조건 개선 (전체 필드 검색 지원)
+        # 검색 조건 (필드별 검색)
         # ===================================
-        if search_text and search_text.strip():
+        if search_field and search_text and search_text.strip():
             search_value = f"%{search_text.strip()}%"
             
-            if search_field:
-                # 특정 필드 검색
-                if search_field == "client_name":
-                    filter_condition += " AND client_name LIKE :search"
-                elif search_field == "business_number":
-                    filter_condition += " AND business_number LIKE :search"
-                elif search_field == "ceo_name":
-                    filter_condition += " AND ceo_name LIKE :search"
-                elif search_field == "phone":
-                    filter_condition += " AND phone LIKE :search"
-                else:
-                    # 알 수 없는 필드는 전체 검색으로 처리
-                    filter_condition += """
-                        AND (
-                            client_name LIKE :search
-                            OR business_number LIKE :search
-                            OR ceo_name LIKE :search
-                            OR phone LIKE :search
-                        )
-                    """
+            if search_field == "client_name":
+                filter_condition += " AND client_name LIKE :search"
+            elif search_field == "business_number":
+                filter_condition += " AND business_number LIKE :search"
+            elif search_field == "ceo_name":
+                filter_condition += " AND ceo_name LIKE :search"
+            elif search_field == "phone":
+                filter_condition += " AND phone LIKE :search"
             else:
-                # ⭐ search_field가 없으면 전체 필드 검색
+                # 검색 필드가 지정되지 않으면 전체 검색
                 filter_condition += """
                     AND (
                         client_name LIKE :search
@@ -433,25 +417,28 @@ async def get_client_detail(
     client_id: int,
     db: Session = Depends(get_db)
 ):
-    """
-    거래처 상세 정보 조회
-    
-    Args:
-        client_id: 거래처 ID
-        db: 데이터베이스 세션
-    
-    Returns:
-        거래처 상세 정보
-    """
+    """거래처 상세 정보 조회"""
     try:
-        app_logger.info(f"📋 거래처 상세 조회 - client_id: {client_id}")
+        app_logger.info(f"📄 거래처 상세 조회 - client_id: {client_id}")
         
         query = text("""
             SELECT 
-                client_id, client_name, business_number, ceo_name, address,
-                phone, email, fax, homepage, industry_type, employee_count,
-                established_date, is_active, remarks, created_at, updated_at,
-                created_by, updated_by
+                client_id,
+                client_name,
+                business_number,
+                ceo_name,
+                address,
+                phone,
+                email,
+                fax,
+                homepage,
+                industry_type,
+                employee_count,
+                established_date,
+                is_active,
+                remarks,
+                created_at,
+                updated_at
             FROM clients
             WHERE client_id = :client_id
         """)
@@ -479,22 +466,21 @@ async def get_client_detail(
             'remarks': row[13] or '',
             'created_at': row[14].isoformat() if row[14] else None,
             'updated_at': row[15].isoformat() if row[15] else None,
-            'created_by': row[16] or '',
-            'updated_by': row[17] or ''
         }
         
         app_logger.info(f"✅ 거래처 상세 조회 성공")
-        return client
+        
+        return {"client": client}
         
     except HTTPException:
         raise
     except Exception as e:
         app_logger.error(f"❌ 거래처 상세 조회 실패: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"거래처 조회 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"거래처 상세 조회 실패: {str(e)}")
 
 
 # ============================================
-# 거래처 등록 - 기존 유지
+# 거래처 등록 - JSON Body 방식으로 개선
 # ============================================
 @router.post("")
 async def create_client(
@@ -509,15 +495,15 @@ async def create_client(
         db: 데이터베이스 세션
     
     Returns:
-        등록된 거래처 ID
+        등록된 거래처 정보
     """
     try:
-        app_logger.info(f"➕ 거래처 등록 - {request.client_name}")
+        app_logger.info(f"📝 거래처 등록 - client_name: {request.client_name}")
         
         # 중복 체크
-        check_query = text("SELECT client_id FROM clients WHERE client_name = :client_name")
-        result = db.execute(check_query, {'client_name': request.client_name})
-        if result.fetchone():
+        check_query = text("SELECT COUNT(*) FROM clients WHERE client_name = :client_name")
+        check_result = db.execute(check_query, {'client_name': request.client_name})
+        if check_result.fetchone()[0] > 0:
             raise HTTPException(status_code=409, detail="이미 등록된 거래처명입니다")
         
         # INSERT 쿼리
@@ -573,7 +559,7 @@ async def create_client(
 
 
 # ============================================
-# 거래처 수정 - 기존 유지
+# 거래처 수정 - JSON Body 방식으로 개선
 # ============================================
 @router.put("/{client_id}")
 async def update_client(
