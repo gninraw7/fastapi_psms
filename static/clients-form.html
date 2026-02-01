@@ -1,0 +1,277 @@
+<!-- ===================================
+     거래처 관리 - 등록/수정 화면
+     clients-form.html
+     =================================== -->
+
+<div class="page-container">
+    <!-- 페이지 헤더 -->
+    <div class="page-header">
+        <div class="page-title-group">
+            <h1 class="page-title" id="clientFormTitle">
+                <i class="fas fa-building"></i>
+                <span id="clientFormTitleText">신규 거래처 등록</span>
+            </h1>
+            <p class="page-subtitle" id="clientFormSubtitle">거래처 정보를 입력하세요</p>
+        </div>
+        
+        <div class="page-actions">
+            <button class="btn btn-primary" onclick="saveClientForm()">
+                <i class="fas fa-save"></i>
+                저장
+            </button>
+            <button class="btn btn-secondary" onclick="navigateToClientList()">
+                <i class="fas fa-list"></i>
+                목록으로
+            </button>
+        </div>
+    </div>
+
+    <!-- 폼 컨테이너 -->
+    <div class="form-container">
+        <!-- 기본 정보 섹션 -->
+        <div class="form-section">
+            <div class="form-section-header">
+                <h3>
+                    <i class="fas fa-info-circle"></i>
+                    기본 정보
+                </h3>
+                <span class="required-badge">
+                    <i class="fas fa-asterisk"></i>
+                    필수 입력
+                </span>
+            </div>
+            
+            <div class="form-grid">
+                <!-- 거래처명 -->
+                <div class="form-group form-group-full">
+                    <label for="clientName" class="form-label required">
+                        거래처명
+                    </label>
+                    <input 
+                        type="text" 
+                        id="clientName" 
+                        class="form-input" 
+                        placeholder="거래처명을 입력하세요"
+                        required
+                    />
+                    <span class="form-hint">고객사 또는 협력사의 정식 명칭을 입력하세요</span>
+                </div>
+                
+                <!-- 사업자등록번호 -->
+                <div class="form-group">
+                    <label for="businessNumber" class="form-label">
+                        사업자등록번호
+                    </label>
+                    <input 
+                        type="text" 
+                        id="businessNumber" 
+                        class="form-input" 
+                        placeholder="000-00-00000"
+                        maxlength="12"
+                    />
+                    <span class="form-hint">하이픈(-) 포함하여 입력</span>
+                </div>
+                
+                <!-- 대표자명 -->
+                <div class="form-group">
+                    <label for="ceoName" class="form-label">
+                        대표자명
+                    </label>
+                    <input 
+                        type="text" 
+                        id="ceoName" 
+                        class="form-input" 
+                        placeholder="대표자명을 입력하세요"
+                    />
+                </div>
+                
+                <!-- 업종 -->
+                <div class="form-group">
+                    <label for="industryType" class="form-label">
+                        업종
+                    </label>
+                    <select id="industryType" class="form-select">
+                        <option value="">선택하세요</option>
+                        <option value="제조업">제조업</option>
+                        <option value="서비스업">서비스업</option>
+                        <option value="건설업">건설업</option>
+                        <option value="IT/소프트웨어">IT/소프트웨어</option>
+                        <option value="유통/도소매">유통/도소매</option>
+                        <option value="금융/보험">금융/보험</option>
+                        <option value="교육">교육</option>
+                        <option value="의료/헬스케어">의료/헬스케어</option>
+                        <option value="공공기관">공공기관</option>
+                        <option value="기타">기타</option>
+                    </select>
+                </div>
+                
+                <!-- 설립일자 -->
+                <div class="form-group">
+                    <label for="establishedDate" class="form-label">
+                        설립일자
+                    </label>
+                    <input 
+                        type="date" 
+                        id="establishedDate" 
+                        class="form-input"
+                    />
+                </div>
+                
+                <!-- 직원 수 -->
+                <div class="form-group">
+                    <label for="employeeCount" class="form-label">
+                        직원 수
+                    </label>
+                    <input 
+                        type="number" 
+                        id="employeeCount" 
+                        class="form-input" 
+                        placeholder="직원 수"
+                        min="0"
+                    />
+                </div>
+            </div>
+        </div>
+
+        <!-- 연락처 정보 섹션 -->
+        <div class="form-section">
+            <div class="form-section-header">
+                <h3>
+                    <i class="fas fa-address-book"></i>
+                    연락처 정보
+                </h3>
+            </div>
+            
+            <div class="form-grid">
+                <!-- 주소 -->
+                <div class="form-group form-group-full">
+                    <label for="address" class="form-label">
+                        주소
+                    </label>
+                    <input 
+                        type="text" 
+                        id="address" 
+                        class="form-input" 
+                        placeholder="주소를 입력하세요"
+                    />
+                </div>
+                
+                <!-- 전화번호 -->
+                <div class="form-group">
+                    <label for="phone" class="form-label">
+                        전화번호
+                    </label>
+                    <input 
+                        type="tel" 
+                        id="phone" 
+                        class="form-input" 
+                        placeholder="02-1234-5678"
+                    />
+                </div>
+                
+                <!-- 팩스번호 -->
+                <div class="form-group">
+                    <label for="fax" class="form-label">
+                        팩스번호
+                    </label>
+                    <input 
+                        type="tel" 
+                        id="fax" 
+                        class="form-input" 
+                        placeholder="02-1234-5679"
+                    />
+                </div>
+                
+                <!-- 이메일 -->
+                <div class="form-group">
+                    <label for="email" class="form-label">
+                        이메일
+                    </label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        class="form-input" 
+                        placeholder="contact@example.com"
+                    />
+                </div>
+                
+                <!-- 홈페이지 -->
+                <div class="form-group">
+                    <label for="homepage" class="form-label">
+                        홈페이지
+                    </label>
+                    <input 
+                        type="url" 
+                        id="homepage" 
+                        class="form-input" 
+                        placeholder="https://www.example.com"
+                    />
+                </div>
+            </div>
+        </div>
+
+        <!-- 추가 정보 섹션 -->
+        <div class="form-section">
+            <div class="form-section-header">
+                <h3>
+                    <i class="fas fa-clipboard-list"></i>
+                    추가 정보
+                </h3>
+            </div>
+            
+            <div class="form-grid">
+                <!-- 활성 상태 -->
+                <div class="form-group">
+                    <label for="isActive" class="form-label">
+                        활성 상태
+                    </label>
+                    <div class="form-switch-group">
+                        <label class="form-switch">
+                            <input type="checkbox" id="isActive" checked>
+                            <span class="form-switch-slider"></span>
+                        </label>
+                        <span class="form-switch-label">활성</span>
+                    </div>
+                    <span class="form-hint">비활성 시 목록에서 제외됩니다</span>
+                </div>
+                
+                <!-- 비고 -->
+                <div class="form-group form-group-full">
+                    <label for="remarks" class="form-label">
+                        비고
+                    </label>
+                    <textarea 
+                        id="remarks" 
+                        class="form-textarea" 
+                        rows="4" 
+                        placeholder="기타 특이사항을 입력하세요"
+                    ></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 하단 액션 버튼 -->
+    <div class="form-actions">
+        <button class="btn btn-lg btn-primary" onclick="saveClientForm()">
+            <i class="fas fa-save"></i>
+            저장
+        </button>
+        <button class="btn btn-lg btn-secondary" onclick="navigateToClientList()">
+            <i class="fas fa-times"></i>
+            취소
+        </button>
+        <button 
+            id="deleteClientBtn" 
+            class="btn btn-lg btn-danger" 
+            onclick="deleteClient()" 
+            style="display: none;"
+        >
+            <i class="fas fa-trash"></i>
+            삭제
+        </button>
+    </div>
+</div>
+
+<!-- 거래처 폼 전용 JavaScript -->
+<script src="/static/js/clients-form.js?v=1.0.0"></script>

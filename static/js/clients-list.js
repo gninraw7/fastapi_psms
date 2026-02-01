@@ -1,0 +1,506 @@
+// ===================================
+// static/js/clients-list.js
+// 거래처 목록 관리 JavaScript
+// ===================================
+
+// ===================================
+// Global State
+// ===================================
+let clientsTable = null;
+let currentClientFilters = {
+    search_field: '',
+    search_text: '',
+    industry_type: '',
+    is_active: '',
+    page: 1,
+    page_size: 25
+};
+
+// ===================================
+// Initialization
+// ===================================
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 거래처 목록 초기화 시작...');
+    
+    // 거래처 목록 페이지인지 확인
+    const clientsTableEl = document.getElementById('clientsTable');
+    
+    if (!clientsTableEl) {
+        console.log('⚠️ clientsTable 요소 없음, 초기화 스킵');
+        return;
+    }
+    
+    try {
+        // 테이블 초기화
+        initializeClientsTable();
+        
+        // 이벤트 리스너 등록
+        initializeClientEventListeners();
+        
+        console.log('✅ 거래처 목록 초기화 완료');
+    } catch (error) {
+        console.error('❌ 거래처 목록 초기화 실패:', error);
+    }
+});
+
+// ===================================
+// Initialize Clients Table
+// ===================================
+function initializeClientsTable() {
+    const tableEl = document.getElementById('clientsTable');
+    
+    if (!tableEl) {
+        console.error('❌ clientsTable 요소를 찾을 수 없음');
+        return;
+    }
+    
+    clientsTable = new Tabulator("#clientsTable", {
+        height: "600px",
+        layout: "fitDataStretch",
+        pagination: true,
+        paginationMode: "remote",
+        paginationSize: 25,
+        paginationSizeSelector: [25, 50, 100, 200],
+        placeholder: "데이터가 없습니다",
+        
+        selectable: true,
+        selectableRangeMode: "click",
+        
+        ajaxURL: API_CONFIG.BASE_URL + API_CONFIG.API_VERSION + "/clients/list",
+        
+        ajaxURLGenerator: function(url, config, params) {
+            const queryParams = {
+                page: params.page || 1,
+                page_size: params.size || 25
+            };
+            
+            if (currentClientFilters.search_field && currentClientFilters.search_text) {
+                queryParams.search_field = currentClientFilters.search_field;
+                queryParams.search_text = currentClientFilters.search_text;
+            }
+            if (currentClientFilters.industry_type) {
+                queryParams.industry_type = currentClientFilters.industry_type;
+            }
+            if (currentClientFilters.is_active !== '') {
+                queryParams.is_active = currentClientFilters.is_active;
+            }
+            
+            const query = new URLSearchParams(queryParams);
+            const finalUrl = url + '?' + query.toString();
+            console.log('📡 API 호출:', finalUrl);
+            return finalUrl;
+        },
+        
+        ajaxResponse: function(url, params, response) {
+            updateClientStatistics(response);
+            return {
+                last_page: response.total_pages || 1,
+                data: response.items || []
+            };
+        },
+        
+        ajaxError: function(error) {
+            console.error('❌ AJAX 에러:', error);
+            return { last_page: 1, data: [] };
+        },
+        
+        columns: [
+            {
+                formatter: "rowSelection",
+                titleFormatter: "rowSelection",
+                titleFormatterParams: { rowRange: "active" },
+                hozAlign: "center",
+                headerSort: false,
+                width: 50,
+                frozen: true
+            },
+            {
+                title: "거래처ID",
+                field: "client_id",
+                width: 100,
+                frozen: true,
+                headerSort: false,
+                formatter: function(cell) {
+                    return `<strong>${cell.getValue()}</strong>`;
+                }
+            },
+            {
+                title: "거래처명",
+                field: "client_name",
+                width: 250,
+                headerSort: false,
+                formatter: function(cell) {
+                    const clientName = cell.getValue() || '';
+                    const isActive = cell.getRow().getData().is_active;
+                    
+                    let badge = '';
+                    if (!isActive) {
+                        badge = '<span class="badge badge-secondary">비활성</span>';
+                    }
+                    
+                    return `
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <strong style="color: #2f5597;">${clientName}</strong>
+                            ${badge}
+                        </div>
+                    `;
+                }
+            },
+            {
+                title: "사업자번호",
+                field: "business_number",
+                width: 140,
+                headerSort: false,
+                formatter: function(cell) {
+                    const value = cell.getValue();
+                    return value ? `<code>${value}</code>` : '-';
+                }
+            },
+            {
+                title: "대표자",
+                field: "ceo_name",
+                width: 120,
+                headerSort: false
+            },
+            {
+                title: "업종",
+                field: "industry_type",
+                width: 150,
+                headerSort: false,
+                formatter: function(cell) {
+                    const value = cell.getValue();
+                    if (!value) return '-';
+                    
+                    const colorMap = {
+                        '제조업': '#4caf50',
+                        'IT/소프트웨어': '#2196f3',
+                        '서비스업': '#ff9800',
+                        '건설업': '#795548',
+                        '금융/보험': '#9c27b0',
+                        '공공기관': '#f44336'
+                    };
+                    
+                    const color = colorMap[value] || '#607d8b';
+                    
+                    return `
+                        <span class="badge" style="background: ${color};">
+                            ${value}
+                        </span>
+                    `;
+                }
+            },
+            {
+                title: "전화번호",
+                field: "phone",
+                width: 140,
+                headerSort: false,
+                formatter: function(cell) {
+                    const value = cell.getValue();
+                    return value || '-';
+                }
+            },
+            {
+                title: "이메일",
+                field: "email",
+                width: 200,
+                headerSort: false,
+                formatter: function(cell) {
+                    const value = cell.getValue();
+                    return value ? `<a href="mailto:${value}">${value}</a>` : '-';
+                }
+            },
+            {
+                title: "직원 수",
+                field: "employee_count",
+                width: 100,
+                headerSort: false,
+                hozAlign: "right",
+                formatter: function(cell) {
+                    const value = cell.getValue();
+                    return value ? value.toLocaleString() + '명' : '-';
+                }
+            },
+            {
+                title: "설립일",
+                field: "established_date",
+                width: 120,
+                headerSort: false,
+                formatter: function(cell) {
+                    const value = cell.getValue();
+                    return value || '-';
+                }
+            },
+            {
+                title: "등록일",
+                field: "created_at",
+                width: 120,
+                headerSort: false,
+                formatter: function(cell) {
+                    const value = cell.getValue();
+                    return value ? value.split('T')[0] : '-';
+                }
+            },
+            {
+                title: "수정일",
+                field: "updated_at",
+                width: 120,
+                headerSort: false,
+                formatter: function(cell) {
+                    const value = cell.getValue();
+                    return value ? value.split('T')[0] : '-';
+                }
+            },
+            {
+                title: "액션",
+                field: "actions",
+                width: 120,
+                headerSort: false,
+                hozAlign: "center",
+                formatter: function(cell) {
+                    const clientId = cell.getRow().getData().client_id;
+                    return `
+                        <button 
+                            class="btn-icon btn-icon-primary" 
+                            onclick="navigateToClientForm('edit', ${clientId})"
+                            title="수정"
+                        >
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button 
+                            class="btn-icon btn-icon-danger" 
+                            onclick="deleteClientById(${clientId})"
+                            title="삭제"
+                        >
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    `;
+                }
+            }
+        ]
+    });
+    
+    // 행 선택 이벤트
+    clientsTable.on("rowSelectionChanged", function(data, rows) {
+        updateSelectionActionBar(rows.length);
+    });
+    
+    // 더블클릭 이벤트
+    clientsTable.on("rowDblClick", function(e, row) {
+        const clientId = row.getData().client_id;
+        navigateToClientForm('edit', clientId);
+    });
+    
+    console.log('✅ 거래처 테이블 초기화 완료');
+}
+
+// ===================================
+// Update Statistics
+// ===================================
+function updateClientStatistics(response) {
+    document.getElementById('statTotal').textContent = response.total || 0;
+    document.getElementById('statActive').textContent = response.active_count || 0;
+    document.getElementById('statInactive').textContent = response.inactive_count || 0;
+    document.getElementById('statFiltered').textContent = response.filtered_count || response.total || 0;
+}
+
+// ===================================
+// Event Listeners
+// ===================================
+function initializeClientEventListeners() {
+    // 검색어 입력 시 엔터키
+    const searchInput = document.getElementById('clientSearchText');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                applyClientFilters();
+            }
+        });
+    }
+    
+    console.log('✅ 거래처 이벤트 리스너 등록 완료');
+}
+
+// ===================================
+// Filter Functions
+// ===================================
+function applyClientFilters() {
+    console.log('🔍 필터 적용 중...');
+    
+    currentClientFilters.search_field = document.getElementById('clientSearchField').value;
+    currentClientFilters.search_text = document.getElementById('clientSearchText').value;
+    currentClientFilters.industry_type = document.getElementById('clientIndustryType').value;
+    currentClientFilters.is_active = document.getElementById('clientIsActive').value;
+    currentClientFilters.page = 1;
+    
+    console.log('📋 필터 조건:', currentClientFilters);
+    
+    if (clientsTable) {
+        clientsTable.setPage(1);
+    }
+}
+
+function resetClientFilters() {
+    console.log('🔄 필터 초기화');
+    
+    document.getElementById('clientSearchField').value = '';
+    document.getElementById('clientSearchText').value = '';
+    document.getElementById('clientIndustryType').value = '';
+    document.getElementById('clientIsActive').value = '';
+    
+    currentClientFilters = {
+        search_field: '',
+        search_text: '',
+        industry_type: '',
+        is_active: '',
+        page: 1,
+        page_size: 25
+    };
+    
+    if (clientsTable) {
+        clientsTable.setPage(1);
+    }
+}
+
+// ===================================
+// Selection Functions
+// ===================================
+function updateSelectionActionBar(count) {
+    const actionBar = document.getElementById('clientSelectionActionBar');
+    const countSpan = document.getElementById('clientSelectionCount');
+    
+    if (count > 0) {
+        actionBar.style.display = 'flex';
+        countSpan.textContent = count;
+    } else {
+        actionBar.style.display = 'none';
+    }
+}
+
+function clearClientSelection() {
+    if (clientsTable) {
+        clientsTable.deselectRow();
+    }
+}
+
+// ===================================
+// Navigation Functions
+// ===================================
+function navigateToClientForm(mode, clientId = null) {
+    console.log('📍 페이지 이동:', mode, clientId);
+    
+    if (typeof loadPage === 'function') {
+        if (mode === 'new') {
+            loadPage('clients-form', { mode: 'new' });
+        } else if (mode === 'edit' && clientId) {
+            loadPage('clients-form', { mode: 'edit', client_id: clientId });
+        }
+    } else {
+        console.error('❌ loadPage 함수를 찾을 수 없음');
+    }
+}
+
+function navigateToClientList() {
+    console.log('📍 목록으로 이동');
+    
+    if (typeof loadPage === 'function') {
+        loadPage('clients-list');
+    } else {
+        console.error('❌ loadPage 함수를 찾을 수 없음');
+    }
+}
+
+// ===================================
+// Delete Functions
+// ===================================
+async function deleteClientById(clientId) {
+    if (!confirm('정말로 이 거래처를 삭제하시겠습니까?')) {
+        return;
+    }
+    
+    try {
+        console.log('🗑️ 거래처 삭제:', clientId);
+        
+        const response = await API.delete(`/clients/${clientId}`);
+        
+        console.log('✅ 삭제 성공');
+        alert('거래처가 삭제되었습니다.');
+        
+        // 테이블 새로고침
+        if (clientsTable) {
+            clientsTable.replaceData();
+        }
+        
+    } catch (error) {
+        console.error('❌ 삭제 실패:', error);
+        alert('거래처 삭제에 실패했습니다: ' + error.message);
+    }
+}
+
+async function bulkDeleteClients() {
+    const selectedRows = clientsTable.getSelectedRows();
+    
+    if (selectedRows.length === 0) {
+        alert('삭제할 거래처를 선택하세요.');
+        return;
+    }
+    
+    if (!confirm(`선택한 ${selectedRows.length}개의 거래처를 삭제하시겠습니까?`)) {
+        return;
+    }
+    
+    try {
+        console.log('🗑️ 대량 삭제 시작:', selectedRows.length);
+        
+        const deletePromises = selectedRows.map(row => {
+            const clientId = row.getData().client_id;
+            return API.delete(`/clients/${clientId}`);
+        });
+        
+        await Promise.all(deletePromises);
+        
+        console.log('✅ 대량 삭제 성공');
+        alert(`${selectedRows.length}개의 거래처가 삭제되었습니다.`);
+        
+        // 테이블 새로고침
+        if (clientsTable) {
+            clientsTable.replaceData();
+        }
+        
+    } catch (error) {
+        console.error('❌ 대량 삭제 실패:', error);
+        alert('거래처 삭제에 실패했습니다: ' + error.message);
+    }
+}
+
+// ===================================
+// Export Functions
+// ===================================
+function exportClientsToExcel() {
+    if (!clientsTable) {
+        console.error('❌ 테이블이 초기화되지 않음');
+        return;
+    }
+    
+    console.log('📊 엑셀 다운로드 시작');
+    
+    clientsTable.download("xlsx", "거래처목록.xlsx", {
+        sheetName: "거래처"
+    });
+}
+
+function bulkExportClients() {
+    const selectedRows = clientsTable.getSelectedRows();
+    
+    if (selectedRows.length === 0) {
+        alert('내보낼 거래처를 선택하세요.');
+        return;
+    }
+    
+    console.log('📊 선택 항목 엑셀 다운로드:', selectedRows.length);
+    
+    clientsTable.download("xlsx", "선택거래처.xlsx", {
+        sheetName: "선택거래처"
+    }, "selected");
+}
+
+console.log('✅ clients-list.js 로드 완료');

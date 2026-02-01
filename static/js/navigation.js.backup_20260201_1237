@@ -73,18 +73,9 @@ function initializePage(pageId) {
             }
             break;
             
-        // ⭐ 거래처 관리 페이지 초기화 (신규 추가)
         case 'clients':
-        case 'clients-list':
-            console.log('🏢 거래처 목록 페이지 초기화');
-            // clients-list.js의 테이블이 자동 초기화됨
-            // 필요시 추가 로직 작성
-            break;
-            
-        case 'clients-form':
-            console.log('🏢 거래처 폼 페이지 초기화');
-            // clients-form.js의 폼이 자동 초기화됨
-            // URL 파라미터에 따라 신규/수정 모드 설정
+            console.log('🏢 거래처 관리 페이지 초기화');
+            // TODO: 거래처 관리 초기화 로직
             break;
             
         case 'sales-dashboard':
@@ -207,55 +198,6 @@ function openProjectForm(mode = 'new', pipelineId = null) {
 }
 
 /**
- * ⭐ 거래처 폼 열기 (신규 추가)
- * @param {string} mode - 'new' 또는 'edit'
- * @param {number} clientId - 편집 모드일 때 거래처 ID
- */
-function openClientForm(mode = 'new', clientId = null) {
-    console.log('🏢 거래처 폼 열기:', mode, clientId);
-    
-    // URL 파라미터 설정
-    let url = `${window.location.pathname}?page=clients-form&mode=${mode}`;
-    if (clientId) {
-        url += `&client_id=${clientId}`;
-    }
-    
-    if (history.pushState) {
-        history.pushState({page: 'clients-form', mode, clientId}, '', url);
-    }
-    
-    // 페이지 전환
-    document.querySelectorAll('.page-content').forEach(page => {
-        page.classList.remove('active');
-    });
-    
-    const targetPage = document.getElementById('page-clients-form');
-    if (targetPage) {
-        targetPage.classList.add('active');
-        
-        // clients-form.js에서 자동으로 초기화됨
-        console.log('✅ 거래처 폼 페이지 활성화');
-    } else {
-        console.error('❌ page-clients-form 요소를 찾을 수 없습니다!');
-    }
-}
-
-/**
- * ⭐ 거래처 목록으로 이동 (신규 추가)
- */
-function openClientsList() {
-    console.log('🏢 거래처 목록으로 이동');
-    
-    const url = `${window.location.pathname}?page=clients-list`;
-    
-    if (history.pushState) {
-        history.pushState({page: 'clients-list'}, '', url);
-    }
-    
-    navigateTo('clients-list');
-}
-
-/**
  * 내정보 모달 열기
  */
 function openMyInfo() {
@@ -333,9 +275,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (pageId === 'projects-new' && mode) {
                     // 신규 프로젝트 메뉴에서 직접 클릭한 경우
                     openProjectForm('new');
-                } else if (pageId === 'clients-form' && mode === 'new') {
-                    // ⭐ 신규 거래처 메뉴에서 직접 클릭한 경우
-                    openClientForm('new');
                 } else {
                     navigateTo(pageId);
                 }
@@ -347,13 +286,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const pageParam = urlParams.get('page');
     const pipelineIdParam = urlParams.get('pipeline_id');
-    const clientIdParam = urlParams.get('client_id');
     
-    console.log('📄 URL 파라미터:', {
-        page: pageParam, 
-        pipeline_id: pipelineIdParam,
-        client_id: clientIdParam
-    });
+    console.log('📄 URL 파라미터:', {page: pageParam, pipeline_id: pipelineIdParam});
     
     if (pageParam) {
         // URL에 페이지 파라미터가 있으면 해당 페이지로 이동
@@ -404,13 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (typeof initializeProjectForm !== 'undefined') {
                         initializeProjectForm(e.state.mode || 'new', e.state.pipelineId || null);
                     }
-                } 
-                // ⭐ 거래처 폼인 경우
-                else if (e.state.page === 'clients-form') {
-                    // clients-form.js에서 자동 초기화
-                    console.log('✅ 거래처 폼 히스토리 복원');
-                } 
-                else {
+                } else {
                     initializePage(e.state.page);
                 }
             }
@@ -431,8 +359,6 @@ document.addEventListener('DOMContentLoaded', () => {
 window.navigateTo = navigateTo;
 window.initializePage = initializePage;
 window.openProjectForm = openProjectForm;
-window.openClientForm = openClientForm;        // ⭐ 신규 추가
-window.openClientsList = openClientsList;      // ⭐ 신규 추가
 window.openMyInfo = openMyInfo;
 window.logout = logout;
 window.getCurrentPageId = getCurrentPageId;

@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-거래처 관리 API 엔드포인트
+거래처 관리 API 엔드포인트 - 개선 버전
+app/api/v1/endpoints/clients/routes.py
+
+기존 기능 유지 + 페이징/필터링 기능 강화
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Form, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional
+from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.logger import app_logger
 
@@ -13,7 +17,228 @@ router = APIRouter()
 
 
 # ============================================
-# 거래처 간단 검색 (프로젝트 폼용) - 신규 추가
+# Request 모델
+# ============================================
+class ClientCreateRequest(BaseModel):
+    """거래처 등록 요청"""
+    client_name: str
+    business_number: Optional[str] = None
+    ceo_name: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    fax: Optional[str] = None
+    homepage: Optional[str] = None
+    industry_type: Optional[str] = None
+    employee_count: Optional[int] = None
+    established_date: Optional[str] = None
+    is_active: bool = True
+    remarks: Optional[str] = None
+    created_by: str = "system"
+
+
+class ClientUpdateRequest(BaseModel):
+    """거래처 수정 요청"""
+    client_name: Optional[str] = None
+    business_number: Optional[str] = None
+    ceo_name: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    fax: Optional[str] = None
+    homepage: Optional[str] = None
+    industry_type: Optional[str] = None
+    employee_count: Optional[int] = None
+    established_date: Optional[str] = None
+    is_active: Optional[bool] = None
+    remarks: Optional[str] = None
+    updated_by: str = "system"
+
+
+# ============================================
+# 거래처 목록 조회 (페이징 + 강화된 필터링) - 신규 개선
+# ============================================
+@router.get("/list")
+async def get_clients_list(
+    page: int = Query(1, ge=1, description="페이지 번호"),
+    page_size: int = Query(25, ge=1, le=200, description="페이지 크기"),
+    search_field: Optional[str] = Query(None, description="검색 필드 (client_name, business_number, ceo_name, phone)"),
+    search_text: Optional[str] = Query(None, description="검색어"),
+    industry_type: Optional[str] = Query(None, description="업종 필터"),
+    is_active: Optional[bool] = Query(None, description="활성 상태 필터"),
+    db: Session = Depends(get_db)
+):
+    """
+    거래처 목록 조회 (페이징, 다중 필터, 통계 포함)
+    
+    Args:
+        page: 페이지 번호 (기본: 1)
+        page_size: 페이지 크기 (기본: 25, 최대: 200)
+        search_field: 검색 필드 선택
+        search_text: 검색어
+        industry_type: 업종 필터
+        is_active: 활성 상태 필터
+        db: 데이터베이스 세션
+    
+    Returns:
+        dict: {items, total, page, page_size, total_pages, active_count, inactive_count, filtered_count}
+    """
+    try:
+        app_logger.info(f"📋 거래처 목록 조회 - page: {page}, size: {page_size}, field: {search_field}, text: {search_text}")
+        
+        # 기본 쿼리
+        base_query = """
+            SELECT 
+                client_id,
+                client_name,
+                business_number,
+                ceo_name,
+                address,
+                phone,
+                email,
+                fax,
+                homepage,
+                industry_type,
+                employee_count,
+                established_date,
+                is_active,
+                remarks,
+                created_at,
+                updated_at
+            FROM clients
+            WHERE 1=1
+        """
+        
+        count_query = "SELECT COUNT(*) as total FROM clients WHERE 1=1"
+        
+        # 통계 쿼리
+        stats_query = """
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN is_active = 1 OR is_active IS NULL THEN 1 ELSE 0 END) as active_count,
+                SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive_count
+            FROM clients
+        """
+        
+        params = {}
+        filter_condition = ""
+        
+        # ===================================
+        # 검색 조건 (필드별 검색)
+        # ===================================
+        if search_field and search_text and search_text.strip():
+            search_value = f"%{search_text.strip()}%"
+            
+            if search_field == "client_name":
+                filter_condition += " AND client_name LIKE :search"
+            elif search_field == "business_number":
+                filter_condition += " AND business_number LIKE :search"
+            elif search_field == "ceo_name":
+                filter_condition += " AND ceo_name LIKE :search"
+            elif search_field == "phone":
+                filter_condition += " AND phone LIKE :search"
+            else:
+                # 검색 필드가 지정되지 않으면 전체 검색
+                filter_condition += """
+                    AND (
+                        client_name LIKE :search
+                        OR business_number LIKE :search
+                        OR ceo_name LIKE :search
+                        OR phone LIKE :search
+                    )
+                """
+            
+            params['search'] = search_value
+        
+        # ===================================
+        # 업종 필터
+        # ===================================
+        if industry_type:
+            filter_condition += " AND industry_type = :industry_type"
+            params['industry_type'] = industry_type
+        
+        # ===================================
+        # 활성 상태 필터
+        # ===================================
+        if is_active is not None:
+            if is_active:
+                filter_condition += " AND (is_active = 1 OR is_active IS NULL)"
+            else:
+                filter_condition += " AND is_active = 0"
+        
+        # 쿼리 완성
+        base_query += filter_condition
+        count_query += filter_condition
+        
+        # 정렬 및 페이징
+        base_query += " ORDER BY created_at DESC, client_id DESC"
+        offset = (page - 1) * page_size
+        base_query += f" LIMIT {page_size} OFFSET {offset}"
+        
+        app_logger.debug(f"📡 Query: {base_query}")
+        app_logger.debug(f"📡 Params: {params}")
+        
+        # ===================================
+        # 데이터 조회
+        # ===================================
+        result = db.execute(text(base_query), params)
+        rows = result.fetchall()
+        
+        # 전체 개수 조회
+        count_result = db.execute(text(count_query), params)
+        total = count_result.fetchone()[0]
+        
+        # 통계 조회
+        stats_result = db.execute(text(stats_query))
+        stats = stats_result.fetchone()
+        
+        # ===================================
+        # 데이터 변환
+        # ===================================
+        items = []
+        for row in rows:
+            items.append({
+                'client_id': row[0],
+                'client_name': row[1] or '',
+                'business_number': row[2] or '',
+                'ceo_name': row[3] or '',
+                'address': row[4] or '',
+                'phone': row[5] or '',
+                'email': row[6] or '',
+                'fax': row[7] or '',
+                'homepage': row[8] or '',
+                'industry_type': row[9] or '',
+                'employee_count': row[10],
+                'established_date': row[11].isoformat() if row[11] else None,
+                'is_active': bool(row[12]) if row[12] is not None else True,
+                'remarks': row[13] or '',
+                'created_at': row[14].isoformat() if row[14] else None,
+                'updated_at': row[15].isoformat() if row[15] else None,
+            })
+        
+        # 페이지 계산
+        total_pages = (total + page_size - 1) // page_size
+        
+        app_logger.info(f"✅ 거래처 목록 조회 성공 - {len(items)}개 (total: {total})")
+        
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "active_count": int(stats[1] or 0),
+            "inactive_count": int(stats[2] or 0),
+            "filtered_count": total
+        }
+        
+    except Exception as e:
+        app_logger.error(f"❌ 거래처 목록 조회 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"거래처 목록 조회 실패: {str(e)}")
+
+
+# ============================================
+# 거래처 간단 검색 (프로젝트 폼용) - 기존 유지
 # ============================================
 @router.get("/search/simple")
 async def search_clients_simple(
@@ -25,13 +250,6 @@ async def search_clients_simple(
     
     프로젝트 폼의 드롭다운에서 사용하는 간단한 검색 API
     최소한의 필드만 반환하여 성능 최적화
-    
-    Args:
-        search_text: 검색어 (선택, 비어있으면 전체 조회)
-        db: 데이터베이스 세션
-    
-    Returns:
-        List[dict]: 간단한 고객사 정보 목록
     """
     try:
         app_logger.info(f"🔍 거래처 간단 검색 - search_text: '{search_text}'")
@@ -98,7 +316,7 @@ async def search_clients_simple(
 
 
 # ============================================
-# 거래처 검색 (기존)
+# 거래처 검색 (자동완성용) - 기존 유지
 # ============================================
 @router.get("/search")
 async def search_clients(
@@ -107,7 +325,7 @@ async def search_clients(
     db: Session = Depends(get_db)
 ):
     """
-    거래처 검색
+    거래처 검색 (자동완성용)
     
     Args:
         search: 검색어 (거래처명, 사업자번호, 대표자명)
@@ -192,134 +410,7 @@ async def search_clients(
 
 
 # ============================================
-# 거래처 목록 조회 (기존)
-# ============================================
-@router.get("/list")
-async def get_clients_list(
-    search: Optional[str] = Query(None, description="검색어"),
-    is_active: Optional[bool] = Query(None, description="활성 상태"),
-    limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db)
-):
-    """
-    거래처 목록 조회
-    
-    Args:
-        search: 검색어 (거래처명, 사업자번호)
-        is_active: 활성 상태 필터
-        limit: 조회 개수
-        offset: 시작 위치
-        db: 데이터베이스 세션
-    
-    Returns:
-        거래처 목록
-    """
-    try:
-        app_logger.info(f"📋 거래처 목록 조회 - search: {search}, limit: {limit}, offset: {offset}")
-        
-        # 기본 쿼리
-        query_str = """
-            SELECT 
-                client_id,
-                client_name,
-                business_number,
-                ceo_name,
-                address,
-                phone,
-                email,
-                fax,
-                homepage,
-                industry_type,
-                employee_count,
-                established_date,
-                is_active,
-                remarks,
-                created_at,
-                updated_at
-            FROM clients
-            WHERE 1=1
-        """
-        
-        count_query_str = "SELECT COUNT(*) as total FROM clients WHERE 1=1"
-        
-        params = {}
-        
-        # 검색 조건
-        if search and search.strip():
-            search_condition = """
-                AND (
-                    client_name LIKE :search 
-                    OR business_number LIKE :search
-                    OR ceo_name LIKE :search
-                )
-            """
-            query_str += search_condition
-            count_query_str += search_condition
-            params['search'] = f"%{search.strip()}%"
-        
-        # 활성 상태 필터
-        if is_active is not None:
-            query_str += " AND is_active = :is_active"
-            count_query_str += " AND is_active = :is_active"
-            params['is_active'] = 1 if is_active else 0
-        else:
-            # 기본적으로 활성 거래처만 조회
-            query_str += " AND (is_active IS NULL OR is_active = 1)"
-            count_query_str += " AND (is_active IS NULL OR is_active = 1)"
-        
-        # 정렬 및 페이징
-        query_str += " ORDER BY client_name ASC LIMIT :limit OFFSET :offset"
-        params['limit'] = limit
-        params['offset'] = offset
-        
-        # 쿼리 실행
-        result = db.execute(text(query_str), params)
-        rows = result.fetchall()
-        
-        # 전체 개수 조회
-        count_params = {k: v for k, v in params.items() if k not in ['limit', 'offset']}
-        count_result = db.execute(text(count_query_str), count_params)
-        total = count_result.fetchone()[0]
-        
-        # 결과 변환
-        clients = []
-        for row in rows:
-            clients.append({
-                'client_id': int(row[0]),
-                'client_name': row[1] or '',
-                'business_number': row[2] or '',
-                'ceo_name': row[3] or '',
-                'address': row[4] or '',
-                'phone': row[5] or '',
-                'email': row[6] or '',
-                'fax': row[7] or '',
-                'homepage': row[8] or '',
-                'industry_type': row[9] or '',
-                'employee_count': row[10],
-                'established_date': row[11].isoformat() if row[11] else None,
-                'is_active': bool(row[12]) if row[12] is not None else True,
-                'remarks': row[13] or '',
-                'created_at': row[14].isoformat() if row[14] else None,
-                'updated_at': row[15].isoformat() if row[15] else None,
-            })
-        
-        app_logger.info(f"✅ 거래처 목록 조회 성공 - {len(clients)}개 / 전체 {total}개")
-        
-        return {
-            "clients": clients,
-            "total": total,
-            "limit": limit,
-            "offset": offset
-        }
-        
-    except Exception as e:
-        app_logger.error(f"❌ 거래처 목록 조회 실패: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"거래처 목록 조회 실패: {str(e)}")
-
-
-# ============================================
-# 거래처 상세 조회 (기존)
+# 거래처 상세 조회 - 기존 유지
 # ============================================
 @router.get("/{client_id}")
 async def get_client_detail(
@@ -389,79 +480,68 @@ async def get_client_detail(
 
 
 # ============================================
-# 거래처 등록 (기존)
+# 거래처 등록 - JSON Body 방식으로 개선
 # ============================================
 @router.post("")
 async def create_client(
-    client_name: str,
-    business_number: Optional[str] = None,
-    ceo_name: Optional[str] = None,
-    address: Optional[str] = None,
-    phone: Optional[str] = None,
-    email: Optional[str] = None,
-    fax: Optional[str] = None,
-    homepage: Optional[str] = None,
-    industry_type: Optional[str] = None,
-    employee_count: Optional[int] = None,
-    established_date: Optional[str] = None,
-    remarks: Optional[str] = None,
+    request: ClientCreateRequest,
     db: Session = Depends(get_db)
 ):
-    """거래처 등록"""
+    """
+    거래처 등록
+    
+    Args:
+        request: 거래처 등록 요청 (JSON Body)
+        db: 데이터베이스 세션
+    
+    Returns:
+        등록된 거래처 정보
+    """
     try:
-        app_logger.info(f"📝 거래처 등록 - client_name: {client_name}")
+        app_logger.info(f"📝 거래처 등록 - client_name: {request.client_name}")
         
-        query = text("""
+        # 중복 체크
+        check_query = text("SELECT COUNT(*) FROM clients WHERE client_name = :client_name")
+        check_result = db.execute(check_query, {'client_name': request.client_name})
+        if check_result.fetchone()[0] > 0:
+            raise HTTPException(status_code=409, detail="이미 등록된 거래처명입니다")
+        
+        # INSERT 쿼리
+        insert_query = text("""
             INSERT INTO clients (
-                client_name,
-                business_number,
-                ceo_name,
-                address,
-                phone,
-                email,
-                fax,
-                homepage,
-                industry_type,
-                employee_count,
-                established_date,
-                remarks,
-                is_active
+                client_name, business_number, ceo_name, address, phone,
+                email, fax, homepage, industry_type, employee_count,
+                established_date, is_active, remarks, created_by
             ) VALUES (
-                :client_name,
-                :business_number,
-                :ceo_name,
-                :address,
-                :phone,
-                :email,
-                :fax,
-                :homepage,
-                :industry_type,
-                :employee_count,
-                :established_date,
-                :remarks,
-                1
+                :client_name, :business_number, :ceo_name, :address, :phone,
+                :email, :fax, :homepage, :industry_type, :employee_count,
+                :established_date, :is_active, :remarks, :created_by
             )
         """)
         
-        params = {
-            'client_name': client_name,
-            'business_number': business_number,
-            'ceo_name': ceo_name,
-            'address': address,
-            'phone': phone,
-            'email': email,
-            'fax': fax,
-            'homepage': homepage,
-            'industry_type': industry_type,
-            'employee_count': employee_count,
-            'established_date': established_date,
-            'remarks': remarks
-        }
+        db.execute(insert_query, {
+            'client_name': request.client_name,
+            'business_number': request.business_number,
+            'ceo_name': request.ceo_name,
+            'address': request.address,
+            'phone': request.phone,
+            'email': request.email,
+            'fax': request.fax,
+            'homepage': request.homepage,
+            'industry_type': request.industry_type,
+            'employee_count': request.employee_count,
+            'established_date': request.established_date,
+            'is_active': 1 if request.is_active else 0,
+            'remarks': request.remarks,
+            'created_by': request.created_by
+        })
         
-        result = db.execute(query, params)
         db.commit()
         
-        client_id = result.lastrowid
+        # 등록된 ID 조회
+        id_query = text("SELECT LAST_INSERT_ID() as client_id")
+        result = db.execute(id_query)
+        client_id = result.fetchone()[0]
         
         app_logger.info(f"✅ 거래처 등록 성공 - client_id: {client_id}")
         
@@ -470,6 +550,8 @@ async def create_client(
             "client_id": client_id
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         app_logger.error(f"❌ 거래처 등록 실패: {e}", exc_info=True)
@@ -477,27 +559,25 @@ async def create_client(
 
 
 # ============================================
-# 거래처 수정 (기존)
+# 거래처 수정 - JSON Body 방식으로 개선
 # ============================================
 @router.put("/{client_id}")
 async def update_client(
     client_id: int,
-    client_name: Optional[str] = None,
-    business_number: Optional[str] = None,
-    ceo_name: Optional[str] = None,
-    address: Optional[str] = None,
-    phone: Optional[str] = None,
-    email: Optional[str] = None,
-    fax: Optional[str] = None,
-    homepage: Optional[str] = None,
-    industry_type: Optional[str] = None,
-    employee_count: Optional[int] = None,
-    established_date: Optional[str] = None,
-    is_active: Optional[bool] = None,
-    remarks: Optional[str] = None,
+    request: ClientUpdateRequest,
     db: Session = Depends(get_db)
 ):
-    """거래처 정보 수정"""
+    """
+    거래처 정보 수정
+    
+    Args:
+        client_id: 거래처 ID
+        request: 거래처 수정 요청 (JSON Body)
+        db: 데이터베이스 세션
+    
+    Returns:
+        수정 결과
+    """
     try:
         app_logger.info(f"✏️ 거래처 수정 - client_id: {client_id}")
         
@@ -511,57 +591,61 @@ async def update_client(
         update_fields = []
         params = {'client_id': client_id}
         
-        if client_name is not None:
+        if request.client_name is not None:
             update_fields.append("client_name = :client_name")
-            params['client_name'] = client_name
+            params['client_name'] = request.client_name
         
-        if business_number is not None:
+        if request.business_number is not None:
             update_fields.append("business_number = :business_number")
-            params['business_number'] = business_number
+            params['business_number'] = request.business_number
         
-        if ceo_name is not None:
+        if request.ceo_name is not None:
             update_fields.append("ceo_name = :ceo_name")
-            params['ceo_name'] = ceo_name
+            params['ceo_name'] = request.ceo_name
         
-        if address is not None:
+        if request.address is not None:
             update_fields.append("address = :address")
-            params['address'] = address
+            params['address'] = request.address
         
-        if phone is not None:
+        if request.phone is not None:
             update_fields.append("phone = :phone")
-            params['phone'] = phone
+            params['phone'] = request.phone
         
-        if email is not None:
+        if request.email is not None:
             update_fields.append("email = :email")
-            params['email'] = email
+            params['email'] = request.email
         
-        if fax is not None:
+        if request.fax is not None:
             update_fields.append("fax = :fax")
-            params['fax'] = fax
+            params['fax'] = request.fax
         
-        if homepage is not None:
+        if request.homepage is not None:
             update_fields.append("homepage = :homepage")
-            params['homepage'] = homepage
+            params['homepage'] = request.homepage
         
-        if industry_type is not None:
+        if request.industry_type is not None:
             update_fields.append("industry_type = :industry_type")
-            params['industry_type'] = industry_type
+            params['industry_type'] = request.industry_type
         
-        if employee_count is not None:
+        if request.employee_count is not None:
             update_fields.append("employee_count = :employee_count")
-            params['employee_count'] = employee_count
+            params['employee_count'] = request.employee_count
         
-        if established_date is not None:
+        if request.established_date is not None:
             update_fields.append("established_date = :established_date")
-            params['established_date'] = established_date
+            params['established_date'] = request.established_date
         
-        if is_active is not None:
+        if request.is_active is not None:
             update_fields.append("is_active = :is_active")
-            params['is_active'] = 1 if is_active else 0
+            params['is_active'] = 1 if request.is_active else 0
         
-        if remarks is not None:
+        if request.remarks is not None:
             update_fields.append("remarks = :remarks")
-            params['remarks'] = remarks
+            params['remarks'] = request.remarks
+        
+        # updated_by 추가
+        update_fields.append("updated_by = :updated_by")
+        params['updated_by'] = request.updated_by
         
         if not update_fields:
             raise HTTPException(status_code=400, detail="수정할 내용이 없습니다")
@@ -591,14 +675,18 @@ async def update_client(
 
 
 # ============================================
-# 거래처 삭제 (비활성화) (기존)
+# 거래처 삭제 - 기존 유지 (비활성화)
 # ============================================
 @router.delete("/{client_id}")
 async def delete_client(
     client_id: int,
     db: Session = Depends(get_db)
 ):
-    """거래처 삭제 (비활성화)"""
+    """
+    거래처 삭제 (비활성화)
+    
+    프로젝트 참조를 고려하여 실제 삭제 대신 비활성화 처리
+    """
     try:
         app_logger.info(f"🗑️ 거래처 삭제 - client_id: {client_id}")
         
@@ -608,17 +696,39 @@ async def delete_client(
         if not result.fetchone():
             raise HTTPException(status_code=404, detail="거래처를 찾을 수 없습니다")
         
-        # 비활성화 처리
-        query = text("UPDATE clients SET is_active = 0 WHERE client_id = :client_id")
-        db.execute(query, {'client_id': client_id})
-        db.commit()
+        # 프로젝트 참조 확인
+        ref_query = text("""
+            SELECT COUNT(*) FROM projects 
+            WHERE customer_id = :client_id OR ordering_party_id = :client_id
+        """)
+        ref_result = db.execute(ref_query, {'client_id': client_id})
+        ref_count = ref_result.fetchone()[0]
         
-        app_logger.info(f"✅ 거래처 삭제(비활성화) 성공")
-        
-        return {
-            "message": "거래처가 삭제되었습니다",
-            "client_id": client_id
-        }
+        if ref_count > 0:
+            # 프로젝트 참조가 있으면 비활성화만 처리
+            app_logger.warning(f"⚠️ 거래처가 {ref_count}개 프로젝트에서 사용 중 - 비활성화 처리")
+            query = text("UPDATE clients SET is_active = 0 WHERE client_id = :client_id")
+            db.execute(query, {'client_id': client_id})
+            db.commit()
+            
+            return {
+                "message": f"거래처가 {ref_count}개 프로젝트에서 사용 중이어서 비활성화 처리되었습니다",
+                "client_id": client_id,
+                "deactivated": True
+            }
+        else:
+            # 참조가 없으면 비활성화 처리 (안전을 위해 삭제하지 않음)
+            query = text("UPDATE clients SET is_active = 0 WHERE client_id = :client_id")
+            db.execute(query, {'client_id': client_id})
+            db.commit()
+            
+            app_logger.info(f"✅ 거래처 삭제(비활성화) 성공")
+            
+            return {
+                "message": "거래처가 삭제되었습니다",
+                "client_id": client_id,
+                "deactivated": True
+            }
         
     except HTTPException:
         raise
