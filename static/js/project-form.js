@@ -853,7 +853,7 @@ function addHistory() {
     console.log('✅ 이력 추가:', { baseDate, progressStage, stageName, row_stat: 'N' });
     
     // 입력 필드 초기화
-    baseDateInput.value = '';
+    baseDateInput.value = new Date().toISOString().split('T')[0]; 
     stageSelect.value = formMode === 'edit' && currentStageCode ? currentStageCode : 'S01';  // ⭐ 기본값 유지
     if (contentTextarea) {
         contentTextarea.value = '';
@@ -1121,7 +1121,8 @@ function renderHistories() {
     const currentStageEl = document.getElementById('current_stage');
     const currentStageCode = currentStageEl ? currentStageEl.value : '';
     const defaultStage = (formMode === 'edit' && currentStageCode) ? currentStageCode : 'S01';
-    
+    const today = new Date().toISOString().split('T')[0];
+
     let html = '';
     
     // ✅ 이력 추가 입력 폼 (textarea로 변경, 자동 높이 조절)
@@ -1129,7 +1130,7 @@ function renderHistories() {
         <div class="history-add-row" style="display: grid; grid-template-columns: auto auto 1fr auto; gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; align-items: start; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
             <div style="display: flex; flex-direction: column; gap: 0.25rem;">
                 <label style="font-size: 0.75rem; font-weight: 600; color: #555;">기준일</label>
-                <input type="date" id="new_history_date" class="form-input" style="min-width: 150px;">
+                <input type="date" id="new_history_date" class="form-input" style="min-width: 150px;" value="${today}">
             </div>
             
             <div style="display: flex; flex-direction: column; gap: 0.25rem;">

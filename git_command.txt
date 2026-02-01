@@ -27,3 +27,31 @@ git reset logs/
 # 커밋 & 푸시
 git commit -m "feat: 로그인 기능 및 비밀번호 해시 가이드 추가"
 git push origin main
+
+
+1. 터미널 명령어 (기본 순서)
+VS Code 하단 터미널에 다음 순서대로 입력하세요.
+
+1. 변경 사항 확인 (선택 사항) 현재 어떤 파일이 수정되었는지 확인합니다.
+
+Bash
+git status
+2. 파일 스테이징 (Staging) 수정한 파일을 커밋 대기 상태로 만듭니다.
+
+모든 변경 사항을 한 번에 올릴 때:
+
+Bash
+git add .
+특정 파일만 올릴 때:
+
+Bash
+git add 파일명.py
+3. 커밋 (Commit) 변경 사항을 로컬 저장소에 기록합니다. 메시지는 명확하게 적는 것이 좋습니다.
+
+Bash
+git commit -m "수정 작업 내용 요약"
+4. 깃허브로 푸시 (Push) 로컬의 커밋 내역을 GitHub 원격 저장소로 업로드합니다.
+
+Bash
+git push origin main
+참고: 브랜치 이름이 main이 아니라 master인 경우, git push origin master라고 입력해야 합니다. (현재 브랜치 이름은 git status로 확인 가능)
