@@ -1,0 +1,306 @@
+/* ===================================
+   거래처 관리 전용 스타일
+   clients.css
+   =================================== */
+
+/* ===================================
+   Selection Action Bar
+   =================================== */
+.selection-action-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, #2f5597, #1e3a6d);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 12px rgba(47, 85, 151, 0.2);
+}
+
+.selection-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: white;
+    font-weight: 600;
+}
+
+.selection-info i {
+    font-size: 1.25rem;
+}
+
+.selection-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+/* ===================================
+   Badge Styles
+   =================================== */
+.badge {
+    display: inline-block;
+    padding: 0.35rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: white;
+    white-space: nowrap;
+}
+
+.badge-primary {
+    background: linear-gradient(135deg, #2f5597, #1e3a6d);
+}
+
+.badge-secondary {
+    background: linear-gradient(135deg, #6c757d, #5a6268);
+}
+
+.badge-success {
+    background: linear-gradient(135deg, #28a745, #218838);
+}
+
+.badge-warning {
+    background: linear-gradient(135deg, #ffc107, #e0a800);
+    color: #333;
+}
+
+.badge-danger {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+}
+
+.badge-info {
+    background: linear-gradient(135deg, #17a2b8, #138496);
+}
+
+/* ===================================
+   Form Switch (Toggle)
+   =================================== */
+.form-switch-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 0;
+}
+
+.form-switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 28px;
+}
+
+.form-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.form-switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 28px;
+}
+
+.form-switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+.form-switch input:checked + .form-switch-slider {
+    background: linear-gradient(135deg, #28a745, #218838);
+}
+
+.form-switch input:focus + .form-switch-slider {
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.25);
+}
+
+.form-switch input:checked + .form-switch-slider:before {
+    transform: translateX(24px);
+}
+
+.form-switch-label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* ===================================
+   Icon Buttons
+   =================================== */
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: transparent;
+    color: var(--text-secondary);
+}
+
+.btn-icon:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn-icon-primary {
+    color: #2f5597;
+}
+
+.btn-icon-primary:hover {
+    background: linear-gradient(135deg, #2f5597, #1e3a6d);
+    color: white;
+}
+
+.btn-icon-danger {
+    color: #dc3545;
+}
+
+.btn-icon-danger:hover {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+}
+
+.btn-icon-success {
+    color: #28a745;
+}
+
+.btn-icon-success:hover {
+    background: linear-gradient(135deg, #28a745, #218838);
+    color: white;
+}
+
+/* ===================================
+   Tabulator Row Selection
+   =================================== */
+#clientsTable .tabulator-row.tabulator-selected {
+    background-color: rgba(47, 85, 151, 0.08) !important;
+}
+
+#clientsTable .tabulator-row.tabulator-selectable:hover {
+    background-color: rgba(47, 85, 151, 0.04) !important;
+    cursor: pointer;
+}
+
+/* ===================================
+   Required Badge
+   =================================== */
+.required-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+    color: white;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.required-badge i {
+    font-size: 0.7rem;
+}
+
+/* ===================================
+   Form Label Required
+   =================================== */
+.form-label.required::after {
+    content: " *";
+    color: #dc3545;
+    font-weight: bold;
+}
+
+/* ===================================
+   Form Hint
+   =================================== */
+.form-hint {
+    display: block;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* ===================================
+   Code Display
+   =================================== */
+code {
+    padding: 0.25rem 0.5rem;
+    background: #f4f4f4;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    color: #d63384;
+}
+
+/* ===================================
+   Responsive Adjustments
+   =================================== */
+@media (max-width: 768px) {
+    .selection-action-bar {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+    }
+    
+    .selection-actions {
+        width: 100%;
+        flex-direction: column;
+    }
+    
+    .selection-actions .btn {
+        width: 100%;
+    }
+    
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+}
+
+/* ===================================
+   Animation
+   =================================== */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.selection-action-bar {
+    animation: fadeInUp 0.3s ease;
+}
+
+/* ===================================
+   Print Styles
+   =================================== */
+@media print {
+    .selection-action-bar,
+    .page-actions,
+    .filter-container,
+    .btn-icon {
+        display: none !important;
+    }
+}

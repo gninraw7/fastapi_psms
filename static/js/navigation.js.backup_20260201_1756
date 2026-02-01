@@ -11,28 +11,12 @@ function navigateTo(pageId) {
     // 모든 페이지 숨김
     document.querySelectorAll('.page-content').forEach(page => {
         page.classList.remove('active');
-        page.style.display = 'none';  // ⭐ 강제 숨김
     });
     
     // 선택한 페이지 표시
     const targetPage = document.getElementById(`page-${pageId}`);
     if (targetPage) {
-        // ⭐ 부모 요소들도 모두 표시 (중요!)
-        let parent = targetPage.parentElement;
-        while (parent && parent !== document.body) {
-            if (parent.style) {
-                parent.style.display = 'block';
-                parent.style.visibility = 'visible';
-                parent.style.opacity = '1';
-            }
-            parent = parent.parentElement;
-        }
-        
-        // ⭐ 페이지 강제 표시
         targetPage.classList.add('active');
-        targetPage.style.display = 'block';
-        targetPage.style.visibility = 'visible';
-        targetPage.style.opacity = '1';
         
         // 페이지별 초기화
         if (pageId === 'sales') {
