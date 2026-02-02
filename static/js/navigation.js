@@ -87,8 +87,11 @@ function updateBreadcrumb(pageId) {
     const currentPage = document.getElementById(`page-${pageId}`);
     if (!currentPage) return;
     
-    // 페이지 내 main 컨테이너 찾기
-    const mainContainer = currentPage.querySelector('main') || currentPage.querySelector('.page-container');
+    // 페이지 내 main 컨테이너 찾기 (fallback 추가)
+    const mainContainer = currentPage.querySelector('main')
+        || currentPage.querySelector('.page-container')
+        || currentPage.querySelector('.form-container')
+        || currentPage;
     if (!mainContainer) return;
     
     // Breadcrumb HTML 생성
@@ -318,11 +321,25 @@ function openProjectForm(mode = 'new', pipelineId = null) {
     // 페이지 전환 (기존 방식 유지)
     document.querySelectorAll('.page-content').forEach(page => {
         page.classList.remove('active');
+        page.style.display = 'none';
     });
     
     const targetPage = document.getElementById('page-projects-new');
     if (targetPage) {
+        let parent = targetPage.parentElement;
+        while (parent && parent !== document.body) {
+            if (parent.style) {
+                parent.style.display = 'block';
+                parent.style.visibility = 'visible';
+                parent.style.opacity = '1';
+            }
+            parent = parent.parentElement;
+        }
+
         targetPage.classList.add('active');
+        targetPage.style.display = 'block';
+        targetPage.style.visibility = 'visible';
+        targetPage.style.opacity = '1';
         
         // ⭐ Breadcrumb 업데이트 (신규 추가)
         updateBreadcrumb('projects-new');
@@ -368,11 +385,25 @@ function openClientForm(mode = 'new', clientId = null) {
     // 페이지 전환
     document.querySelectorAll('.page-content').forEach(page => {
         page.classList.remove('active');
+        page.style.display = 'none';
     });
     
     const targetPage = document.getElementById('page-clients-form');
     if (targetPage) {
+        let parent = targetPage.parentElement;
+        while (parent && parent !== document.body) {
+            if (parent.style) {
+                parent.style.display = 'block';
+                parent.style.visibility = 'visible';
+                parent.style.opacity = '1';
+            }
+            parent = parent.parentElement;
+        }
+
         targetPage.classList.add('active');
+        targetPage.style.display = 'block';
+        targetPage.style.visibility = 'visible';
+        targetPage.style.opacity = '1';
         
         // ⭐ Breadcrumb 업데이트 (신규 추가)
         updateBreadcrumb('clients-form');
