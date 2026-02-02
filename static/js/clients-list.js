@@ -351,6 +351,20 @@ function initializeClientEventListeners() {
             }
         });
     }
+
+    const industrySelect = document.getElementById('clientIndustryType');
+    if (industrySelect) {
+        industrySelect.addEventListener('change', () => {
+            applyClientFilters();
+        });
+    }
+
+    const activeSelect = document.getElementById('clientIsActive');
+    if (activeSelect) {
+        activeSelect.addEventListener('change', () => {
+            applyClientFilters();
+        });
+    }
     
     // ⭐ 개선: [신규] 버튼 클릭 시 openClientForm 호출
     const btnNew = document.getElementById('btnNewClient');
