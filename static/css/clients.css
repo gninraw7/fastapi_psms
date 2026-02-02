@@ -13,6 +13,27 @@
     cursor: pointer;
 }
 
+/* 액션 버튼 가로 정렬 */
+#clientsTable .client-action-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+}
+
+#clientsTable .client-action-buttons .btn-icon {
+    display: inline-flex;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    padding: 0;
+}
+
+#clientsTable .client-action-buttons .btn-icon i {
+    font-size: 0.8rem;
+}
+
 /* 거래처 폼 전용 스타일 */
 .form-switch-group {
     display: flex;
