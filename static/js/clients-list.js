@@ -70,6 +70,10 @@ function initializeClientsTable() {
         paginationSize: 25,
         paginationSizeSelector: [25, 50, 100, 200],
         placeholder: "데이터가 없습니다",
+
+        columnDefaults: {
+            headerHozAlign: "center"
+        },
         
         selectable: true,
         selectableRangeMode: "click",
@@ -136,6 +140,7 @@ function initializeClientsTable() {
                 width: 100,
                 frozen: true,
                 headerSort: false,
+                hozAlign: "center",
                 formatter: function(cell) {
                     return `<strong>${cell.getValue()}</strong>`;
                 }
@@ -167,6 +172,7 @@ function initializeClientsTable() {
                 field: "business_number",
                 width: 140,
                 headerSort: false,
+                hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();
                     return value ? `<code>${value}</code>` : '-';
@@ -176,13 +182,15 @@ function initializeClientsTable() {
                 title: "대표자",
                 field: "ceo_name",
                 width: 120,
-                headerSort: false
+                headerSort: false,
+                hozAlign: "center"
             },
             {
                 title: "업종",
                 field: "industry_type",
                 width: 150,
                 headerSort: false,
+                hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();
                     if (!value) return '-';
@@ -210,6 +218,7 @@ function initializeClientsTable() {
                 field: "phone",
                 width: 140,
                 headerSort: false,
+                hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();
                     return value || '-';
@@ -220,6 +229,7 @@ function initializeClientsTable() {
                 field: "email",
                 width: 200,
                 headerSort: false,
+                hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();
                     return value ? `<a href="mailto:${value}">${value}</a>` : '-';
@@ -241,6 +251,7 @@ function initializeClientsTable() {
                 field: "established_date",
                 width: 120,
                 headerSort: false,
+                hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();
                     return value || '-';
@@ -251,6 +262,7 @@ function initializeClientsTable() {
                 field: "created_at",
                 width: 120,
                 headerSort: false,
+                hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();
                     return value ? value.split('T')[0] : '-';
@@ -261,6 +273,7 @@ function initializeClientsTable() {
                 field: "updated_at",
                 width: 120,
                 headerSort: false,
+                hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();
                     return value ? value.split('T')[0] : '-';
@@ -276,22 +289,24 @@ function initializeClientsTable() {
                     const clientId = cell.getRow().getData().client_id;
                     // ⭐ 개선: navigateToClientForm 대신 editClientFromAction 사용
                     return `
-                        <button 
-                            class="btn-icon" 
-                            onclick="editClientFromAction(${clientId})"
-                            title="수정"
-                            style="background-color: #667eea; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; margin-right: 4px;"
-                        >
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button 
-                            class="btn-icon" 
-                            onclick="deleteClientFromAction(${clientId})"
-                            title="삭제"
-                            style="background-color: #e53e3e; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer;"
-                        >
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        <div class="client-action-buttons">
+                            <button 
+                                class="btn-icon" 
+                                onclick="editClientFromAction(${clientId})"
+                                title="수정"
+                                style="background-color: #667eea; color: white; border: none; cursor: pointer;"
+                            >
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button 
+                                class="btn-icon" 
+                                onclick="deleteClientFromAction(${clientId})"
+                                title="삭제"
+                                style="background-color: #e53e3e; color: white; border: none; cursor: pointer;"
+                            >
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     `;
                 }
             }
