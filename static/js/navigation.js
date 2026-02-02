@@ -384,8 +384,14 @@ function openClientForm(mode = 'new', clientId = null) {
                 breadcrumbTitle.textContent = mode === 'edit' ? '거래처 수정' : '거래처 등록';
             }
         }, 10);
+
+        // 거래처 폼 페이지 초기화 호출
+        if (typeof initializeClientFormPage === 'function') {
+            initializeClientFormPage(mode, clientId);
+        } else {
+            console.warn('⚠️ initializeClientFormPage 함수를 찾을 수 없습니다');
+        }
         
-        // clients-form.js에서 자동으로 초기화됨
         console.log('✅ 거래처 폼 페이지 활성화');
     } else {
         console.error('❌ page-clients-form 요소를 찾을 수 없습니다!');
