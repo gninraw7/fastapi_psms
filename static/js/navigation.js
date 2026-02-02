@@ -534,6 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('📋 기본 페이지: 프로젝트 목록');
         document.getElementById('page-projects-list').classList.add('active');
         initializePage('projects-list');
+        updateBreadcrumb('projects-list');
     }
     
     // 브라우저 뒤로가기/앞으로가기 지원
