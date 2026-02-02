@@ -326,16 +326,6 @@ function openProjectForm(mode = 'new', pipelineId = null) {
     
     const targetPage = document.getElementById('page-projects-new');
     if (targetPage) {
-        let parent = targetPage.parentElement;
-        while (parent && parent !== document.body) {
-            if (parent.style) {
-                parent.style.display = 'block';
-                parent.style.visibility = 'visible';
-                parent.style.opacity = '1';
-            }
-            parent = parent.parentElement;
-        }
-
         targetPage.classList.add('active');
         targetPage.style.display = 'block';
         targetPage.style.visibility = 'visible';
@@ -401,9 +391,6 @@ function openClientForm(mode = 'new', clientId = null) {
         }
 
         targetPage.classList.add('active');
-        targetPage.style.display = 'block';
-        targetPage.style.visibility = 'visible';
-        targetPage.style.opacity = '1';
         
         // ⭐ Breadcrumb 업데이트 (신규 추가)
         updateBreadcrumb('clients-form');
@@ -415,14 +402,8 @@ function openClientForm(mode = 'new', clientId = null) {
                 breadcrumbTitle.textContent = mode === 'edit' ? '거래처 수정' : '거래처 등록';
             }
         }, 10);
-
-        // 거래처 폼 페이지 초기화 호출
-        if (typeof initializeClientFormPage === 'function') {
-            initializeClientFormPage(mode, clientId);
-        } else {
-            console.warn('⚠️ initializeClientFormPage 함수를 찾을 수 없습니다');
-        }
         
+        // clients-form.js에서 자동으로 초기화됨
         console.log('✅ 거래처 폼 페이지 활성화');
     } else {
         console.error('❌ page-clients-form 요소를 찾을 수 없습니다!');

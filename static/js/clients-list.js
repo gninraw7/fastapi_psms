@@ -300,7 +300,6 @@ function initializeClientsTable() {
     
     // 행 선택 이벤트
     clientsTable.on("rowSelectionChanged", function(data, rows) {
-        selectedClientRow = rows.length > 0 ? rows[0] : null;
         updateSelectionActionBar(rows.length);
         updateNewClientButtonState();
     });

@@ -24,3 +24,4 @@ logs/*.log*
 logs/server.pid
 
 lkj_memo/
+backup/
