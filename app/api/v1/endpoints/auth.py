@@ -24,7 +24,8 @@ from app.schemas.auth import (
     TokenResponse,
     RefreshTokenRequest,
     UserInfo,
-    ChangePasswordRequest
+    ChangePasswordRequest,
+    UserProfileUpdate
 )
 
 router = APIRouter(prefix="/auth", tags=["인증"])
@@ -171,14 +172,101 @@ async def refresh_token(
         )
 
 @router.get("/me", response_model=UserInfo, summary="현재 사용자 정보")
-async def get_me(current_user: dict = Depends(get_current_user)):
+async def get_me(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     현재 로그인한 사용자의 정보 조회
     
     Returns:
         UserInfo: 사용자 정보
     """
-    return UserInfo(**current_user)
+    query = text("""
+        SELECT 
+            user_no,
+            login_id,
+            user_name,
+            role,
+            is_sales_rep,
+            email,
+            phone,
+            headquarters,
+            department,
+            team,
+            start_date,
+            end_date,
+            status
+        FROM users
+        WHERE login_id = :login_id
+    """)
+    row = db.execute(query, {"login_id": current_user["login_id"]}).fetchone()
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다"
+        )
+
+    return UserInfo(
+        user_no=row[0],
+        login_id=row[1],
+        user_name=row[2],
+        role=row[3],
+        is_sales_rep=bool(row[4]) if row[4] is not None else False,
+        email=row[5],
+        phone=row[6],
+        headquarters=row[7],
+        department=row[8],
+        team=row[9],
+        start_date=row[10],
+        end_date=row[11],
+        status=row[12]
+    )
+
+@router.put("/me", summary="내정보 수정")
+async def update_me(
+    payload: UserProfileUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    내정보 수정 (허용된 필드만)
+    """
+    updates = payload.dict(exclude_unset=True)
+    if "is_sales_rep" in updates:
+        updates["is_sales_rep"] = 1 if updates["is_sales_rep"] else 0
+
+    if not updates:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="수정할 항목이 없습니다"
+        )
+
+    set_clause = ", ".join([f"{key} = :{key}" for key in updates.keys()])
+    update_query = text(f"""
+        UPDATE users
+        SET {set_clause}, updated_by = :updated_by
+        WHERE login_id = :login_id
+    """)
+
+    updates["updated_by"] = current_user["login_id"]
+    updates["login_id"] = current_user["login_id"]
+    db.execute(update_query, updates)
+    db.commit()
+
+    return {
+        "message": "내정보가 저장되었습니다",
+        "user": await get_me(current_user=current_user, db=db)
+    }
+
+@router.post("/me", summary="내정보 수정 (POST)")
+async def update_me_post(
+    payload: UserProfileUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return await update_me(payload=payload, current_user=current_user, db=db)
 
 @router.post("/logout", summary="로그아웃")
 async def logout(
@@ -237,9 +325,27 @@ async def change_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="기존 비밀번호가 올바르지 않습니다"
         )
+
+    new_password = password_data.new_password
+    if password_data.old_password == new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="새 비밀번호는 기존 비밀번호와 달라야 합니다"
+        )
+
+    # 비밀번호 정책: 영문/숫자/특수문자 포함, 8자 이상
+    import re
+    if not (len(new_password) >= 8
+            and re.search(r"[A-Za-z]", new_password)
+            and re.search(r"\d", new_password)
+            and re.search(r"[^A-Za-z0-9]", new_password)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="비밀번호는 8자 이상이며 영문, 숫자, 특수문자를 모두 포함해야 합니다"
+        )
     
     # 새 비밀번호로 업데이트
-    new_hashed_password = get_password_hash(password_data.new_password)
+    new_hashed_password = get_password_hash(new_password)
     
     update_query = text("""
         UPDATE users

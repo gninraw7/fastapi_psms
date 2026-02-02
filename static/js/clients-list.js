@@ -194,20 +194,25 @@ function initializeClientsTable() {
                 formatter: function(cell) {
                     const value = cell.getValue();
                     if (!value) return '-';
-                    
-                    const colorMap = {
-                        '제조업': '#4caf50',
-                        'IT/소프트웨어': '#2196f3',
-                        '서비스업': '#ff9800',
-                        '건설업': '#795548',
-                        '금융/보험': '#9c27b0',
-                        '공공기관': '#f44336'
+
+                    const industryStyleMap = {
+                        '제조업': { cls: 'badge-industry-manufacturing', icon: 'fa-industry' },
+                        'IT/소프트웨어': { cls: 'badge-industry-it', icon: 'fa-laptop-code' },
+                        '서비스업': { cls: 'badge-industry-service', icon: 'fa-concierge-bell' },
+                        '건설업': { cls: 'badge-industry-construction', icon: 'fa-hard-hat' },
+                        '금융/보험': { cls: 'badge-industry-finance', icon: 'fa-coins' },
+                        '공공기관': { cls: 'badge-industry-public', icon: 'fa-landmark' },
+                        '유통/도소매': { cls: 'badge-industry-retail', icon: 'fa-shopping-cart' },
+                        '교육': { cls: 'badge-industry-education', icon: 'fa-graduation-cap' },
+                        '의료/헬스케어': { cls: 'badge-industry-health', icon: 'fa-hospital' },
+                        '기타': { cls: 'badge-industry-other', icon: 'fa-tag' }
                     };
-                    
-                    const color = colorMap[value] || '#607d8b';
-                    
+
+                    const style = industryStyleMap[value] || { cls: 'badge-industry-other', icon: 'fa-tag' };
+
                     return `
-                        <span class="badge" style="background: ${color};">
+                        <span class="badge badge-industry ${style.cls}">
+                            <i class="fas ${style.icon}"></i>
                             ${value}
                         </span>
                     `;
@@ -342,15 +347,42 @@ function initializeClientsTable() {
 // Update Statistics
 // ===================================
 function updateClientStatistics(response) {
-    const statTotal = document.getElementById('statTotal');
-    const statActive = document.getElementById('statActive');
-    const statInactive = document.getElementById('statInactive');
-    const statFiltered = document.getElementById('statFiltered');
-    
-    if (statTotal) statTotal.textContent = response.total || 0;
-    if (statActive) statActive.textContent = response.active_count || 0;
-    if (statInactive) statInactive.textContent = response.inactive_count || 0;
-    if (statFiltered) statFiltered.textContent = response.filtered_count || response.total || 0;
+    const clientsPage = document.getElementById('page-clients-list');
+    const statTotal = clientsPage ? clientsPage.querySelector('#statTotal') : document.getElementById('statTotal');
+    const statActive = clientsPage ? clientsPage.querySelector('#statActive') : document.getElementById('statActive');
+    const statInactive = clientsPage ? clientsPage.querySelector('#statInactive') : document.getElementById('statInactive');
+    const statFiltered = clientsPage ? clientsPage.querySelector('#statFiltered') : document.getElementById('statFiltered');
+
+    const toNumber = (value) => {
+        const num = Number(value);
+        return Number.isFinite(num) ? num : 0;
+    };
+
+    const activeCount = toNumber(response.active_count);
+    const inactiveCount = toNumber(response.inactive_count);
+    const summedTotal = activeCount + inactiveCount;
+
+    const totalCount =
+        (summedTotal > 0 ? summedTotal : 0) ||
+        toNumber(response.total) ||
+        toNumber(response.total_count) ||
+        toNumber(response.count) ||
+        toNumber(response.filtered_count) ||
+        (response.items ? response.items.length : 0) ||
+        0;
+
+    const filteredCount =
+        toNumber(response.filtered_count) ||
+        toNumber(response.total) ||
+        toNumber(response.total_count) ||
+        toNumber(response.count) ||
+        (response.items ? response.items.length : 0) ||
+        0;
+
+    if (statTotal) statTotal.textContent = totalCount;
+    if (statActive) statActive.textContent = activeCount;
+    if (statInactive) statInactive.textContent = inactiveCount;
+    if (statFiltered) statFiltered.textContent = filteredCount;
 }
 
 // ===================================

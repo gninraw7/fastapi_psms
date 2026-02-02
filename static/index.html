@@ -1161,6 +1161,173 @@
         </div>
     </div>
 
+    <!-- ===================================
+         내정보 페이지
+         =================================== -->
+    <div id="page-my-info" class="page-content">
+        <div class="form-container my-info-container">
+            <div class="form-header">
+                <div class="form-title">
+                    <i class="fas fa-user-cog"></i>
+                    <h2>내정보</h2>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" type="button" onclick="saveMyInfo()">
+                        <i class="fas fa-save"></i> 저장
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" onclick="closeMyInfo()">
+                        <i class="fas fa-times"></i> 닫기
+                    </button>
+                </div>
+            </div>
+
+            <form id="myInfoForm" class="tab-content" onsubmit="event.preventDefault(); saveMyInfo();">
+                <!-- 기본 정보 -->
+                <div class="form-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-id-card"></i>
+                        기본 정보
+                    </h2>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="myLoginId">로그인 ID</label>
+                            <input type="text" id="myLoginId" class="form-input" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="myUserName" class="required">사용자명</label>
+                            <input type="text" id="myUserName" class="form-input" required placeholder="사용자명을 입력하세요">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="myRole">권한</label>
+                            <input type="text" id="myRole" class="form-input" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="myStatus">계정 상태</label>
+                            <input type="text" id="myStatus" class="form-input" readonly>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="mySalesRep">영업담당</label>
+                            <div class="form-switch-group">
+                                <label class="form-switch">
+                                    <input type="checkbox" id="mySalesRep" class="form-switch-input">
+                                    <span class="form-switch-slider"></span>
+                                </label>
+                                <span class="form-switch-label">영업 담당 여부</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 소속 정보 -->
+                <div class="form-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-sitemap"></i>
+                        소속 정보
+                    </h2>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="myHeadquarters">본부</label>
+                            <input type="text" id="myHeadquarters" class="form-input" placeholder="소속 본부">
+                        </div>
+                        <div class="form-group">
+                            <label for="myDepartment">부서</label>
+                            <input type="text" id="myDepartment" class="form-input" placeholder="소속 부서">
+                        </div>
+                        <div class="form-group">
+                            <label for="myTeam">팀</label>
+                            <input type="text" id="myTeam" class="form-input" placeholder="소속 팀">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 연락처 정보 -->
+                <div class="form-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-phone"></i>
+                        연락처 정보
+                    </h2>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="myEmail">이메일</label>
+                            <input type="email" id="myEmail" class="form-input" placeholder="example@company.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="myPhone">연락처</label>
+                            <input type="tel" id="myPhone" class="form-input" placeholder="010-0000-0000">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 재직/권한 기간 -->
+                <div class="form-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-calendar-alt"></i>
+                        재직/권한 기간
+                    </h2>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="myStartDate">시작일</label>
+                            <input type="date" id="myStartDate" class="form-input" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="myEndDate">종료일</label>
+                            <input type="date" id="myEndDate" class="form-input" readonly>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- 비밀번호 변경 -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <i class="fas fa-lock"></i>
+                    비밀번호 변경
+                </h2>
+
+                <form id="myPasswordForm" class="tab-content" onsubmit="event.preventDefault(); changeMyPassword();">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="myOldPassword" class="required">현재 비밀번호</label>
+                            <input type="password" id="myOldPassword" class="form-input" required autocomplete="current-password">
+                        </div>
+                        <div class="form-group">
+                            <label for="myNewPassword" class="required">새 비밀번호</label>
+                            <input type="password" id="myNewPassword" class="form-input" required autocomplete="new-password">
+                            <span class="form-hint">영문/숫자/특수문자 포함 8자 이상</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="myNewPasswordConfirm" class="required">새 비밀번호 확인</label>
+                            <input type="password" id="myNewPasswordConfirm" class="form-input" required autocomplete="new-password">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group form-group-full">
+                            <div class="password-rule-status" id="myPasswordRuleStatus">
+                                비밀번호 규칙을 확인해주세요.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-key"></i>
+                            비밀번호 변경
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- 모달: 프로젝트 상세 정보 (읽기 전용) -->
     <div id="projectModal" class="modal">
         <div class="modal-content modal-large">
@@ -1280,6 +1447,7 @@
     <script src="/static/js/project-form.js?v=2.5"></script>
     <script src="/static/js/clients-list.js?v=3.0"></script>  <!-- ⭐ 버전 추가 -->
     <script src="/static/js/clients-form.js?v=3.0"></script>  <!-- ⭐ 신규 추가 -->
+    <script src="/static/js/my-info.js?v=1.0"></script>
     <script src="/static/js/app.js?v=2.5"></script>
     <script src="/static/js/mobile.js?v=2.5"></script>
     <script src="/static/js/markdown-formatter.js"></script>

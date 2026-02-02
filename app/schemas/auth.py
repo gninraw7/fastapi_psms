@@ -4,6 +4,7 @@
 """
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
+from datetime import date
 
 class LoginRequest(BaseModel):
     """로그인 요청"""
@@ -27,17 +28,30 @@ class UserInfo(BaseModel):
     login_id: str
     user_name: str
     role: str
+    is_sales_rep: Optional[bool] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     headquarters: Optional[str] = None
     department: Optional[str] = None
     team: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
     status: str
     
     class Config:
         from_attributes = True
 
+class UserProfileUpdate(BaseModel):
+    """내정보 수정 요청"""
+    user_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = Field(None, max_length=20)
+    headquarters: Optional[str] = Field(None, max_length=100)
+    department: Optional[str] = Field(None, max_length=100)
+    team: Optional[str] = Field(None, max_length=100)
+    is_sales_rep: Optional[bool] = None
+
 class ChangePasswordRequest(BaseModel):
     """비밀번호 변경 요청"""
     old_password: str = Field(..., min_length=4, description="기존 비밀번호")
-    new_password: str = Field(..., min_length=4, description="새 비밀번호")
+    new_password: str = Field(..., min_length=8, description="새 비밀번호")

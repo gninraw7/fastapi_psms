@@ -140,6 +140,97 @@
     white-space: nowrap;
 }
 
+/* 업종 배지 (파스텔 톤) */
+.badge-industry {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.65rem;
+    font-weight: 600;
+}
+
+.badge-industry i {
+    font-size: 0.75rem;
+}
+
+.badge-industry-manufacturing {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.badge-industry-it {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+.badge-industry-service {
+    background: #fff3e0;
+    color: #ef6c00;
+}
+
+.badge-industry-construction {
+    background: #f3e5f5;
+    color: #6a1b9a;
+}
+
+.badge-industry-finance {
+    background: #e0f7fa;
+    color: #00838f;
+}
+
+.badge-industry-public {
+    background: #fce4ec;
+    color: #ad1457;
+}
+
+.badge-industry-retail {
+    background: #fff9c4;
+    color: #f9a825;
+}
+
+.badge-industry-education {
+    background: #e8eaf6;
+    color: #3949ab;
+}
+
+.badge-industry-health {
+    background: #e0f2f1;
+    color: #00796b;
+}
+
+.badge-industry-other {
+    background: #eceff1;
+    color: #546e7a;
+}
+
+/* 내정보 화면 */
+.my-info-container .form-input[readonly] {
+    background: #f3f4f6;
+    color: #6b7280;
+    cursor: not-allowed;
+}
+
+.password-rule-status {
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    font-size: 0.85rem;
+}
+
+.password-rule-status.is-valid {
+    background: #ecfdf3;
+    color: #166534;
+    border-color: #bbf7d0;
+}
+
+.password-rule-status.is-invalid {
+    background: #fef2f2;
+    color: #b91c1c;
+    border-color: #fecaca;
+}
+
 .badge-primary {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }

@@ -70,6 +70,12 @@ const PAGE_INFO = {
         icon: 'fas fa-code',
         path: ['관리자', '공통코드 관리'],
         theme: 'breadcrumb-admin'
+    },
+    'my-info': {
+        title: '내정보',
+        icon: 'fas fa-user-cog',
+        path: ['사용자', '내정보'],
+        theme: 'breadcrumb-admin'
     }
 };
 
@@ -168,6 +174,10 @@ function navigateTo(pageId) {
             } else {
                 console.error('❌ initializeMobileHistory 함수를 찾을 수 없음');
             }
+        } else if (pageId === 'my-info') {
+            if (typeof initializeMyInfoPage === 'function') {
+                initializeMyInfoPage();
+            }
         }
         
         console.log('✅ 페이지 전환 완료:', pageId);
@@ -261,6 +271,15 @@ function initializePage(pageId) {
         case 'users':
             console.log('👥 사용자 관리 초기화');
             // TODO: 사용자 관리 초기화 로직
+            break;
+
+        case 'my-info':
+            console.log('👤 내정보 초기화');
+            if (typeof initializeMyInfoPage !== 'undefined') {
+                initializeMyInfoPage();
+            } else {
+                console.warn('⚠️ initializeMyInfoPage 함수를 찾을 수 없습니다');
+            }
             break;
             
         case 'common-codes':
@@ -443,17 +462,14 @@ function openClientsList() {
  */
 function openMyInfo() {
     console.log('👤 내정보 열기');
-    alert('내정보 기능 준비중입니다.');
-    // TODO: 내정보 모달 또는 페이지 구현
-    /*
-    // 예시: 모달 방식
-    const modal = document.getElementById('myInfoModal');
-    if (modal) {
-        modal.classList.add('active');
-        // 사용자 정보 로드
-        loadMyInfo();
+    if (typeof getCurrentPageId === 'function') {
+        window.myInfoReturnPage = getCurrentPageId();
     }
-    */
+    const url = `${window.location.pathname}?page=my-info`;
+    if (history.pushState) {
+        history.pushState({page: 'my-info'}, '', url);
+    }
+    navigateTo('my-info');
 }
 
 /**
