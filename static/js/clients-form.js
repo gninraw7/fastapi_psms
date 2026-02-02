@@ -39,10 +39,15 @@ function initializeClientFormPage(mode, clientId) {
     try {
         currentMode = mode || 'new';
         currentClientId = clientId ? parseInt(clientId) : null;
+
+        const titleEl = document.getElementById('clientFormTitleText');
+        if (titleEl) {
+            titleEl.textContent = currentMode === 'edit' ? '거래처 수정' : '신규 거래처 등록';
+        }
         
         // DOM 요소 확인
-        const deleteBtn = document.getElementById('deleteClientBtn');
-        const deleteBtnBottom = document.getElementById('deleteClientBtnBottom');
+        const deleteBtn = document.getElementById('btnDeleteClient');
+        const deleteBtnBottom = document.getElementById('btnDeleteClientBottom');
         
         if (currentMode === 'edit' && currentClientId) {
             // 수정 모드

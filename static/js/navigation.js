@@ -391,6 +391,9 @@ function openClientForm(mode = 'new', clientId = null) {
         }
 
         targetPage.classList.add('active');
+        targetPage.style.display = 'block';
+        targetPage.style.visibility = 'visible';
+        targetPage.style.opacity = '1';
         
         // ⭐ Breadcrumb 업데이트 (신규 추가)
         updateBreadcrumb('clients-form');
@@ -403,7 +406,10 @@ function openClientForm(mode = 'new', clientId = null) {
             }
         }, 10);
         
-        // clients-form.js에서 자동으로 초기화됨
+        if (typeof initializeClientFormPage === 'function') {
+            initializeClientFormPage(mode, clientId);
+        }
+
         console.log('✅ 거래처 폼 페이지 활성화');
     } else {
         console.error('❌ page-clients-form 요소를 찾을 수 없습니다!');

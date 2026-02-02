@@ -966,7 +966,7 @@
                 </div>
                 
                 <div class="filter-actions">
-                    <button class="btn btn-primary" id="btnNewClient" onclick="navigateToClientForm('new')"></button>                        
+                    <button class="btn btn-primary" id="btnNewClient" type="button" title="새 거래처 추가">
                         <i class="fas fa-plus-circle"></i> 신규
                     </button>
                     <button class="btn btn-info" onclick="resetClientFilters()">
@@ -990,34 +990,30 @@
          거래처 관리 - 등록/수정 페이지
          =================================== -->
     <div id="page-clients-form" class="page-content">
-        <div class="page-container">
-            <!-- 페이지 헤더 -->
-            <div class="page-header">
-                <div class="page-title-group">
-                    <h1 class="page-title" id="clientFormTitle">
-                        <i class="fas fa-building"></i>
-                        <span id="clientFormTitleText">신규 거래처 등록</span>
-                    </h1>
+        <div class="form-container client-form-container">
+            <div class="form-header">
+                <div class="form-title">
+                    <i class="fas fa-building"></i>
+                    <h2 id="clientFormTitleText">신규 거래처 등록</h2>
                 </div>
-                
-                <div class="page-actions">
-                    <button class="btn btn-secondary" onclick="navigateToClientList()">
-                        <i class="fas fa-list"></i>
-                        목록으로
+                <div class="form-actions">
+                    <button class="btn btn-primary" type="button" onclick="saveClientForm()">
+                        <i class="fas fa-save"></i> 저장
                     </button>
-                    <button class="btn btn-primary" onclick="saveClientForm()">
-                        <i class="fas fa-save"></i>
-                        저장
+                    <button class="btn btn-outline-secondary" type="button" onclick="navigateToClientList()">
+                        <i class="fas fa-list"></i> 목록
                     </button>
-                    <button class="btn btn-danger" id="btnDeleteClient" onclick="deleteClient()" style="display: none;">
-                        <i class="fas fa-trash"></i>
-                        삭제
+                    <button class="btn btn-danger" type="button" id="btnDeleteClient" onclick="deleteClient()" style="display: none;">
+                        <i class="fas fa-trash"></i> 삭제
+                    </button>
+                    <button class="btn btn-close-icon" type="button" onclick="navigateToClientList()" title="닫기">
+                        <i class="fas fa-times"></i>
                     </button>
                 </div>
             </div>
 
             <!-- 거래처 폼 -->
-            <form id="clientForm" class="form-container" onsubmit="event.preventDefault(); saveClientForm();">
+            <form id="clientForm" class="tab-content client-form" onsubmit="event.preventDefault(); saveClientForm();">
                 <input type="hidden" id="clientId">
                 <input type="hidden" id="clientMode" value="new">
 
@@ -1163,7 +1159,6 @@
                 </div>
             </form>
         </div>
-    </div>
     </div>
 
     <!-- 모달: 프로젝트 상세 정보 (읽기 전용) -->
