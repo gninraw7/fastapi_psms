@@ -212,6 +212,9 @@ function initializePage(pageId) {
             console.log('🏢 거래처 목록 페이지 초기화');
             // clients-list.js의 테이블이 자동 초기화됨
             // 필요시 추가 로직 작성
+            if (typeof refreshClientsList === 'function') {
+                refreshClientsList();
+            }
             break;
             
         case 'clients-form':
@@ -429,6 +432,10 @@ function openClientsList() {
     }
     
     navigateTo('clients-list');
+
+    if (typeof refreshClientsList === 'function') {
+        setTimeout(() => refreshClientsList(), 0);
+    }
 }
 
 /**
