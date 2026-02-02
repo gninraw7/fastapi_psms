@@ -14,6 +14,7 @@
 // Global State
 // ===================================
 let clientsTable = null;
+let selectedClientRow = null;
 let currentClientFilters = {
     search_field: '',
     search_text: '',
@@ -299,7 +300,9 @@ function initializeClientsTable() {
     
     // 행 선택 이벤트
     clientsTable.on("rowSelectionChanged", function(data, rows) {
+        selectedClientRow = rows.length > 0 ? rows[0] : null;
         updateSelectionActionBar(rows.length);
+        updateNewClientButtonState();
     });
     
     // ⭐ 개선: 더블클릭 시 openClientForm 호출 (navigation.js와 통합)
@@ -353,19 +356,8 @@ function initializeClientEventListeners() {
     // ⭐ 개선: [신규] 버튼 클릭 시 openClientForm 호출
     const btnNew = document.getElementById('btnNewClient');
     if (btnNew) {
-        btnNew.addEventListener('click', () => {
-            console.log('➕ 신규 거래처 버튼 클릭');
-            
-            // ⭐ 우선순위: openClientForm > navigateToClientForm
-            if (typeof openClientForm === 'function') {
-                openClientForm('new');
-            } else if (typeof navigateToClientForm === 'function') {
-                navigateToClientForm('new');
-            } else {
-                console.error('❌ 거래처 폼 열기 함수 없음');
-                alert('거래처 폼을 열 수 없습니다. 페이지를 새로고침하세요.');
-            }
-        });
+        btnNew.addEventListener('click', handleNewClientButtonClick);
+        updateNewClientButtonState();
         console.log('  ✓ btnNewClient 이벤트 등록 (openClientForm 호출)');
     } else {
         console.warn('  ✗ btnNewClient 요소 없음 - HTML에 id="btnNewClient" 버튼이 필요합니다');
@@ -422,6 +414,57 @@ function resetClientFilters() {
     
     if (clientsTable) {
         clientsTable.setPage(1);
+    }
+}
+
+// ===================================
+// New Client Button UX (프로젝트 목록과 동일)
+// ===================================
+function updateNewClientButtonState() {
+    const btn = document.getElementById('btnNewClient');
+    if (!btn) {
+        console.warn('⚠️ btnNewClient 요소 없음');
+        return;
+    }
+
+    if (selectedClientRow) {
+        btn.innerHTML = '<i class="fas fa-folder-open"></i> 열기';
+        btn.title = '선택한 거래처 열기';
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-success');
+        console.log('  → 거래처 버튼: 열기');
+    } else {
+        btn.innerHTML = '<i class="fas fa-plus-circle"></i> 신규';
+        btn.title = '새 거래처 추가';
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-primary');
+        console.log('  → 거래처 버튼: 신규');
+    }
+}
+
+function handleNewClientButtonClick() {
+    if (selectedClientRow) {
+        const clientId = selectedClientRow.getData().client_id;
+        console.log('📂 거래처 열기 버튼 클릭:', clientId);
+        if (typeof openClientForm === 'function') {
+            openClientForm('edit', clientId);
+        } else if (typeof navigateToClientForm === 'function') {
+            navigateToClientForm('edit', clientId);
+        } else {
+            console.error('❌ 거래처 폼 열기 함수 없음');
+            alert('거래처 폼을 열 수 없습니다. 페이지를 새로고침하세요.');
+        }
+        return;
+    }
+
+    console.log('➕ 신규 거래처 버튼 클릭');
+    if (typeof openClientForm === 'function') {
+        openClientForm('new');
+    } else if (typeof navigateToClientForm === 'function') {
+        navigateToClientForm('new');
+    } else {
+        console.error('❌ 거래처 폼 열기 함수 없음');
+        alert('거래처 폼을 열 수 없습니다. 페이지를 새로고침하세요.');
     }
 }
 
