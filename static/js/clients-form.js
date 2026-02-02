@@ -44,6 +44,12 @@ function initializeClientFormPage(mode, clientId) {
         if (titleEl) {
             titleEl.textContent = currentMode === 'edit' ? '거래처 수정' : '신규 거래처 등록';
         }
+
+        const isActiveCheckbox = document.getElementById('isActive');
+        if (isActiveCheckbox) {
+            isActiveCheckbox.disabled = false;
+            isActiveCheckbox.removeAttribute('disabled');
+        }
         
         // DOM 요소 확인
         const deleteBtn = document.getElementById('btnDeleteClient');

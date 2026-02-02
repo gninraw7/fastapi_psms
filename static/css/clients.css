@@ -139,6 +139,12 @@
     background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
 }
 
+.badge-secondary {
+    background: #eef2f7;
+    color: #4b5563;
+    border: 1px solid #d5dce6;
+}
+
 /* 반응형 */
 @media (max-width: 768px) {
     .badge {
