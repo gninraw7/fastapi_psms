@@ -505,6 +505,29 @@ function clearClientSelection() {
 }
 
 // ===================================
+// Refresh Functions
+// ===================================
+function refreshClientsList(options = {}) {
+    const { resetPage = false } = options;
+    console.log('🔄 거래처 목록 새로고침', { resetPage });
+
+    if (!clientsTable) {
+        console.warn('⚠️ 거래처 테이블이 초기화되지 않아 새로고침을 건너뜁니다');
+        return;
+    }
+
+    if (resetPage) {
+        clientsTable.setPage(1);
+    } else {
+        clientsTable.replaceData();
+    }
+
+    selectedClientRow = null;
+    updateNewClientButtonState();
+    updateSelectionActionBar(0);
+}
+
+// ===================================
 // Navigation Functions (기존 방식 유지 + openClientForm 통합)
 // ===================================
 function navigateToClientForm(mode, clientId = null) {
@@ -658,6 +681,7 @@ window.navigateToClientForm = navigateToClientForm;      // 기존 유지 (호�
 window.navigateToClientList = navigateToClientList;      // 기존 유지
 window.deleteClientById = deleteClientById;
 window.bulkDeleteClients = bulkDeleteClients;
+window.refreshClientsList = refreshClientsList;
 window.exportClientsToExcel = exportClientsToExcel;
 window.bulkExportClients = bulkExportClients;
 window.applyClientFilters = applyClientFilters;
