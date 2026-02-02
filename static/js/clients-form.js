@@ -73,6 +73,9 @@ function initializeClientFormPage(mode, clientId) {
         
         // 자동 포맷팅 이벤트 바인딩
         setupAutoFormatting();
+
+        // 목록/닫기 버튼 연결
+        bindClientFormNavigationButtons();
         
         console.log('✅ 거래처 폼 초기화 완료');
         
@@ -356,15 +359,128 @@ async function saveClientForm() {
         hideLoading();
         
         alert(result.message || '저장되었습니다.');
-        
-        // 목록으로 이동
-        navigateToClientList();
+
+        await refreshClientFormAfterSave(result);
         
     } catch (error) {
         console.error('❌ 거래처 저장 실패:', error);
         hideLoading();
         alert(error.message || '저장에 실패했습니다.');
     }
+}
+
+/**
+ * 저장 직후 서버 데이터로 폼 갱신
+ */
+async function refreshClientFormAfterSave(result) {
+    let targetClientId = null;
+
+    if (currentMode === 'edit' && currentClientId) {
+        targetClientId = currentClientId;
+    } else {
+        targetClientId = extractClientIdFromSaveResult(result);
+    }
+
+    if (!targetClientId) {
+        console.warn('⚠️ 저장 결과에서 거래처 ID를 찾지 못해 폼 갱신을 건너뜁니다.');
+        return;
+    }
+
+    if (currentMode !== 'edit') {
+        currentMode = 'edit';
+        currentClientId = targetClientId;
+
+        const titleEl = document.getElementById('clientFormTitleText');
+        if (titleEl) {
+            titleEl.textContent = '거래처 수정';
+        }
+
+        const deleteBtn = document.getElementById('btnDeleteClient');
+        const deleteBtnBottom = document.getElementById('btnDeleteClientBottom');
+        if (deleteBtn) deleteBtn.style.display = 'inline-block';
+        if (deleteBtnBottom) deleteBtnBottom.style.display = 'inline-block';
+
+        const clientIdField = document.getElementById('clientId');
+        if (clientIdField) clientIdField.value = String(targetClientId);
+        const clientModeField = document.getElementById('clientMode');
+        if (clientModeField) clientModeField.value = 'edit';
+
+        // 새로고침 시에도 수정 모드 유지
+        if (window.history && window.history.replaceState) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', 'clients-form');
+            url.searchParams.set('mode', 'edit');
+            url.searchParams.set('client_id', String(targetClientId));
+            window.history.replaceState({}, '', url.toString());
+        }
+    }
+
+    await loadClientData(targetClientId);
+}
+
+/**
+ * 저장 결과에서 거래처 ID 추출
+ */
+function extractClientIdFromSaveResult(result) {
+    if (!result || typeof result !== 'object') {
+        return null;
+    }
+
+    const directId = result.client_id;
+    if (Number.isInteger(directId)) {
+        return directId;
+    }
+    if (typeof directId === 'string' && directId.trim() !== '') {
+        const parsed = parseInt(directId, 10);
+        if (Number.isInteger(parsed)) {
+            return parsed;
+        }
+    }
+
+    const data = result.data || result.client;
+    if (data && typeof data === 'object') {
+        const dataId = data.client_id || (data.client && data.client.client_id);
+        if (Number.isInteger(dataId)) {
+            return dataId;
+        }
+        if (typeof dataId === 'string' && dataId.trim() !== '') {
+            const parsed = parseInt(dataId, 10);
+            if (Number.isInteger(parsed)) {
+                return parsed;
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
+ * 목록/닫기 버튼 이벤트 바인딩
+ */
+function bindClientFormNavigationButtons() {
+    const listButtons = document.querySelectorAll('[data-client-nav="list"]');
+    listButtons.forEach((button) => {
+        if (button.dataset.navBound === 'true') {
+            return;
+        }
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            navigateToClientList();
+        });
+        button.dataset.navBound = 'true';
+    });
+
+    const closeButtons = document.querySelectorAll('[data-client-nav="close"]');
+    closeButtons.forEach((button) => {
+        if (button.dataset.navBound === 'true') {
+            return;
+        }
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            navigateToClientList();
+        });
+        button.dataset.navBound = 'true';
+    });
 }
 
 /**
