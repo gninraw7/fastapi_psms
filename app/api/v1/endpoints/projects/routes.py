@@ -89,12 +89,14 @@ async def get_projects_list(
     search_field: Optional[str] = None,        # ⭐ 추가
     search_text: Optional[str] = None,         # ⭐ 추가
     keyword: Optional[str] = None,             # 기존 호환용
+    sort_field: Optional[str] = None,
+    sort_dir: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """프로젝트 목록 조회 (/list 경로)"""
     return await get_projects(
         page, page_size, field_code, current_stage, 
-        manager_id, search_field, search_text, keyword, db
+        manager_id, search_field, search_text, keyword, sort_field, sort_dir, db
     )
 
 
@@ -108,14 +110,19 @@ async def get_projects(
     search_field: Optional[str] = None,        # ⭐ 추가
     search_text: Optional[str] = None,         # ⭐ 추가
     keyword: Optional[str] = None,             # 기존 호환용
+    sort_field: Optional[str] = None,
+    sort_dir: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """프로젝트 목록 조회"""
     try:
-        app_logger.info(f"📋 프로젝트 목록 조회 - page: {page}, page_size: {page_size}, "
-                       f"field_code: {field_code}, current_stage: {current_stage}, "
-                       f"manager_id: {manager_id}, search_field: {search_field}, "
-                       f"search_text: {search_text}, keyword: {keyword}")
+        app_logger.info(
+            f"📋 프로젝트 목록 조회 - page: {page}, page_size: {page_size}, "
+            f"field_code: {field_code}, current_stage: {current_stage}, "
+            f"manager_id: {manager_id}, search_field: {search_field}, "
+            f"search_text: {search_text}, keyword: {keyword}, "
+            f"sort_field: {sort_field}, sort_dir: {sort_dir}"
+        )
         
         # 기본 쿼리
         base_query = """
@@ -133,6 +140,8 @@ async def get_projects(
                 p.ordering_party_id,
                 c2.client_name as ordering_party_name,
                 p.quoted_amount,
+                h.latest_base_date,
+                h.history_count,
                 p.win_probability,
                 p.notes,
                 p.created_at,
@@ -143,6 +152,13 @@ async def get_projects(
             LEFT JOIN users u ON u.login_id = p.manager_id
             LEFT JOIN clients c1 ON c1.client_id = p.customer_id
             LEFT JOIN clients c2 ON c2.client_id = p.ordering_party_id
+            LEFT JOIN (
+                SELECT pipeline_id,
+                       MAX(base_date) AS latest_base_date,
+                       COUNT(*) AS history_count
+                FROM project_history
+                GROUP BY pipeline_id
+            ) h ON h.pipeline_id = p.pipeline_id
             WHERE 1=1
         """
         
@@ -201,7 +217,25 @@ async def get_projects(
         
         # 페이징
         offset = (page - 1) * page_size
-        base_query += " ORDER BY p.created_at DESC LIMIT :limit OFFSET :offset"
+        allowed_sort_fields = {
+            "pipeline_id": "p.pipeline_id",
+            "project_name": "p.project_name",
+            "field_name": "f.code_name",
+            "current_stage": "p.current_stage",
+            "manager_name": "u.user_name",
+            "customer_name": "c1.client_name",
+            "ordering_party_name": "c2.client_name",
+            "quoted_amount": "p.quoted_amount",
+            "latest_base_date": "h.latest_base_date",
+            "history_count": "h.history_count",
+            "created_at": "p.created_at"
+        }
+        if sort_field in allowed_sort_fields:
+            direction = "ASC" if (sort_dir or "").lower() == "asc" else "DESC"
+            base_query += f" ORDER BY {allowed_sort_fields[sort_field]} {direction}"
+        else:
+            base_query += " ORDER BY p.created_at DESC"
+        base_query += " LIMIT :limit OFFSET :offset"
         params['limit'] = page_size
         params['offset'] = offset
         

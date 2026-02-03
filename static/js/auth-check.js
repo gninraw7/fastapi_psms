@@ -5,7 +5,7 @@
  * ===================================
  */
 
-(async function() {
+(function() {
     'use strict';
     
     console.log('🔐 인증 확인 시작');
@@ -30,49 +30,65 @@
         return;
     }
     
-    // 자동 로그인 시도
-    try {
-        const success = await AUTH.tryAutoLogin();
-        
-        if (success) {
-            console.log('✅ 인증 확인 성공');
+    async function applyUserUiState() {
+        // 자동 로그인 시도
+        try {
+            const success = await AUTH.tryAutoLogin();
             
-            // 사용자 정보 표시
-            const userInfo = AUTH.getUserInfo();
-            console.log('📋 저장된 사용자 정보:', userInfo);
-            
-            if (userInfo) {
-                // 사용자 이름 표시
-                const currentUserElement = document.getElementById('currentUser');
-                console.log('🎯 currentUser 요소:', currentUserElement);
+            if (success) {
+                console.log('✅ 인증 확인 성공');
                 
-                if (currentUserElement) {
-                    // 다양한 필드명 지원 (API 응답 형식 변경에 대응)
-                    const displayName = userInfo.user_name || 
-                                       userInfo.userName || 
-                                       userInfo.login_id || 
-                                       userInfo.loginId || 
-                                       '사용자';
+                // 사용자 정보 표시
+                const userInfo = AUTH.getUserInfo();
+                console.log('📋 저장된 사용자 정보:', userInfo);
+                
+                if (userInfo) {
+                    // 사용자 이름 표시
+                    const currentUserElement = document.getElementById('currentUser');
+                    console.log('🎯 currentUser 요소:', currentUserElement);
                     
-                    console.log('👤 표시할 사용자 이름:', displayName);
-                    console.log('📝 현재 표시된 텍스트:', currentUserElement.textContent);
-                    
-                    currentUserElement.textContent = displayName;
-                    
-                    console.log('✅ 사용자 정보 업데이트 완료:', currentUserElement.textContent);
+                    if (currentUserElement) {
+                        // 다양한 필드명 지원 (API 응답 형식 변경에 대응)
+                        const displayName = userInfo.user_name || 
+                                           userInfo.userName || 
+                                           userInfo.login_id || 
+                                           userInfo.loginId || 
+                                           '사용자';
+                        
+                        console.log('👤 표시할 사용자 이름:', displayName);
+                        console.log('📝 현재 표시된 텍스트:', currentUserElement.textContent);
+                        
+                        currentUserElement.textContent = displayName;
+                        
+                        console.log('✅ 사용자 정보 업데이트 완료:', currentUserElement.textContent);
+                    } else {
+                        console.warn('⚠️ currentUser 요소를 찾을 수 없습니다');
+                        console.log('💡 HTML에 <span id="currentUser"></span> 요소가 있는지 확인하세요');
+                    }
+
+                    // 관리자 메뉴 표시 여부 설정
+                    const adminMenu = document.getElementById('adminMenu');
+                    if (adminMenu) {
+                        const role = (userInfo.role || '').toString().toLowerCase();
+                        const isAdmin = role === 'admin';
+                        adminMenu.style.display = isAdmin ? '' : 'none';
+                    }
                 } else {
-                    console.warn('⚠️ currentUser 요소를 찾을 수 없습니다');
-                    console.log('💡 HTML에 <span id="currentUser"></span> 요소가 있는지 확인하세요');
+                    console.warn('⚠️ 사용자 정보가 없습니다');
                 }
             } else {
-                console.warn('⚠️ 사용자 정보가 없습니다');
+                console.log('❌ 자동 로그인 실패 - 로그인 페이지로 이동');
+                window.location.href = '/';
             }
-        } else {
-            console.log('❌ 자동 로그인 실패 - 로그인 페이지로 이동');
+        } catch (error) {
+            console.error('❌ 인증 확인 중 오류:', error);
             window.location.href = '/';
         }
-    } catch (error) {
-        console.error('❌ 인증 확인 중 오류:', error);
-        window.location.href = '/';
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyUserUiState);
+    } else {
+        applyUserUiState();
     }
 })();

@@ -70,6 +70,9 @@ async function initializeProjectForm(mode = 'new', pipelineId = null) {
     
     // 콤보박스 초기화 (수정됨)
     await loadFormComboBoxes();
+
+    // 프로젝트명 표시 바인딩
+    bindProjectNameDisplay();
     
     // 탭 이벤트 바인딩
     initializeFormTabs();
@@ -94,6 +97,24 @@ async function initializeProjectForm(mode = 'new', pipelineId = null) {
         // ⭐ 마크다운 포맷팅 초기화 (새로 추가)
         initMarkdownFormatting();
     }
+}
+
+// ===================================
+// Project Name Display
+// ===================================
+function updateProjectNameDisplay(name) {
+    const value = (name || '').trim() || '-';
+    const attrEl = document.getElementById('tabProjectNameAttributes');
+    const histEl = document.getElementById('tabProjectNameHistory');
+    if (attrEl) attrEl.textContent = value;
+    if (histEl) histEl.textContent = value;
+}
+
+function bindProjectNameDisplay() {
+    const input = document.getElementById('project_name');
+    if (!input || input.dataset.bound === '1') return;
+    input.addEventListener('input', () => updateProjectNameDisplay(input.value));
+    input.dataset.bound = '1';
 }
 
 // ===================================
@@ -169,21 +190,30 @@ async function loadFormComboBoxes() {
         });
         
         // 2.1 프로젝트 속성 콤보박스 데이터 로드
-        try {
-            const attrs = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/PROJECT_ATTRIBUTE`);
-            console.log('📥 프로젝트 속성 데이터:', attrs);
-            if (attrs && attrs.items) {
-                attributeOptions = attrs.items;
-            }
-        } catch (e) {
-            console.warn('⚠️ PROJECT_ATTRIBUTE 로드 실패:', e);
-            attributeOptions = [];
-        }
+        await loadAttributeOptions();
         
         console.log('✅ 콤보박스 로딩 완료');
         
     } catch (error) {
         console.error('❌ 콤보박스 로딩 실패:', error);
+    }
+}
+
+// ===================================
+// Load Attribute Options
+// ===================================
+async function loadAttributeOptions() {
+    try {
+        const attrs = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/PROJECT_ATTRIBUTE`);
+        console.log('📥 프로젝트 속성 데이터:', attrs);
+        if (attrs && attrs.items) {
+            attributeOptions = attrs.items;
+        } else {
+            attributeOptions = [];
+        }
+    } catch (e) {
+        console.warn('⚠️ PROJECT_ATTRIBUTE 로드 실패:', e);
+        attributeOptions = [];
     }
 }
 
@@ -203,6 +233,7 @@ async function loadProjectData(pipelineId) {
             // 기본정보 채우기
             document.getElementById('pipeline_id').value = project.pipeline_id || '';
             document.getElementById('project_name').value = project.project_name || '';
+            updateProjectNameDisplay(project.project_name || '');
             document.getElementById('field_code').value = project.field_code || '';
             document.getElementById('current_stage').value = project.current_stage || project.progress_stage || '';
             document.getElementById('manager_id').value = project.manager_id || '';
@@ -315,6 +346,7 @@ async function loadProjectData(pipelineId) {
 function resetForm() {
     document.getElementById('pipeline_id').value = '자동생성';
     document.getElementById('project_name').value = '';
+    updateProjectNameDisplay('');
     document.getElementById('field_code').value = '';
     document.getElementById('current_stage').value = 'S01';  // 3.1 기본값 S01
     document.getElementById('manager_id').value = '';
@@ -639,6 +671,9 @@ function renderAttributes() {
     html += `
             </select>
             <input type="text" id="new_attr_value" class="form-input" placeholder="속성 값 입력" style="flex: 1;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openAttributeCodeModal()">
+                <i class="fas fa-plus-circle"></i> 속성추가
+            </button>
             <button type="button" class="btn btn-primary btn-sm" onclick="addAttribute()">
                 <i class="fas fa-plus"></i> 추가
             </button>
@@ -706,6 +741,74 @@ function removeAttribute(index) {
 
 function updateAttribute(index) {
     editAttribute(index);
+}
+
+// ===================================
+// Attribute Code Modal
+// ===================================
+function openAttributeCodeModal() {
+    const modal = document.getElementById('attributeCodeModal');
+    if (!modal) {
+        console.error('❌ attributeCodeModal을 찾을 수 없음');
+        return;
+    }
+
+    const codeInput = document.getElementById('attr_code_input');
+    const nameInput = document.getElementById('attr_name_input');
+    const sortInput = document.getElementById('attr_sort_input');
+    const useSelect = document.getElementById('attr_use_input');
+
+    if (codeInput) codeInput.value = '';
+    if (nameInput) nameInput.value = '';
+    if (sortInput) sortInput.value = '0';
+    if (useSelect) useSelect.value = 'Y';
+
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+}
+
+function closeAttributeCodeModal() {
+    const modal = document.getElementById('attributeCodeModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+}
+
+async function saveAttributeCode() {
+    const codeInput = document.getElementById('attr_code_input');
+    const nameInput = document.getElementById('attr_name_input');
+    const sortInput = document.getElementById('attr_sort_input');
+    const useSelect = document.getElementById('attr_use_input');
+
+    const code = codeInput ? codeInput.value.trim() : '';
+    const codeName = nameInput ? nameInput.value.trim() : '';
+    const sortOrder = sortInput ? parseInt(sortInput.value, 10) : 0;
+    const isUse = useSelect ? useSelect.value : 'Y';
+
+    if (!code || !codeName) {
+        alert('코드와 코드명을 입력하세요.');
+        return;
+    }
+
+    try {
+        const payload = {
+            group_code: 'PROJECT_ATTRIBUTE',
+            code: code,
+            code_name: codeName,
+            sort_order: isNaN(sortOrder) ? 0 : sortOrder,
+            is_use: isUse
+        };
+
+        await API.post(API_CONFIG.ENDPOINTS.COMBO_DATA, payload);
+        await loadAttributeOptions();
+        renderAttributes();
+        closeAttributeCodeModal();
+        alert('속성이 등록되었습니다.');
+    } catch (error) {
+        console.error('❌ 속성 코드 등록 실패:', error);
+        alert('속성 등록에 실패했습니다.');
+    }
 }
 
 // ===================================
@@ -1091,21 +1194,26 @@ function closeHistoryEditModal() {
 function deleteHistory(index) {
     const hist = histories[index];
     
-    if (!confirm(`${hist.base_date} 이력을 삭제하시겠습니까?`)) {
+    if (!confirm("이 항목을 삭제하시겠습니까? (저장 시 반영됩니다.)")) {
         return;
     }
     
-    // ✅ 신규(N)로 추가된 것은 배열에서 제거, 기존 데이터는 'D'로 표시
-    if (hist.row_stat === 'N') {
-        // 신규 추가된 것은 완전히 제거
-        histories.splice(index, 1);
-        console.log('✅ 신규 이력 제거:', { index });
-    } else {
-        // 기존 데이터는 삭제 표시
-        histories[index].row_stat = 'D';
-        console.log('✅ 기존 이력 삭제 표시:', { index, history_id: hist.history_id, row_stat: 'D' });
-    }
+    // ✅ 화면에서 숨기지 않고 삭제 플래그만 표시 (이전 상태 보관)
+    histories[index]._prev_row_stat = hist.row_stat || '';
+    histories[index].row_stat = 'D';
+    console.log('✅ 이력 삭제 표시:', { index, history_id: hist.history_id, row_stat: 'D' });
     
+    renderHistories();
+}
+
+// ✅ 삭제예정 복구
+function restoreHistory(index) {
+    const hist = histories[index];
+    if (!hist) return;
+    const prev = (hist._prev_row_stat !== undefined) ? hist._prev_row_stat : '';
+    histories[index].row_stat = prev;
+    delete histories[index]._prev_row_stat;
+    console.log('✅ 이력 삭제 취소:', { index, history_id: hist.history_id, row_stat: histories[index].row_stat });
     renderHistories();
 }
 
@@ -1127,15 +1235,15 @@ function renderHistories() {
     
     // ✅ 이력 추가 입력 폼 (textarea로 변경, 자동 높이 조절)
     html += `
-        <div class="history-add-row" style="display: grid; grid-template-columns: auto auto 1fr auto; gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; align-items: start; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                <label style="font-size: 0.75rem; font-weight: 600; color: #555;">기준일</label>
-                <input type="date" id="new_history_date" class="form-input" style="min-width: 150px;" value="${today}">
-            </div>
-            
-            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                <label style="font-size: 0.75rem; font-weight: 600; color: #555;">진행단계</label>
-                <select id="new_history_stage" class="form-select" style="min-width: 150px;">
+        <div class="history-add-row" style="display: grid; grid-template-columns: 220px 1fr auto; gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; align-items: start; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                    <label style="font-size: 0.75rem; font-weight: 600; color: #555;">기준일</label>
+                    <input type="date" id="new_history_date" class="form-input" style="width: 100%;" value="${today}">
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                    <label style="font-size: 0.75rem; font-weight: 600; color: #555;">진행단계</label>
+                    <select id="new_history_stage" class="form-select" style="width: 100%;">
                     <option value="">진행단계 선택</option>
     `;
     
@@ -1147,6 +1255,7 @@ function renderHistories() {
     
     html += `
                 </select>
+                </div>
             </div>
             
             <div style="display: flex; flex-direction: column; gap: 0.25rem;">
@@ -1166,6 +1275,7 @@ function renderHistories() {
                         font-family: inherit; 
                         font-size: 0.875rem; 
                         line-height: 1.5;
+                        text-align: left;
                         resize: vertical;
                         transition: border-color 0.2s, box-shadow 0.2s;
                     "
@@ -1181,8 +1291,7 @@ function renderHistories() {
         </div>
     `;
     
-    // 삭제 표시된 것 제외하고 표시
-    const visibleHists = histories.filter(h => h.row_stat !== 'D');
+    const visibleHists = histories;
     
     if (visibleHists.length === 0) {
         html += `
@@ -1201,37 +1310,48 @@ function renderHistories() {
             
             const statusBadge = hist.row_stat === 'N' ? 
                 '<span class="badge badge-new" style="background: #4caf50; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">신규</span>' : 
-                (hist.row_stat === 'U' ? '<span class="badge badge-modified" style="background: #ff9800; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">수정됨</span>' : '');
+                (hist.row_stat === 'U' ? '<span class="badge badge-modified" style="background: #ff9800; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">수정됨</span>' : 
+                (hist.row_stat === 'D' ? '<span class="badge badge-danger" style="background: #f44336; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">삭제예정</span>' : ''));
             
             // 여러 줄 텍스트 표시를 위해 줄바꿈을 <br>로 변환
-            const formattedContent = (hist.strategy_content || '-').replace(/\n/g, '<br>');
+            const rawContent = hist.strategy_content || '';
+            const normalizedContent = rawContent.replace(/\r\n/g, '\n');
+            const cleanedContent = normalizedContent.replace(/^\s*\n+/, '');
+            let formattedContent = (cleanedContent || '-').replace(/\n/g, '<br>');
+            formattedContent = formattedContent.replace(/^(<br>\s*)+/, '');
+            const isDeleted = hist.row_stat === 'D';
+            const itemStyle = isDeleted
+                ? "display: flex; gap: 1rem; padding: 1rem; background: #fafafa; border: 1px dashed #e0e0e0; border-radius: 8px; margin-bottom: 0.75rem; box-shadow: none; opacity: 0.7;"
+                : "display: flex; gap: 1rem; padding: 1rem; background: white; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: box-shadow 0.2s;";
             
             html += `
-                <div class="history-item" style="display: flex; gap: 1rem; padding: 1rem; background: white; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: box-shadow 0.2s;" onmouseenter="this.style.boxShadow='0 4px 8px rgba(0,0,0,0.1)'" onmouseleave="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)'">
-                    <div class="history-info" style="flex: 1; display: grid; grid-template-columns: 100px 120px 1fr; gap: 1rem; align-items: start;">
-                        <div class="history-date" style="font-weight: 600; color: #333;">
-                            <i class="far fa-calendar-alt" style="color: #667eea; margin-right: 0.25rem;"></i>
-                            ${Utils.formatDate(hist.base_date)}
+                <div class="history-item" style="${itemStyle}" ${isDeleted ? '' : "onmouseenter=\"this.style.boxShadow='0 4px 8px rgba(0,0,0,0.1)'\" onmouseleave=\"this.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)'\""}>
+                    <div class="history-info" style="flex: 1; display: grid; grid-template-columns: 220px 1fr; gap: 1rem; align-items: start;">
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <div class="history-date" style="font-weight: 600; color: #333;">
+                                <i class="far fa-calendar-alt" style="color: #667eea; margin-right: 0.25rem;"></i>
+                                ${Utils.formatDate(hist.base_date)}
+                            </div>
+                            <div class="history-stage" style="font-weight: 500;">
+                            ${StageIcons.render(
+                                hist.progress_stage, 
+                                hist.stage_name || hist.progress_stage, 
+                                { size: 'sm' }
+                            )}
+                            ${statusBadge}
+                            </div>
                         </div>
-                        <div class="history-stage" style="font-weight: 500;">
-                        ${StageIcons.render(
-                            hist.progress_stage, 
-                            hist.stage_name || hist.progress_stage, 
-                            { size: 'sm' }
-                        )}
-                        ${statusBadge}
-                        </div>
-                    
-                        <div class="history-content" style="color: #666; line-height: 1.6; white-space: pre-wrap; word-break: break-word;">
-                            ${formattedContent}
-                        </div>
+                        <div class="history-content" style="color: #666; line-height: 1.6; white-space: pre-line; word-break: break-word; text-align: left;">${formattedContent}</div>
                     </div>
                     <div class="history-actions" style="display: flex; gap: 0.5rem; flex-shrink: 0;">
-                        <button type="button" class="btn-icon" onclick="editHistory(${realIndex})" title="수정" style="background: #2196f3; color: white; border: none; padding: 0.5rem 0.75rem; border-radius: 4px; cursor: pointer; transition: background 0.2s;" onmouseenter="this.style.background='#1976d2'" onmouseleave="this.style.background='#2196f3'">
+                        <button type="button" class="btn-icon" onclick="editHistory(${realIndex})" title="수정" style="background: #2196f3; color: white; border: none; padding: 0.5rem 0.75rem; border-radius: 4px; cursor: pointer; transition: background 0.2s; ${isDeleted ? 'opacity: 0.5; pointer-events: none;' : ''}" onmouseenter="this.style.background='#1976d2'" onmouseleave="this.style.background='#2196f3'">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button type="button" class="btn-icon btn-danger" onclick="deleteHistory(${realIndex})" title="삭제" style="background: #f44336; color: white; border: none; padding: 0.5rem 0.75rem; border-radius: 4px; cursor: pointer; transition: background 0.2s;" onmouseenter="this.style.background='#d32f2f'" onmouseleave="this.style.background='#f44336'">
+                        <button type="button" class="btn-icon btn-danger" onclick="deleteHistory(${realIndex})" title="삭제" style="background: #f44336; color: white; border: none; padding: 0.5rem 0.75rem; border-radius: 4px; cursor: pointer; transition: background 0.2s; ${isDeleted ? 'opacity: 0.5; pointer-events: none;' : ''}" onmouseenter="this.style.background='#d32f2f'" onmouseleave="this.style.background='#f44336'">
                             <i class="fas fa-trash"></i>
+                        </button>
+                        <button type="button" class="btn-icon" onclick="restoreHistory(${realIndex})" title="삭제 취소" style="background: #4caf50; color: white; border: none; padding: 0.5rem 0.75rem; border-radius: 4px; cursor: pointer; transition: background 0.2s; ${isDeleted ? '' : 'display: none;'}" onmouseenter="this.style.background='#43a047'" onmouseleave="this.style.background='#4caf50'">
+                            <i class="fas fa-undo"></i>
                         </button>
                     </div>
                 </div>
@@ -1329,6 +1449,7 @@ async function saveProject() {
         // ✅ 이력 데이터 준비 (row_stat이 있는 것만 전송)
         const historiesToSave = histories
             .filter(h => h.row_stat)  // row_stat이 있는 것만 (N, U, D)
+            .filter(h => !(h.row_stat === 'D' && !h.history_id))  // 신규 삭제는 저장 제외
             .map(h => ({
                 history_id: h.history_id || null,
                 base_date: h.base_date,
@@ -1481,6 +1602,7 @@ window.removeHistory = removeHistory;
 window.updateHistory = updateHistory;
 window.editHistory = editHistory;
 window.deleteHistory = deleteHistory;
+window.restoreHistory = restoreHistory;
 window.saveProject = saveProject;
 window.cancelProjectForm = cancelProjectForm;
 window.closeProjectForm = closeProjectForm;

@@ -339,6 +339,40 @@ body {
     font-weight: 600;
 }
 
+/* Tabulator 정렬 아이콘 (정렬된 컬럼만 표시) */
+.tabulator .tabulator-header .tabulator-col-title-holder {
+    display: flex;
+    align-items: center;
+}
+
+.tabulator .tabulator-header .tabulator-col-title {
+    flex: 1 1 auto;
+}
+
+.tabulator .tabulator-col-sorter {
+    display: none;
+}
+
+.tabulator .tabulator-col[aria-sort="ascending"] .tabulator-col-sorter,
+.tabulator .tabulator-col[aria-sort="descending"] .tabulator-col-sorter,
+.tabulator .tabulator-col[aria-sort="asc"] .tabulator-col-sorter,
+.tabulator .tabulator-col[aria-sort="desc"] .tabulator-col-sorter {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 4px;
+    font-size: 10px;
+    color: var(--primary-color);
+}
+
+.tabulator .tabulator-col-sorter {
+    min-width: 10px;
+    justify-content: center;
+}
+
+.tabulator .tabulator-col-sorter .tabulator-arrow {
+    display: none;
+}
+
 .tabulator-row {
     min-height: 44px;
     border-bottom: 1px solid var(--border-color);
@@ -660,6 +694,65 @@ body {
     outline: none;
     border-color: var(--primary-color, #667eea);
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* ===================================
+   Common Code Management Layout
+   =================================== */
+.common-code-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 1rem;
+}
+
+.common-code-panel {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--border-color, #e0e0e0);
+    padding: 1rem;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    min-width: 0;
+}
+
+.common-code-panel .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.common-code-panel .panel-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary, #222);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.common-code-panel .panel-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-secondary, #666);
+    margin-top: 0.25rem;
+}
+
+.common-code-panel .panel-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.common-code-panel .table-panel {
+    overflow-x: auto;
+}
+
+@media (max-width: 1200px) {
+    .common-code-layout {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Required 필드 표시 */

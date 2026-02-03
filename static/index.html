@@ -17,9 +17,9 @@
     <!-- SheetJS -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 	
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/styles.css?v=1.7">
     <link rel="stylesheet" href="/static/css/navigation.css">
-    <link rel="stylesheet" href="/static/css/project-form.css">
+    <link rel="stylesheet" href="/static/css/project-form.css?v=1.5">
 	<link rel="stylesheet" href="/static/css/mobile.css">
     <link rel="stylesheet" href="/static/css/clients.css?v=1.0.0">
     <link rel="stylesheet" href="/static/css/breadcrumb.css">
@@ -29,12 +29,12 @@
 </head>
 <body>
     <!-- 인증 확인 스크립트 -->
-    <script src="/static/js/auth-check.js"></script>
+    <script src="/static/js/auth-check.js?v=1.2"></script>
 
     <!-- Navigation Bar -->
     <nav class="navbar">
         <div class="navbar-container">
-            <div class="navbar-brand">
+            <div class="navbar-brand" onclick="goHome()" style="cursor: pointer;">
                 <i class="fas fa-project-diagram"></i>
                 <span>PSMS</span>
             </div>
@@ -80,7 +80,7 @@
                     </ul>
                 </li>
                 
-                <li class="navbar-item">
+                <li class="navbar-item" id="adminMenu">
                     <a href="#" class="navbar-link">
                         <i class="fas fa-cog"></i>
                         관리자
@@ -391,6 +391,10 @@
                     <!-- 속성정보 탭 (2.1 수정 반영) -->
                     <!-- ============================================ -->
                     <div id="tab-attributes" class="tab-pane">
+                        <div class="tab-project-name">
+                            <span class="tab-project-label">프로젝트명</span>
+                            <span class="tab-project-value" id="tabProjectNameAttributes">-</span>
+                        </div>
                         <div class="tab-description">
                             <i class="fas fa-info-circle"></i>
                             프로젝트 속성을 관리합니다. 속성명은 중복 등록할 수 없습니다.
@@ -404,6 +408,10 @@
                     <!-- 변경이력 탭 (3.1 수정 반영) -->
                     <!-- ============================================ -->
                     <div id="tab-history" class="tab-pane">
+                        <div class="tab-project-name">
+                            <span class="tab-project-label">프로젝트명</span>
+                            <span class="tab-project-value" id="tabProjectNameHistory">-</span>
+                        </div>
                         <div class="tab-description">
                             <i class="fas fa-info-circle"></i>
                             프로젝트 진행 이력을 관리합니다. 신규 등록시 기본 단계는 "1 영업중(S01)", 수정시에는 현재 진행단계가 기본값으로 설정됩니다.
@@ -1162,6 +1170,394 @@
     </div>
 
     <!-- ===================================
+         사용자 관리 - 목록 페이지
+         =================================== -->
+    <div id="page-users" class="page-content">
+        <main class="app-main">
+            <!-- 통계 패널 -->
+            <div class="stats-panel">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="userStatTotal">0</div>
+                        <div class="stat-label">전체 사용자</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                        <i class="fas fa-user-check"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="userStatActive">0</div>
+                        <div class="stat-label">활성 사용자</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                        <i class="fas fa-user-slash"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="userStatInactive">0</div>
+                        <div class="stat-label">비활성 사용자</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        <i class="fas fa-filter"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="userStatFiltered">0</div>
+                        <div class="stat-label">필터링 결과</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 필터 패널 -->
+            <div class="filter-panel">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label><i class="fas fa-search"></i> 검색 구분</label>
+                        <select id="userSearchField" class="form-select">
+                            <option value="">전체</option>
+                            <option value="login_id">로그인 ID</option>
+                            <option value="user_name">사용자명</option>
+                            <option value="email">이메일</option>
+                            <option value="phone">연락처</option>
+                            <option value="department">부서</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group" style="flex: 2;">
+                        <label><i class="fas fa-keyboard"></i> 검색어</label>
+                        <input
+                            type="text"
+                            id="userSearchText"
+                            class="form-input"
+                            placeholder="검색어를 입력하세요"
+                        />
+                    </div>
+
+                    <div class="filter-group" style="flex: 0 0 auto;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-secondary" onclick="applyUserFilters()">
+                            <i class="fas fa-search"></i> 검색
+                        </button>
+                    </div>
+
+                    <div class="filter-group">
+                        <label><i class="fas fa-toggle-on"></i> 계정 상태</label>
+                        <select id="userStatusFilter" class="form-select">
+                            <option value="ACTIVE">ACTIVE</option>
+                            <option value="INACTIVE">INACTIVE</option>
+                            <option value="LOCK">LOCK</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="filter-actions">
+                    <button class="btn btn-primary" id="btnNewUser" type="button" title="새 사용자 추가" onclick="openUserForm('new')">
+                        <i class="fas fa-plus-circle"></i> 신규
+                    </button>
+                    <button class="btn btn-info" onclick="resetUserFilters()">
+                        <i class="fas fa-sync-alt"></i> 새로고침
+                    </button>
+                    <button class="btn btn-success" onclick="exportUsersToExcel()">
+                        <i class="fas fa-file-excel"></i> 엑셀
+                    </button>
+                    <button class="btn btn-warning" onclick="bulkResetPasswords()">
+                        <i class="fas fa-key"></i> password 일괄 Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- 테이블 패널 -->
+            <div class="table-panel">
+                <div id="usersTable"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         사용자 관리 - 등록/수정 페이지
+         =================================== -->
+    <div id="page-users-form" class="page-content">
+        <div class="form-container user-form-container">
+            <div class="form-header">
+                <div class="form-title">
+                    <i class="fas fa-users-cog"></i>
+                    <h2 id="userFormTitleText">신규 사용자 등록</h2>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" type="button" onclick="saveUserForm()">
+                        <i class="fas fa-save"></i> 저장
+                    </button>
+                    <button class="btn btn-outline-secondary" type="button" onclick="navigateToUserList()">
+                        <i class="fas fa-list"></i> 목록
+                    </button>
+                    <button class="btn btn-danger" type="button" id="btnDeleteUser" onclick="deleteUser()" style="display: none;">
+                        <i class="fas fa-trash"></i> 삭제
+                    </button>
+                    <button class="btn btn-close-icon" type="button" onclick="navigateToUserList()" title="닫기">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <form id="userForm" class="tab-content user-form" onsubmit="event.preventDefault(); saveUserForm();">
+                <input type="hidden" id="userNo">
+                <input type="hidden" id="userMode" value="new">
+
+                <!-- 기본 정보 -->
+                <div class="form-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-id-card"></i>
+                        기본 정보
+                    </h2>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userNoView">사용자번호</label>
+                            <input type="text" id="userNoView" class="form-input" readonly placeholder="자동 채번">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="loginId" class="required">로그인 ID</label>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <input type="text" id="loginId" class="form-input" required placeholder="login_id 입력">
+                                <button type="button" class="btn btn-outline-secondary" id="btnEnableLoginIdEdit" onclick="enableLoginIdEdit()" style="white-space: nowrap; display: none;">
+                                    ID 수정
+                                </button>
+                            </div>
+                            <span class="form-hint">신규 등록 후 일반적으로 수정 불가</span>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userName" class="required">사용자명</label>
+                            <input type="text" id="userName" class="form-input" required placeholder="사용자명을 입력하세요">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="role" class="required">권한</label>
+                            <select id="role" class="form-select" required>
+                                <option value="">선택하세요</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="isSalesRep">영업담당 여부</label>
+                            <div class="form-switch-group">
+                                <label class="form-switch">
+                                    <input type="checkbox" id="isSalesRep" class="form-switch-input">
+                                    <span class="form-switch-slider"></span>
+                                </label>
+                                <span class="form-switch-label">담당</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 연락처/소속 -->
+                <div class="form-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-building"></i>
+                        소속/연락처
+                    </h2>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="email">이메일</label>
+                            <input type="email" id="email" class="form-input" placeholder="example@company.com">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="phone">연락처</label>
+                            <input type="text" id="phone" class="form-input" placeholder="010-0000-0000">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="headquarters">본부</label>
+                            <input type="text" id="headquarters" class="form-input" placeholder="본부명">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="department">부서</label>
+                            <input type="text" id="department" class="form-input" placeholder="부서명">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="team">팀</label>
+                            <input type="text" id="team" class="form-input" placeholder="팀명">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 계정 정보 -->
+                <div class="form-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-user-shield"></i>
+                        계정 정보
+                    </h2>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="startDate" class="required">시작일</label>
+                            <input type="date" id="startDate" class="form-input" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="endDate" class="required">종료일</label>
+                            <input type="date" id="endDate" class="form-input" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="status" class="required">상태</label>
+                            <select id="status" class="form-select" required>
+                                <option value="ACTIVE">ACTIVE</option>
+                                <option value="INACTIVE">INACTIVE</option>
+                                <option value="LOCK">LOCK</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 시스템 정보 -->
+                <div class="form-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-info-circle"></i>
+                        시스템 정보 (조회용)
+                    </h2>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="createdAt">생성일시</label>
+                            <input type="text" id="createdAt" class="form-input" readonly>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="updatedAt">수정일시</label>
+                            <input type="text" id="updatedAt" class="form-input" readonly>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="createdBy">생성자</label>
+                            <input type="text" id="createdBy" class="form-input" readonly>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="updatedBy">수정자</label>
+                            <input type="text" id="updatedBy" class="form-input" readonly>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary btn-lg" onclick="navigateToUserList()">
+                        <i class="fas fa-list"></i>
+                        목록으로
+                    </button>
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="fas fa-save"></i>
+                        저장
+                    </button>
+                    <button type="button" class="btn btn-danger btn-lg" id="btnDeleteUserBottom" onclick="deleteUser()" style="display: none;">
+                        <i class="fas fa-trash"></i>
+                        삭제
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ===================================
+         공통코드 관리 페이지
+         =================================== -->
+    <div id="page-common-codes" class="page-content">
+        <main class="app-main">
+            <div class="common-code-layout">
+                <section class="common-code-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-sitemap"></i> 대분류코드</h3>
+                        <div class="panel-actions">
+                            <button class="btn btn-primary" id="btnGroupNew" type="button">
+                                <i class="fas fa-plus-circle"></i> 신규
+                            </button>
+                            <button class="btn btn-danger" id="btnGroupDelete" type="button">
+                                <i class="fas fa-trash"></i> 삭제
+                            </button>
+                            <button class="btn btn-success" id="btnGroupSave" type="button">
+                                <i class="fas fa-save"></i> 저장
+                            </button>
+                            <button class="btn btn-info" id="btnGroupRefresh" type="button">
+                                <i class="fas fa-sync-alt"></i> 새로고침
+                            </button>
+                            <button class="btn btn-success" id="btnGroupExcel" type="button">
+                                <i class="fas fa-file-excel"></i> 엑셀
+                            </button>
+                            <button class="btn btn-secondary" id="btnGroupUpload" type="button">
+                                <i class="fas fa-file-upload"></i> 업로드
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-panel">
+                        <div id="codeGroupTable"></div>
+                    </div>
+                    <input type="file" id="groupExcelInput" accept=".xlsx,.xls" style="display:none;">
+                </section>
+
+                <section class="common-code-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3><i class="fas fa-list"></i> 상세코드</h3>
+                            <div class="panel-subtitle" id="selectedGroupLabel">대분류를 선택하세요</div>
+                        </div>
+                        <div class="panel-actions">
+                            <button class="btn btn-primary" id="btnDetailNew" type="button">
+                                <i class="fas fa-plus-circle"></i> 신규
+                            </button>
+                            <button class="btn btn-danger" id="btnDetailDelete" type="button">
+                                <i class="fas fa-trash"></i> 삭제
+                            </button>
+                            <button class="btn btn-success" id="btnDetailSave" type="button">
+                                <i class="fas fa-save"></i> 저장
+                            </button>
+                            <button class="btn btn-info" id="btnDetailRefresh" type="button">
+                                <i class="fas fa-sync-alt"></i> 새로고침
+                            </button>
+                            <button class="btn btn-success" id="btnDetailExcel" type="button">
+                                <i class="fas fa-file-excel"></i> 엑셀
+                            </button>
+                            <button class="btn btn-secondary" id="btnDetailUpload" type="button">
+                                <i class="fas fa-file-upload"></i> 업로드
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-panel">
+                        <div id="codeDetailTable"></div>
+                    </div>
+                    <input type="file" id="detailExcelInput" accept=".xlsx,.xls" style="display:none;">
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
          내정보 페이지
          =================================== -->
     <div id="page-my-info" class="page-content">
@@ -1413,6 +1809,7 @@
                                 font-family: inherit; 
                                 font-size: 0.875rem; 
                                 line-height: 1.5;
+                                text-align: left;
                                 resize: vertical;
                                 transition: border-color 0.2s, box-shadow 0.2s;
                             "
@@ -1437,18 +1834,58 @@
         </div>
     </div>
 
+    <div id="attributeCodeModal" class="modal" style="display: none;">
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h3><i class="fas fa-tags"></i> 속성코드 추가</h3>
+                <button class="modal-close" onclick="closeAttributeCodeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label><i class="fas fa-code"></i> 코드<span class="required">*</span></label>
+                    <input type="text" id="attr_code_input" class="form-input" placeholder="예: ATTR01">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-font"></i> 코드명<span class="required">*</span></label>
+                    <input type="text" id="attr_name_input" class="form-input" placeholder="예: 기술유형">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-sort-numeric-up"></i> 정렬순서</label>
+                    <input type="number" id="attr_sort_input" class="form-input" value="0" min="0">
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-toggle-on"></i> 사용여부</label>
+                    <select id="attr_use_input" class="form-select">
+                        <option value="Y">사용</option>
+                        <option value="N">미사용</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAttributeCodeModal()">취소</button>
+                <button type="button" class="btn btn-primary" onclick="saveAttributeCode()">등록</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts 순서 중요 -->
     <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
-    <script src="/static/js/config.js?v=2.5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="/static/js/config.js?v=3.1"></script>
     <script src="/static/js/auth.js?v=2.5"></script>
     <script src="/static/js/utils.js?v=2.5"></script>
-    <script src="/static/js/navigation.js?v=3.0"></script>  <!-- ⭐ 버전 업 (openClientForm 추가됨) -->
+    <script src="/static/js/navigation.js?v=4.0"></script>  <!-- ⭐ 버전 업 (openClientForm 추가됨) -->
     <script src="/static/js/stage-icons.js"></script>
-    <script src="/static/js/project-form.js?v=2.5"></script>
-    <script src="/static/js/clients-list.js?v=3.0"></script>  <!-- ⭐ 버전 추가 -->
+    <script src="/static/js/project-form.js?v=3.6"></script>
+    <script src="/static/js/clients-list.js?v=3.5"></script>  <!-- ⭐ 버전 추가 -->
     <script src="/static/js/clients-form.js?v=3.0"></script>  <!-- ⭐ 신규 추가 -->
+    <script src="/static/js/users-list.js?v=2.1"></script>
+    <script src="/static/js/users-form.js?v=1.3"></script>
+    <script src="/static/js/common-codes.js?v=1.5"></script>
     <script src="/static/js/my-info.js?v=1.0"></script>
-    <script src="/static/js/app.js?v=2.5"></script>
+    <script src="/static/js/app.js?v=3.0"></script>
     <script src="/static/js/mobile.js?v=2.5"></script>
     <script src="/static/js/markdown-formatter.js"></script>
 

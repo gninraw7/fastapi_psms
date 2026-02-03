@@ -184,8 +184,13 @@ function initializeTable() {
         console.error('❌ projectTable 요소를 찾을 수 없음');
         return;
     }
+
+    const commonOptions = window.TABULATOR_COMMON_OPTIONS || {};
     
     projectTable = new Tabulator("#projectTable", {
+        ...commonOptions,
+        sortMode: "remote",
+        ajaxSorting: true,
         height: "600px",
         layout: "fitDataStretch",
         pagination: true,
@@ -193,7 +198,10 @@ function initializeTable() {
         paginationSize: 25,
         paginationSizeSelector: [25, 50, 100, 200],
         placeholder: "데이터가 없습니다",
-        
+        columnDefaults: {
+            ...(commonOptions.columnDefaults || {}),
+            headerHozAlign: "center"
+        },
         selectable: 1,
         selectableRangeMode: "click",
         
@@ -219,6 +227,11 @@ function initializeTable() {
             }
             if (currentFilters.current_stage) {
                 queryParams.current_stage = currentFilters.current_stage;
+            }
+            const sorters = params.sorters || params.sort || params.sorter || [];
+            if (sorters.length > 0) {
+                queryParams.sort_field = sorters[0].field;
+                queryParams.sort_dir = sorters[0].dir;
             }
             
             const query = new URLSearchParams(queryParams);
@@ -255,7 +268,6 @@ function initializeTable() {
                 field: "pipeline_id",
                 width: 120,
                 frozen: true,
-                headerSort: false,
                 formatter: function(cell) {
                     const val = cell.getValue();
                     return '<span class="cell-pipeline-id" onclick="openProjectDetail(\'' + val + '\')">' + val + '</span>';
@@ -265,14 +277,12 @@ function initializeTable() {
                 title: "분야",
                 field: "field_name",
                 width: 100,
-                headerSort: false,
                 hozAlign: "center"
             },
             {
                 title: "프로젝트명",
                 field: "project_name",
                 minWidth: 300,
-                headerSort: false,
                 formatter: function(cell) {
                     return Utils.truncate(cell.getValue(), 50);
                 }
@@ -281,20 +291,19 @@ function initializeTable() {
                 title: "고객사",
                 field: "customer_name",
                 width: 150,
-                headerSort: false
+                headerSort: true
             },
             {
                 title: "발주처",
                 field: "ordering_party_name",
                 width: 150,
-                headerSort: false
+                headerSort: true
             },
             {
                 title: "진행단계",
                 field: "current_stage",
                 width: 160,  // ⭐ 너비 증가 (아이콘 + 배지 공간)
                 hozAlign: "center",
-                headerSort: false,
                 formatter: function(cell) {
                     const stageCode = cell.getValue();
                     
@@ -325,17 +334,37 @@ function initializeTable() {
                 field: "manager_name",
                 width: 100,
                 hozAlign: "center",
-                headerSort: false
+                headerSort: true
             },
             {
                 title: "견적금액",
                 field: "quoted_amount",
                 width: 130,
                 hozAlign: "right",
-                headerSort: false,
                 formatter: function(cell) {
                     const val = cell.getValue();
                     return val ? Utils.formatNumber(val) + ' 원' : '-';
+                }
+            },
+            {
+                title: "최종기준일",
+                field: "latest_base_date",
+                width: 110,
+                hozAlign: "center",
+                headerSort: true,
+                formatter: function(cell) {
+                    return Utils.formatDate(cell.getValue());
+                }
+            },
+            {
+                title: "이력건수",
+                field: "history_count",
+                width: 90,
+                hozAlign: "right",
+                headerSort: true,
+                formatter: function(cell) {
+                    const val = cell.getValue();
+                    return (val === null || val === undefined) ? '-' : Utils.formatNumber(val);
                 }
             },
             {
@@ -343,7 +372,6 @@ function initializeTable() {
                 field: "created_at",
                 width: 110,
                 hozAlign: "center",
-                headerSort: false,
                 formatter: function(cell) {
                     return Utils.formatDate(cell.getValue());
                 }

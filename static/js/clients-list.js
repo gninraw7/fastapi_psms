@@ -61,8 +61,13 @@ function initializeClientsTable() {
         console.error('❌ clientsTable 요소를 찾을 수 없음');
         return;
     }
+
+    const commonOptions = window.TABULATOR_COMMON_OPTIONS || {};
     
     clientsTable = new Tabulator("#clientsTable", {
+        ...commonOptions,
+        sortMode: "remote",
+        ajaxSorting: true,
         height: "600px",
         layout: "fitDataStretch",
         pagination: true,
@@ -72,6 +77,7 @@ function initializeClientsTable() {
         placeholder: "데이터가 없습니다",
 
         columnDefaults: {
+            ...(commonOptions.columnDefaults || {}),
             headerHozAlign: "center"
         },
         
@@ -103,6 +109,11 @@ function initializeClientsTable() {
             }
             if (currentClientFilters.is_active !== '') {
                 queryParams.is_active = currentClientFilters.is_active;
+            }
+            const sorters = params.sorters || params.sort || params.sorter || [];
+            if (sorters.length > 0) {
+                queryParams.sort_field = sorters[0].field;
+                queryParams.sort_dir = sorters[0].dir;
             }
             
             const query = new URLSearchParams(queryParams);
@@ -139,7 +150,6 @@ function initializeClientsTable() {
                 field: "client_id",
                 width: 100,
                 frozen: true,
-                headerSort: false,
                 hozAlign: "center",
                 formatter: function(cell) {
                     return `<strong>${cell.getValue()}</strong>`;
@@ -149,7 +159,6 @@ function initializeClientsTable() {
                 title: "거래처명",
                 field: "client_name",
                 width: 250,
-                headerSort: false,
                 formatter: function(cell) {
                     const clientName = cell.getValue() || '';
                     const isActive = cell.getRow().getData().is_active;
@@ -171,7 +180,6 @@ function initializeClientsTable() {
                 title: "사업자번호",
                 field: "business_number",
                 width: 140,
-                headerSort: false,
                 hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();
@@ -182,14 +190,12 @@ function initializeClientsTable() {
                 title: "대표자",
                 field: "ceo_name",
                 width: 120,
-                headerSort: false,
                 hozAlign: "center"
             },
             {
                 title: "업종",
                 field: "industry_type",
                 width: 150,
-                headerSort: false,
                 hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();
@@ -222,7 +228,6 @@ function initializeClientsTable() {
                 title: "전화번호",
                 field: "phone",
                 width: 140,
-                headerSort: false,
                 hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();
@@ -233,7 +238,6 @@ function initializeClientsTable() {
                 title: "이메일",
                 field: "email",
                 width: 200,
-                headerSort: false,
                 hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();
@@ -244,7 +248,6 @@ function initializeClientsTable() {
                 title: "직원 수",
                 field: "employee_count",
                 width: 100,
-                headerSort: false,
                 hozAlign: "right",
                 formatter: function(cell) {
                     const value = cell.getValue();
@@ -255,7 +258,6 @@ function initializeClientsTable() {
                 title: "설립일",
                 field: "established_date",
                 width: 120,
-                headerSort: false,
                 hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();
@@ -266,7 +268,6 @@ function initializeClientsTable() {
                 title: "등록일",
                 field: "created_at",
                 width: 120,
-                headerSort: false,
                 hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();
@@ -277,7 +278,6 @@ function initializeClientsTable() {
                 title: "수정일",
                 field: "updated_at",
                 width: 120,
-                headerSort: false,
                 hozAlign: "center",
                 formatter: function(cell) {
                     const value = cell.getValue();

@@ -65,6 +65,12 @@ const PAGE_INFO = {
         path: ['관리자', '사용자 관리'],
         theme: 'breadcrumb-admin'
     },
+    'users-form': {
+        title: '사용자 등록',
+        icon: 'fas fa-users-cog',
+        path: ['관리자', '사용자 등록'],
+        theme: 'breadcrumb-admin'
+    },
     'common-codes': {
         title: '공통코드 관리',
         icon: 'fas fa-code',
@@ -179,11 +185,86 @@ function navigateTo(pageId) {
                 initializeMyInfoPage();
             }
         }
+        else if (pageId === 'users') {
+            ensureUsersListReady();
+        }
+        else if (pageId === 'common-codes') {
+            ensureCommonCodesReady();
+        }
         
         console.log('✅ 페이지 전환 완료:', pageId);
     } else {
         console.error('❌ 페이지를 찾을 수 없음:', pageId);
     }
+}
+
+/**
+ * 공통코드 관리 스크립트 로드 보장
+ */
+function ensureCommonCodesReady() {
+    if (typeof window.bootstrapCommonCodes === 'function') {
+        window.bootstrapCommonCodes();
+        return;
+    }
+
+    const existing = document.querySelector('script[data-common-codes]');
+    if (existing) {
+        existing.addEventListener('load', () => {
+            if (typeof window.bootstrapCommonCodes === 'function') {
+                window.bootstrapCommonCodes();
+            }
+        }, { once: true });
+        return;
+    }
+
+    const script = document.createElement('script');
+    script.src = '/static/js/common-codes.js?v=1.5';
+    script.dataset.commonCodes = '1';
+    script.onload = () => {
+        if (typeof window.bootstrapCommonCodes === 'function') {
+            window.bootstrapCommonCodes();
+        }
+    };
+    document.body.appendChild(script);
+}
+
+/**
+ * 사용자 목록 스크립트 로드 보장
+ */
+function ensureUsersListReady() {
+    if (typeof window.bootstrapUsersList === 'function') {
+        window.bootstrapUsersList();
+        if (typeof window.refreshUsersList === 'function') {
+            window.refreshUsersList();
+        }
+        return;
+    }
+
+    const existing = document.querySelector('script[data-users-list]');
+    if (existing) {
+        existing.addEventListener('load', () => {
+            if (typeof window.bootstrapUsersList === 'function') {
+                window.bootstrapUsersList();
+                if (typeof window.refreshUsersList === 'function') {
+                    window.refreshUsersList();
+                }
+            }
+        }, { once: true });
+        return;
+    }
+
+    const script = document.createElement('script');
+    script.src = '/static/js/users-list.js?v=1.6';
+    script.dataset.usersList = 'true';
+    script.onload = () => {
+        if (typeof window.bootstrapUsersList === 'function') {
+            window.bootstrapUsersList();
+            if (typeof window.refreshUsersList === 'function') {
+                window.refreshUsersList();
+            }
+        }
+    };
+    document.head.appendChild(script);
 }
 
 /**
@@ -270,7 +351,19 @@ function initializePage(pageId) {
             
         case 'users':
             console.log('👥 사용자 관리 초기화');
-            // TODO: 사용자 관리 초기화 로직
+            if (typeof bootstrapUsersList === 'function') {
+                bootstrapUsersList();
+            }
+            if (typeof refreshUsersList === 'function') {
+                refreshUsersList();
+            }
+            break;
+            
+        case 'users-form':
+            console.log('👥 사용자 폼 초기화');
+            if (typeof initializeUserFormPage === 'function') {
+                initializeUserFormPage();
+            }
             break;
 
         case 'my-info':
@@ -377,6 +470,19 @@ function openProjectForm(mode = 'new', pipelineId = null) {
 }
 
 /**
+ * 홈(프로젝트 목록)으로 이동
+ */
+function goHome() {
+    const url = `${window.location.pathname}?page=projects-list`;
+    if (history.pushState) {
+        history.pushState({page: 'projects-list'}, '', url);
+    }
+    navigateTo('projects-list');
+}
+
+window.goHome = goHome;
+
+/**
  * ⭐ 거래처 폼 열기 (기존 유지 + Breadcrumb 추가)
  * @param {string} mode - 'new' 또는 'edit'
  * @param {number} clientId - 편집 모드일 때 거래처 ID
@@ -437,6 +543,55 @@ function openClientForm(mode = 'new', clientId = null) {
         console.error('❌ page-clients-form 요소를 찾을 수 없습니다!');
     }
 }
+
+/**
+ * 사용자 폼 열기
+ * @param {string} mode - 'new' 또는 'edit'
+ * @param {number} userNo - 편집 모드일 때 사용자 번호
+ */
+function openUserForm(mode = 'new', userNo = null) {
+    console.log('👥 사용자 폼 열기:', mode, userNo);
+    
+    let url = `${window.location.pathname}?page=users-form&mode=${mode}`;
+    if (userNo) {
+        url += `&user_no=${userNo}`;
+    }
+    
+    if (history.pushState) {
+        history.pushState({page: 'users-form', mode, userNo}, '', url);
+    }
+    
+    document.querySelectorAll('.page-content').forEach(page => {
+        page.classList.remove('active');
+        page.style.display = 'none';
+    });
+    
+    const targetPage = document.getElementById('page-users-form');
+    if (targetPage) {
+        targetPage.classList.add('active');
+        targetPage.style.display = 'block';
+        targetPage.style.visibility = 'visible';
+        targetPage.style.opacity = '1';
+        
+        updateBreadcrumb('users-form');
+        
+        setTimeout(() => {
+            const breadcrumbTitle = document.querySelector('.breadcrumb-title');
+            if (breadcrumbTitle) {
+                breadcrumbTitle.textContent = mode === 'edit' ? '사용자 수정' : '사용자 등록';
+            }
+        }, 10);
+        
+        if (typeof initializeUserFormPage === 'function') {
+            initializeUserFormPage(mode, userNo);
+        }
+    } else {
+        console.error('❌ page-users-form 요소를 찾을 수 없습니다!');
+    }
+}
+
+// 외부 스크립트에서 호출 가능하도록 노출
+window.openUserForm = openUserForm;
 
 /**
  * ⭐ 거래처 목록으로 이동 (기존 유지)

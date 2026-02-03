@@ -25,6 +25,12 @@ const API_CONFIG = {
         CLIENTS_LIST: '/clients/list',
         CLIENTS_SEARCH: '/clients/search',
         CLIENTS_SEARCH_SIMPLE: '/clients/search/simple',
+
+        // 사용자 관련
+        USERS_LIST: '/users/list',
+        USERS: '/users',
+        USERS_PASSWORD_RESET: '/users/password/reset',
+        USERS_CAN_CHANGE_LOGIN_ID: '/users/can-change-login-id',
         
         // 공통코드 관련 (⭐ 변경됨)
         COMBO_DATA: '/common/codes',          // 변경: /projects/combo → /common/codes
@@ -34,6 +40,26 @@ const API_CONFIG = {
     
     TIMEOUT: 30000,
     RETRY: { MAX_ATTEMPTS: 3, DELAY: 1000 }
+};
+
+// ===================================
+// Tabulator Common Options
+// ===================================
+window.TABULATOR_COMMON_OPTIONS = {
+    headerSort: true,
+    headerSortTristate: false,
+    headerSortStartingDir: "asc",
+    headerSortClickElement: "header",
+    headerSortElement: function(column, dir) {
+        if (dir === "asc") return "▲";
+        if (dir === "desc") return "▼";
+        return "";
+    },
+    sortMode: "remote",
+    ajaxSorting: true,
+    columnDefaults: {
+        headerSort: true
+    }
 };
 
 // ===================================

@@ -7,6 +7,7 @@ from app.api.v1.endpoints.clients import routes as clients_routes
 from app.api.v1.endpoints.common_codes import routes as common_routes
 from app.api.v1.endpoints.projects import routes as projects_routes
 from app.api.v1.endpoints.project_detail import routes as project_detail_routes
+from app.api.v1.endpoints.users import routes as users_routes
 
 # API v1 메인 라우터
 api_router = APIRouter()
@@ -44,4 +45,11 @@ api_router.include_router(
     project_detail_routes.router,
     prefix="/project-detail",
     tags=["project-detail"]
+)
+
+# 사용자 관리
+api_router.include_router(
+    users_routes.router,
+    prefix="/users",
+    tags=["users"]
 )

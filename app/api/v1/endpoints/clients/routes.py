@@ -68,6 +68,8 @@ async def get_clients_list(
     search_text: Optional[str] = Query(None, description="검색어"),
     industry_type: Optional[str] = Query(None, description="업종 필터"),
     is_active: Optional[bool] = Query(None, description="활성 상태 필터"),
+    sort_field: Optional[str] = Query(None, description="정렬 필드"),
+    sort_dir: Optional[str] = Query(None, description="정렬 방향 (asc/desc)"),
     db: Session = Depends(get_db)
 ):
     """
@@ -88,7 +90,11 @@ async def get_clients_list(
         dict: {items, total, page, page_size, total_pages, active_count, inactive_count, filtered_count}
     """
     try:
-        app_logger.info(f"📋 거래처 목록 조회 - page: {page}, size: {page_size}, field: {search_field}, text: {search_text}")
+        app_logger.info(
+            f"📋 거래처 목록 조회 - page: {page}, size: {page_size}, "
+            f"field: {search_field}, text: {search_text}, "
+            f"sort_field: {sort_field}, sort_dir: {sort_dir}"
+        )
         
         # 기본 쿼리
         base_query = """
@@ -187,7 +193,24 @@ async def get_clients_list(
         count_query += filter_condition
         
         # 정렬 및 페이징
-        base_query += " ORDER BY created_at DESC, client_id DESC"
+        allowed_sort_fields = {
+            "client_id": "client_id",
+            "client_name": "client_name",
+            "business_number": "business_number",
+            "ceo_name": "ceo_name",
+            "industry_type": "industry_type",
+            "phone": "phone",
+            "email": "email",
+            "employee_count": "employee_count",
+            "established_date": "established_date",
+            "created_at": "created_at",
+            "updated_at": "updated_at"
+        }
+        if sort_field in allowed_sort_fields:
+            direction = "ASC" if (sort_dir or "").lower() == "asc" else "DESC"
+            base_query += f" ORDER BY {allowed_sort_fields[sort_field]} {direction}"
+        else:
+            base_query += " ORDER BY created_at DESC, client_id DESC"
         offset = (page - 1) * page_size
         base_query += f" LIMIT {page_size} OFFSET {offset}"
         

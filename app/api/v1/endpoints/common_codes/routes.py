@@ -12,10 +12,33 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
+from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.logger import app_logger
 
 router = APIRouter()
+
+
+class CommonCodeCreateRequest(BaseModel):
+    group_code: str
+    code: str
+    code_name: str
+    sort_order: Optional[int] = 0
+    is_use: Optional[str] = "Y"
+    created_by: Optional[str] = None
+
+
+class CommonCodeBulkItem(BaseModel):
+    code: str
+    code_name: Optional[str] = None
+    sort_order: Optional[int] = 0
+    is_use: Optional[str] = "Y"
+    row_stat: Optional[str] = None
+
+
+class CommonCodeBulkRequest(BaseModel):
+    group_code: str
+    items: List[CommonCodeBulkItem]
 
 
 # ============================================
@@ -125,6 +148,31 @@ def get_users_by_condition(
     return execute_query(db, query, params)
 
 
+def check_code_in_use(db: Session, group_code: str, code: str) -> bool:
+    """
+    공통코드 사용 여부 검사 (주요 참조 테이블 기준)
+    """
+    try:
+        if group_code == "FIELD":
+            q = text("SELECT COUNT(*) AS cnt FROM projects WHERE field_code = :code")
+            return db.execute(q, {"code": code}).fetchone().cnt > 0
+        if group_code == "STAGE":
+            q1 = text("SELECT COUNT(*) AS cnt FROM projects WHERE current_stage = :code")
+            q2 = text("SELECT COUNT(*) AS cnt FROM project_history WHERE progress_stage = :code")
+            return (db.execute(q1, {"code": code}).fetchone().cnt > 0) or \
+                   (db.execute(q2, {"code": code}).fetchone().cnt > 0)
+        if group_code == "ROLE":
+            q = text("SELECT COUNT(*) AS cnt FROM users WHERE role = :code")
+            return db.execute(q, {"code": code}).fetchone().cnt > 0
+        if group_code == "PROJECT_ATTRIBUTE":
+            q = text("SELECT COUNT(*) AS cnt FROM project_attributes WHERE attr_code = :code")
+            return db.execute(q, {"code": code}).fetchone().cnt > 0
+    except Exception:
+        # 참조 테이블이 없는 환경에서도 동작하도록 사용중으로 간주하지 않음
+        return False
+    return False
+
+
 # ============================================
 # 공통코드 조회 (수정: is_use 필터 추가)
 # ============================================
@@ -162,7 +210,8 @@ async def get_common_codes(
             {
                 "code": row['code'],
                 "code_name": row['code_name'],
-                "sort_order": row['sort_order']
+                "sort_order": row['sort_order'],
+                "is_use": row['is_use']
             }
             for row in codes
         ]
@@ -181,6 +230,71 @@ async def get_common_codes(
             status_code=500,
             detail=f"공통코드 조회 중 오류 발생: {str(e)}"
         )
+
+
+# ============================================
+# 공통코드 등록 (PROJECT_ATTRIBUTE 전용)
+# ============================================
+@router.post("/codes")
+async def create_common_code(
+    request: CommonCodeCreateRequest,
+    db: Session = Depends(get_db)
+):
+    try:
+        group_code = request.group_code.strip()
+        code = request.code.strip()
+        code_name = request.code_name.strip()
+        sort_order = request.sort_order or 0
+        is_use = (request.is_use or "Y").upper()
+
+        if group_code != "PROJECT_ATTRIBUTE":
+            raise HTTPException(status_code=400, detail="PROJECT_ATTRIBUTE만 등록 가능합니다.")
+        if not code or not code_name:
+            raise HTTPException(status_code=400, detail="code와 code_name은 필수입니다.")
+        if is_use not in ("Y", "N"):
+            raise HTTPException(status_code=400, detail="is_use는 Y 또는 N만 허용됩니다.")
+
+        # 중복 체크
+        exists_query = text("""
+            SELECT COUNT(*) as cnt
+            FROM comm_code
+            WHERE group_code = :group_code AND code = :code
+        """)
+        exists = db.execute(exists_query, {"group_code": group_code, "code": code}).fetchone().cnt
+        if exists:
+            raise HTTPException(status_code=409, detail="이미 존재하는 코드입니다.")
+
+        insert_query = text("""
+            INSERT INTO comm_code (
+                group_code, code, code_name, sort_order, is_use, created_by
+            ) VALUES (
+                :group_code, :code, :code_name, :sort_order, :is_use, :created_by
+            )
+        """)
+        db.execute(insert_query, {
+            "group_code": group_code,
+            "code": code,
+            "code_name": code_name,
+            "sort_order": sort_order,
+            "is_use": is_use,
+            "created_by": request.created_by
+        })
+        db.commit()
+
+        app_logger.info(f"✅ 공통코드 등록 완료 - {group_code}:{code}")
+
+        return {
+            "message": "공통코드가 등록되었습니다.",
+            "group_code": group_code,
+            "code": code,
+            "code_name": code_name
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        app_logger.error(f"❌ 공통코드 등록 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"공통코드 등록 실패: {str(e)}")
 
 
 # ============================================
@@ -352,3 +466,86 @@ async def get_single_code(
             status_code=500,
             detail=f"공통코드 조회 중 오류 발생: {str(e)}"
         )
+
+
+# ============================================
+# 공통코드 일괄 저장
+# ============================================
+@router.post("/codes/bulk-save")
+async def bulk_save_codes(
+    request: CommonCodeBulkRequest,
+    db: Session = Depends(get_db)
+):
+    try:
+        group_code = request.group_code.strip()
+        items = request.items or []
+
+        if not group_code:
+            raise HTTPException(status_code=400, detail="group_code는 필수입니다.")
+
+        for item in items:
+            row_stat = (item.row_stat or '').upper()
+            code = (item.code or '').strip()
+            code_name = (item.code_name or '').strip()
+            sort_order = item.sort_order or 0
+            is_use = (item.is_use or 'Y').upper()
+
+            if not code:
+                continue
+
+            if row_stat == 'N':
+                insert_query = text("""
+                    INSERT INTO comm_code (group_code, code, code_name, sort_order, is_use)
+                    VALUES (:group_code, :code, :code_name, :sort_order, :is_use)
+                """)
+                db.execute(insert_query, {
+                    "group_code": group_code,
+                    "code": code,
+                    "code_name": code_name,
+                    "sort_order": sort_order,
+                    "is_use": is_use
+                })
+            elif row_stat == 'U':
+                update_query = text("""
+                    UPDATE comm_code
+                    SET code_name = :code_name,
+                        sort_order = :sort_order,
+                        is_use = :is_use
+                    WHERE group_code = :group_code AND code = :code
+                """)
+                db.execute(update_query, {
+                    "group_code": group_code,
+                    "code": code,
+                    "code_name": code_name,
+                    "sort_order": sort_order,
+                    "is_use": is_use
+                })
+            elif row_stat == 'D':
+                if group_code == "GROUP_CODE":
+                    # 그룹 삭제 시 상세코드까지 삭제 (사용중이면 차단)
+                    detail_rows = execute_query(db, """
+                        SELECT code FROM comm_code WHERE group_code = :group_code
+                    """, {"group_code": code})
+                    for d in detail_rows:
+                        if check_code_in_use(db, code, d['code']):
+                            raise HTTPException(status_code=400, detail=f"{code} 그룹 코드가 사용 중입니다.")
+
+                    db.execute(text("DELETE FROM comm_code WHERE group_code = :group_code"), {"group_code": code})
+                    db.execute(text("DELETE FROM comm_code WHERE group_code = 'GROUP_CODE' AND code = :code"), {"code": code})
+                else:
+                    if check_code_in_use(db, group_code, code):
+                        raise HTTPException(status_code=400, detail="다른 테이블에서 사용 중인 코드입니다.")
+                    db.execute(text("""
+                        DELETE FROM comm_code WHERE group_code = :group_code AND code = :code
+                    """), {"group_code": group_code, "code": code})
+
+        db.commit()
+        app_logger.info(f"✅ 공통코드 일괄 저장 완료 - group_code: {group_code}, items: {len(items)}")
+        return {"message": "저장되었습니다.", "group_code": group_code}
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        app_logger.error(f"❌ 공통코드 일괄 저장 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"공통코드 저장 실패: {str(e)}")
