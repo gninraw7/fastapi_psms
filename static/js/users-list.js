@@ -202,21 +202,9 @@ function initializeUsersTable() {
                 hozAlign: "center"
             },
             {
-                title: "본부",
-                field: "headquarters",
-                width: 140,
-                headerSort: true
-            },
-            {
-                title: "부서",
-                field: "department",
-                width: 140,
-                headerSort: true
-            },
-            {
-                title: "팀",
-                field: "team",
-                width: 120,
+                title: "조직",
+                field: "org_name",
+                width: 180,
                 headerSort: true
             },
             {

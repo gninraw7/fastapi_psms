@@ -184,21 +184,21 @@ async def get_me(
     """
     query = text("""
         SELECT 
-            user_no,
-            login_id,
-            user_name,
-            role,
-            is_sales_rep,
-            email,
-            phone,
-            headquarters,
-            department,
-            team,
-            start_date,
-            end_date,
-            status
-        FROM users
-        WHERE login_id = :login_id
+            u.user_no,
+            u.login_id,
+            u.user_name,
+            u.role,
+            u.is_sales_rep,
+            u.email,
+            u.phone,
+            u.org_id,
+            o.org_name,
+            u.start_date,
+            u.end_date,
+            u.status
+        FROM users u
+        LEFT JOIN org_units o ON o.org_id = u.org_id
+        WHERE u.login_id = :login_id
     """)
     row = db.execute(query, {"login_id": current_user["login_id"]}).fetchone()
 
@@ -216,12 +216,11 @@ async def get_me(
         is_sales_rep=bool(row[4]) if row[4] is not None else False,
         email=row[5],
         phone=row[6],
-        headquarters=row[7],
-        department=row[8],
-        team=row[9],
-        start_date=row[10],
-        end_date=row[11],
-        status=row[12]
+        org_id=row[7],
+        org_name=row[8],
+        start_date=row[9],
+        end_date=row[10],
+        status=row[11]
     )
 
 @router.put("/me", summary="내정보 수정")

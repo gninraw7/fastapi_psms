@@ -51,6 +51,7 @@ async function initializeUserFormPage(mode, userNo) {
     const enableLoginBtn = getUserFormElement('btnEnableLoginIdEdit');
 
     await loadRoleOptions();
+    await loadOrgOptions();
 
     if (currentUserMode === 'edit' && currentUserNo) {
         if (deleteBtn) deleteBtn.style.display = 'inline-block';
@@ -75,9 +76,7 @@ function initializeNewUserForm() {
     setFieldValue('userName', '');
     setFieldValue('email', '');
     setFieldValue('phone', '');
-    setFieldValue('headquarters', '');
-    setFieldValue('department', '');
-    setFieldValue('team', '');
+    setFieldValue('orgId', '');
     setFieldValue('startDate', today);
     setFieldValue('endDate', '9999-12-31');
     setFieldValue('status', 'ACTIVE');
@@ -110,6 +109,26 @@ async function loadRoleOptions() {
     }
 }
 
+async function loadOrgOptions() {
+    const orgSelect = getUserFormElement('orgId');
+    if (!orgSelect) return;
+
+    orgSelect.innerHTML = '<option value="">선택하세요</option>';
+
+    try {
+        const response = await API.get(`${API_CONFIG.ENDPOINTS.ORG_UNITS}?is_use=Y`);
+        const items = response.items || [];
+        items.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.org_id;
+            opt.textContent = item.org_name;
+            orgSelect.appendChild(opt);
+        });
+    } catch (error) {
+        console.error('❌ 조직 목록 로드 실패:', error);
+    }
+}
+
 async function loadUserData(userNo) {
     try {
         const baseEndpoint = (API_CONFIG && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.USERS)
@@ -125,9 +144,7 @@ async function loadUserData(userNo) {
         setFieldValue('role', user.role);
         setFieldValue('email', user.email);
         setFieldValue('phone', user.phone);
-        setFieldValue('headquarters', user.headquarters);
-        setFieldValue('department', user.department);
-        setFieldValue('team', user.team);
+        setFieldValue('orgId', user.org_id);
         setFieldValue('startDate', user.start_date);
         setFieldValue('endDate', user.end_date);
         setFieldValue('status', user.status);
@@ -183,9 +200,7 @@ async function saveUserForm() {
         is_sales_rep: getUserFormElement('isSalesRep')?.checked || false,
         email: getUserFormElement('email')?.value.trim() || null,
         phone: getUserFormElement('phone')?.value.trim() || null,
-        headquarters: getUserFormElement('headquarters')?.value.trim() || null,
-        department: getUserFormElement('department')?.value.trim() || null,
-        team: getUserFormElement('team')?.value.trim() || null,
+        org_id: parseInt(getUserFormElement('orgId')?.value, 10) || null,
         start_date: getUserFormElement('startDate')?.value || null,
         end_date: getUserFormElement('endDate')?.value || null,
         status: getUserFormElement('status')?.value || null

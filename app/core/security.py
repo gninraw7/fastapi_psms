@@ -134,10 +134,18 @@ async def get_current_user(
     # 데이터베이스에서 사용자 조회
     from sqlalchemy import text
     query = text("""
-        SELECT user_no, login_id, user_name, role, email, 
-               department, team, status
-        FROM users
-        WHERE login_id = :login_id AND status = 'ACTIVE'
+        SELECT 
+            u.user_no,
+            u.login_id,
+            u.user_name,
+            u.role,
+            u.email,
+            u.org_id,
+            o.org_name,
+            u.status
+        FROM users u
+        LEFT JOIN org_units o ON o.org_id = u.org_id
+        WHERE u.login_id = :login_id AND u.status = 'ACTIVE'
     """)
     
     result = db.execute(query, {"login_id": login_id}).fetchone()
@@ -151,8 +159,8 @@ async def get_current_user(
         "user_name": result[2],
         "role": result[3],
         "email": result[4],
-        "department": result[5],
-        "team": result[6],
+        "org_id": result[5],
+        "org_name": result[6],
         "status": result[7]
     }
 

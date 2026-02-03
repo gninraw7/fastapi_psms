@@ -120,13 +120,14 @@ def get_users_by_condition(
     """
     query = """
         SELECT 
-            login_id,
-            user_name,
-            email,
-            department,
-            team,
-            is_sales_rep
-        FROM users
+            u.login_id,
+            u.user_name,
+            u.email,
+            u.org_id,
+            o.org_name,
+            u.is_sales_rep
+        FROM users u
+        LEFT JOIN org_units o ON o.org_id = u.org_id
         WHERE 1=1
     """
     
@@ -337,7 +338,8 @@ async def get_managers(
                 "login_id": row['login_id'],
                 "user_name": row['user_name'],
                 "email": row['email'] or '',
-                "department": row['department'] or '',
+                "org_id": row['org_id'],
+                "org_name": row['org_name'] or '',
                 "display_name": f"{row['login_id']} ({row['user_name']})"
             }
             for row in users
@@ -408,6 +410,35 @@ async def get_code_groups(
             status_code=500,
             detail=f"코드 그룹 조회 중 오류 발생: {str(e)}"
         )
+
+
+# ============================================
+# 조직 목록 조회
+# ============================================
+@router.get("/org-units")
+async def get_org_units(
+    is_use: Optional[str] = Query('Y', description="사용여부 (Y/N, 빈값=전체)"),
+    db: Session = Depends(get_db)
+):
+    try:
+        query = """
+            SELECT org_id, org_name, org_type, parent_id, is_use
+            FROM org_units
+            WHERE 1=1
+        """
+        params = {}
+        if is_use:
+            query += " AND is_use = :is_use"
+            params["is_use"] = is_use
+        query += " ORDER BY org_name ASC"
+        rows = execute_query(db, query, params)
+        return {
+            "items": rows,
+            "total": len(rows)
+        }
+    except Exception as e:
+        app_logger.error(f"❌ 조직 목록 조회 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"조직 목록 조회 실패: {str(e)}")
 
 
 # ============================================

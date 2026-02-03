@@ -158,11 +158,12 @@ class ProjectService:
         """
         query = """
             SELECT 
-                login_id, 
-                user_name,
-                department,
-                team
-            FROM users
+                u.login_id, 
+                u.user_name,
+                u.org_id,
+                o.org_name
+            FROM users u
+            LEFT JOIN org_units o ON o.org_id = u.org_id
             WHERE is_sales_rep = 1
               AND status = 'ACTIVE'
               AND (end_date IS NULL OR end_date >= CURDATE())

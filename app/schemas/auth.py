@@ -31,9 +31,8 @@ class UserInfo(BaseModel):
     is_sales_rep: Optional[bool] = None
     email: Optional[str] = None
     phone: Optional[str] = None
-    headquarters: Optional[str] = None
-    department: Optional[str] = None
-    team: Optional[str] = None
+    org_id: Optional[int] = None
+    org_name: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     status: str
@@ -46,9 +45,6 @@ class UserProfileUpdate(BaseModel):
     user_name: Optional[str] = Field(None, min_length=1, max_length=100)
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=20)
-    headquarters: Optional[str] = Field(None, max_length=100)
-    department: Optional[str] = Field(None, max_length=100)
-    team: Optional[str] = Field(None, max_length=100)
     is_sales_rep: Optional[bool] = None
 
 class ChangePasswordRequest(BaseModel):

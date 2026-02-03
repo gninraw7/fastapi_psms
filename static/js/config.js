@@ -36,6 +36,7 @@ const API_CONFIG = {
         COMBO_DATA: '/common/codes',          // 변경: /projects/combo → /common/codes
         MANAGERS: '/common/managers',          // 변경: /projects/managers → /common/managers
         CODE_GROUPS: '/common/code-groups',    // 신규
+        ORG_UNITS: '/common/org-units',
     },
     
     TIMEOUT: 30000,

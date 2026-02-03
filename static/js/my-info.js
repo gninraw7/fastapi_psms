@@ -74,9 +74,7 @@ function applyMyInfo(userInfo) {
 
     setValue('myEmail', userInfo.email || '');
     setValue('myPhone', userInfo.phone || '');
-    setValue('myHeadquarters', userInfo.headquarters || '');
-    setValue('myDepartment', userInfo.department || '');
-    setValue('myTeam', userInfo.team || '');
+    setValue('myOrgName', userInfo.org_name || '');
     setValue('myStartDate', userInfo.start_date || '');
     setValue('myEndDate', userInfo.end_date || '');
 }
@@ -98,9 +96,6 @@ async function saveMyInfo() {
         user_name: getValue('myUserName'),
         email: getValue('myEmail') || null,
         phone: getValue('myPhone') || null,
-        headquarters: getValue('myHeadquarters') || null,
-        department: getValue('myDepartment') || null,
-        team: getValue('myTeam') || null,
         is_sales_rep: !!(document.getElementById('mySalesRep') && document.getElementById('mySalesRep').checked)
     };
 

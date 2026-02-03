@@ -65,8 +65,8 @@ class ManagerItem(BaseModel):
     """담당자 아이템"""
     login_id: str
     user_name: str
-    department: Optional[str] = None
-    team: Optional[str] = None
+    org_id: Optional[int] = None
+    org_name: Optional[str] = None
 
 class ManagerResponse(BaseModel):
     """담당자 목록 응답"""

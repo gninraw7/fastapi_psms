@@ -28,9 +28,7 @@ class UserCreateRequest(BaseModel):
     is_sales_rep: Optional[bool] = False
     email: Optional[str] = None
     phone: Optional[str] = None
-    headquarters: Optional[str] = None
-    department: Optional[str] = None
-    team: Optional[str] = None
+    org_id: Optional[int] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     status: Optional[str] = None
@@ -44,9 +42,7 @@ class UserUpdateRequest(BaseModel):
     is_sales_rep: Optional[bool] = None
     email: Optional[str] = None
     phone: Optional[str] = None
-    headquarters: Optional[str] = None
-    department: Optional[str] = None
-    team: Optional[str] = None
+    org_id: Optional[int] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     status: Optional[str] = None
@@ -110,28 +106,28 @@ async def get_users_list(
 
         base_query = """
             SELECT
-                user_no,
-                login_id,
-                user_name,
-                role,
-                is_sales_rep,
-                email,
-                phone,
-                headquarters,
-                department,
-                team,
-                start_date,
-                end_date,
-                status,
-                created_at,
-                updated_at,
-                created_by,
-                updated_by
-            FROM users
+                u.user_no,
+                u.login_id,
+                u.user_name,
+                u.role,
+                u.is_sales_rep,
+                u.email,
+                u.phone,
+                u.org_id,
+                o.org_name,
+                u.start_date,
+                u.end_date,
+                u.status,
+                u.created_at,
+                u.updated_at,
+                u.created_by,
+                u.updated_by
+            FROM users u
+            LEFT JOIN org_units o ON o.org_id = u.org_id
             WHERE 1=1
         """
 
-        count_query = "SELECT COUNT(*) as total FROM users WHERE 1=1"
+        count_query = "SELECT COUNT(*) as total FROM users u LEFT JOIN org_units o ON o.org_id = u.org_id WHERE 1=1"
 
         stats_query = """
             SELECT
@@ -157,58 +153,52 @@ async def get_users_list(
                     filter_condition += " AND email LIKE :search"
                 elif search_field == "phone":
                     filter_condition += " AND phone LIKE :search"
-                elif search_field == "department":
-                    filter_condition += " AND department LIKE :search"
+                elif search_field == "org_name":
+                    filter_condition += " AND o.org_name LIKE :search"
                 else:
                     filter_condition += """
                         AND (
-                            login_id LIKE :search
-                            OR user_name LIKE :search
-                            OR email LIKE :search
-                            OR phone LIKE :search
-                            OR headquarters LIKE :search
-                            OR department LIKE :search
-                            OR team LIKE :search
+                            u.login_id LIKE :search
+                            OR u.user_name LIKE :search
+                            OR u.email LIKE :search
+                            OR u.phone LIKE :search
+                            OR o.org_name LIKE :search
                         )
                     """
             else:
                 filter_condition += """
                     AND (
-                        login_id LIKE :search
-                        OR user_name LIKE :search
-                        OR email LIKE :search
-                        OR phone LIKE :search
-                        OR headquarters LIKE :search
-                        OR department LIKE :search
-                        OR team LIKE :search
+                        u.login_id LIKE :search
+                        OR u.user_name LIKE :search
+                        OR u.email LIKE :search
+                        OR u.phone LIKE :search
+                        OR o.org_name LIKE :search
                     )
                 """
 
         if status:
-            filter_condition += " AND status = :status"
+            filter_condition += " AND u.status = :status"
             params["status"] = status
 
         base_query += filter_condition
         count_query += filter_condition
 
         allowed_sort_fields = {
-            "user_no": "user_no",
-            "login_id": "login_id",
-            "user_name": "user_name",
-            "role": "role",
-            "is_sales_rep": "is_sales_rep",
-            "email": "email",
-            "phone": "phone",
-            "headquarters": "headquarters",
-            "department": "department",
-            "team": "team",
-            "start_date": "start_date",
-            "end_date": "end_date",
-            "status": "status",
-            "created_at": "created_at",
-            "updated_at": "updated_at",
-            "created_by": "created_by",
-            "updated_by": "updated_by"
+            "user_no": "u.user_no",
+            "login_id": "u.login_id",
+            "user_name": "u.user_name",
+            "role": "u.role",
+            "is_sales_rep": "u.is_sales_rep",
+            "email": "u.email",
+            "phone": "u.phone",
+            "org_name": "o.org_name",
+            "start_date": "u.start_date",
+            "end_date": "u.end_date",
+            "status": "u.status",
+            "created_at": "u.created_at",
+            "updated_at": "u.updated_at",
+            "created_by": "u.created_by",
+            "updated_by": "u.updated_by"
         }
         if sort_field in allowed_sort_fields:
             direction = "ASC" if (sort_dir or "").lower() == "asc" else "DESC"
@@ -259,25 +249,25 @@ async def get_user_detail(
     try:
         query = text("""
             SELECT
-                user_no,
-                login_id,
-                user_name,
-                role,
-                is_sales_rep,
-                email,
-                phone,
-                headquarters,
-                department,
-                team,
-                start_date,
-                end_date,
-                status,
-                created_at,
-                updated_at,
-                created_by,
-                updated_by
-            FROM users
-            WHERE user_no = :user_no
+                u.user_no,
+                u.login_id,
+                u.user_name,
+                u.role,
+                u.is_sales_rep,
+                u.email,
+                u.phone,
+                u.org_id,
+                o.org_name,
+                u.start_date,
+                u.end_date,
+                u.status,
+                u.created_at,
+                u.updated_at,
+                u.created_by,
+                u.updated_by
+            FROM users u
+            LEFT JOIN org_units o ON o.org_id = u.org_id
+            WHERE u.user_no = :user_no
         """)
         result = db.execute(query, {"user_no": user_no}).fetchone()
         if not result:
@@ -349,12 +339,12 @@ async def create_user(
         query = text("""
             INSERT INTO users (
                 login_id, password, user_name, role, is_sales_rep,
-                email, phone, headquarters, department, team,
+                email, phone, org_id,
                 start_date, end_date, status,
                 created_by, updated_by
             ) VALUES (
                 :login_id, :password, :user_name, :role, :is_sales_rep,
-                :email, :phone, :headquarters, :department, :team,
+                :email, :phone, :org_id,
                 :start_date, :end_date, :status,
                 :created_by, :updated_by
             )
@@ -367,9 +357,7 @@ async def create_user(
             "is_sales_rep": 1 if user_data.is_sales_rep else 0,
             "email": user_data.email,
             "phone": user_data.phone,
-            "headquarters": user_data.headquarters,
-            "department": user_data.department,
-            "team": user_data.team,
+            "org_id": user_data.org_id,
             "start_date": start_date,
             "end_date": end_date,
             "status": status,
@@ -445,12 +433,8 @@ async def update_user(
             add_field("email", user_data.email)
         if user_data.phone is not None:
             add_field("phone", user_data.phone)
-        if user_data.headquarters is not None:
-            add_field("headquarters", user_data.headquarters)
-        if user_data.department is not None:
-            add_field("department", user_data.department)
-        if user_data.team is not None:
-            add_field("team", user_data.team)
+        if user_data.org_id is not None:
+            add_field("org_id", user_data.org_id)
         if user_data.start_date is not None:
             add_field("start_date", user_data.start_date)
         if user_data.end_date is not None:
