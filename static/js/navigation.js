@@ -77,6 +77,24 @@ const PAGE_INFO = {
         path: ['관리자', '공통코드 관리'],
         theme: 'breadcrumb-admin'
     },
+    'industry-fields': {
+        title: '분야코드 관리',
+        icon: 'fas fa-tags',
+        path: ['관리자', '분야코드 관리'],
+        theme: 'breadcrumb-admin'
+    },
+    'service-codes': {
+        title: '서비스코드 관리',
+        icon: 'fas fa-layer-group',
+        path: ['관리자', '서비스코드 관리'],
+        theme: 'breadcrumb-admin'
+    },
+    'org-units': {
+        title: '조직 관리',
+        icon: 'fas fa-sitemap',
+        path: ['관리자', '조직 관리'],
+        theme: 'breadcrumb-admin'
+    },
     'my-info': {
         title: '내정보',
         icon: 'fas fa-user-cog',
@@ -191,6 +209,15 @@ function navigateTo(pageId) {
         else if (pageId === 'common-codes') {
             ensureCommonCodesReady();
         }
+        else if (pageId === 'industry-fields') {
+            ensureIndustryFieldsReady();
+        }
+        else if (pageId === 'service-codes') {
+            ensureServiceCodesReady();
+        }
+        else if (pageId === 'org-units') {
+            ensureOrgUnitsReady();
+        }
         
         console.log('✅ 페이지 전환 완료:', pageId);
     } else {
@@ -223,6 +250,81 @@ function ensureCommonCodesReady() {
     script.onload = () => {
         if (typeof window.bootstrapCommonCodes === 'function') {
             window.bootstrapCommonCodes();
+        }
+    };
+    document.body.appendChild(script);
+}
+
+function ensureIndustryFieldsReady() {
+    if (typeof window.bootstrapIndustryFields === 'function') {
+        window.bootstrapIndustryFields();
+        return;
+    }
+    const existing = document.querySelector('script[data-industry-fields]');
+    if (existing) {
+        existing.addEventListener('load', () => {
+            if (typeof window.bootstrapIndustryFields === 'function') {
+                window.bootstrapIndustryFields();
+            }
+        }, { once: true });
+        return;
+    }
+    const script = document.createElement('script');
+    script.src = '/static/js/industry-fields.js?v=1.0';
+    script.dataset.industryFields = '1';
+    script.onload = () => {
+        if (typeof window.bootstrapIndustryFields === 'function') {
+            window.bootstrapIndustryFields();
+        }
+    };
+    document.body.appendChild(script);
+}
+
+function ensureServiceCodesReady() {
+    if (typeof window.bootstrapServiceCodes === 'function') {
+        window.bootstrapServiceCodes();
+        return;
+    }
+    const existing = document.querySelector('script[data-service-codes]');
+    if (existing) {
+        existing.addEventListener('load', () => {
+            if (typeof window.bootstrapServiceCodes === 'function') {
+                window.bootstrapServiceCodes();
+            }
+        }, { once: true });
+        return;
+    }
+    const script = document.createElement('script');
+    script.src = '/static/js/service-codes.js?v=1.0';
+    script.dataset.serviceCodes = '1';
+    script.onload = () => {
+        if (typeof window.bootstrapServiceCodes === 'function') {
+            window.bootstrapServiceCodes();
+        }
+    };
+    document.body.appendChild(script);
+}
+
+function ensureOrgUnitsReady() {
+    if (typeof window.bootstrapOrgUnits === 'function') {
+        window.bootstrapOrgUnits();
+        return;
+    }
+    const existing = document.querySelector('script[data-org-units]');
+    if (existing) {
+        existing.addEventListener('load', () => {
+            if (typeof window.bootstrapOrgUnits === 'function') {
+                window.bootstrapOrgUnits();
+            }
+        }, { once: true });
+        return;
+    }
+    const script = document.createElement('script');
+    script.src = '/static/js/org-units.js?v=1.0';
+    script.dataset.orgUnits = '1';
+    script.onload = () => {
+        if (typeof window.bootstrapOrgUnits === 'function') {
+            window.bootstrapOrgUnits();
         }
     };
     document.body.appendChild(script);
@@ -378,6 +480,27 @@ function initializePage(pageId) {
         case 'common-codes':
             console.log('🔧 공통코드 관리 초기화');
             // TODO: 공통코드 관리 초기화 로직
+            break;
+
+        case 'industry-fields':
+            console.log('🏷️ 분야코드 관리 초기화');
+            if (typeof bootstrapIndustryFields === 'function') {
+                bootstrapIndustryFields();
+            }
+            break;
+
+        case 'service-codes':
+            console.log('🧩 서비스코드 관리 초기화');
+            if (typeof bootstrapServiceCodes === 'function') {
+                bootstrapServiceCodes();
+            }
+            break;
+
+        case 'org-units':
+            console.log('🏢 조직 관리 초기화');
+            if (typeof bootstrapOrgUnits === 'function') {
+                bootstrapOrgUnits();
+            }
             break;
             
         case 'settings':

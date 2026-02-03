@@ -37,6 +37,11 @@ const API_CONFIG = {
         MANAGERS: '/common/managers',          // 변경: /projects/managers → /common/managers
         CODE_GROUPS: '/common/code-groups',    // 신규
         ORG_UNITS: '/common/org-units',
+
+        // 관리자 코드 관리
+        INDUSTRY_FIELDS: '/industry-fields',
+        SERVICE_CODES: '/service-codes',
+        ORG_UNITS_ADMIN: '/org-units',
     },
     
     TIMEOUT: 30000,

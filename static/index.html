@@ -17,7 +17,7 @@
     <!-- SheetJS -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 	
-    <link rel="stylesheet" href="/static/css/styles.css?v=1.7">
+    <link rel="stylesheet" href="/static/css/styles.css?v=1.8">
     <link rel="stylesheet" href="/static/css/navigation.css">
     <link rel="stylesheet" href="/static/css/project-form.css?v=1.5">
 	<link rel="stylesheet" href="/static/css/mobile.css">
@@ -88,6 +88,9 @@
                     <ul class="dropdown-menu">
                         <li><a href="#" data-page="users"><i class="fas fa-users"></i> 사용자 관리</a></li>
                         <li><a href="#" data-page="common-codes"><i class="fas fa-code"></i> 공통코드 관리</a></li>
+                        <li><a href="#" data-page="industry-fields"><i class="fas fa-tags"></i> 분야코드 관리</a></li>
+                        <li><a href="#" data-page="service-codes"><i class="fas fa-layer-group"></i> 서비스코드 관리</a></li>
+                        <li><a href="#" data-page="org-units"><i class="fas fa-sitemap"></i> 조직 관리</a></li>
                         <li class="dropdown-divider"></li>
                         <li><a href="#" data-page="settings"><i class="fas fa-sliders-h"></i> 시스템 설정</a></li>
                     </ul>
@@ -1548,6 +1551,123 @@
     </div>
 
     <!-- ===================================
+         분야코드 관리 페이지
+         =================================== -->
+    <div id="page-industry-fields" class="page-content">
+        <main class="app-main">
+            <div class="common-code-layout single">
+                <section class="common-code-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-tags"></i> 분야코드</h3>
+                        <div class="panel-actions">
+                            <button class="btn btn-primary" id="btnIndustryNew" type="button">
+                                <i class="fas fa-plus-circle"></i> 신규
+                            </button>
+                            <button class="btn btn-danger" id="btnIndustryDelete" type="button">
+                                <i class="fas fa-trash"></i> 삭제
+                            </button>
+                            <button class="btn btn-success" id="btnIndustrySave" type="button">
+                                <i class="fas fa-save"></i> 저장
+                            </button>
+                            <button class="btn btn-info" id="btnIndustryRefresh" type="button">
+                                <i class="fas fa-sync-alt"></i> 새로고침
+                            </button>
+                            <button class="btn btn-success" id="btnIndustryExcel" type="button">
+                                <i class="fas fa-file-excel"></i> 엑셀
+                            </button>
+                            <button class="btn btn-secondary" id="btnIndustryUpload" type="button">
+                                <i class="fas fa-file-upload"></i> 업로드
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-panel">
+                        <div id="industryFieldsTable"></div>
+                    </div>
+                    <input type="file" id="industryExcelInput" accept=".xlsx,.xls" style="display:none;">
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         서비스코드 관리 페이지
+         =================================== -->
+    <div id="page-service-codes" class="page-content">
+        <main class="app-main">
+            <div class="common-code-layout single">
+                <section class="common-code-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-layer-group"></i> 서비스코드</h3>
+                        <div class="panel-actions">
+                            <button class="btn btn-primary" id="btnServiceNew" type="button">
+                                <i class="fas fa-plus-circle"></i> 신규
+                            </button>
+                            <button class="btn btn-danger" id="btnServiceDelete" type="button">
+                                <i class="fas fa-trash"></i> 삭제
+                            </button>
+                            <button class="btn btn-success" id="btnServiceSave" type="button">
+                                <i class="fas fa-save"></i> 저장
+                            </button>
+                            <button class="btn btn-info" id="btnServiceRefresh" type="button">
+                                <i class="fas fa-sync-alt"></i> 새로고침
+                            </button>
+                            <button class="btn btn-success" id="btnServiceExcel" type="button">
+                                <i class="fas fa-file-excel"></i> 엑셀
+                            </button>
+                            <button class="btn btn-secondary" id="btnServiceUpload" type="button">
+                                <i class="fas fa-file-upload"></i> 업로드
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-panel">
+                        <div id="serviceCodesTable"></div>
+                    </div>
+                    <input type="file" id="serviceExcelInput" accept=".xlsx,.xls" style="display:none;">
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         조직 관리 페이지
+         =================================== -->
+    <div id="page-org-units" class="page-content">
+        <main class="app-main">
+            <div class="common-code-layout single">
+                <section class="common-code-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-sitemap"></i> 조직 관리</h3>
+                        <div class="panel-actions">
+                            <button class="btn btn-primary" id="btnOrgNew" type="button">
+                                <i class="fas fa-plus-circle"></i> 신규
+                            </button>
+                            <button class="btn btn-danger" id="btnOrgDelete" type="button">
+                                <i class="fas fa-trash"></i> 삭제
+                            </button>
+                            <button class="btn btn-success" id="btnOrgSave" type="button">
+                                <i class="fas fa-save"></i> 저장
+                            </button>
+                            <button class="btn btn-info" id="btnOrgRefresh" type="button">
+                                <i class="fas fa-sync-alt"></i> 새로고침
+                            </button>
+                            <button class="btn btn-success" id="btnOrgExcel" type="button">
+                                <i class="fas fa-file-excel"></i> 엑셀
+                            </button>
+                            <button class="btn btn-secondary" id="btnOrgUpload" type="button">
+                                <i class="fas fa-file-upload"></i> 업로드
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-panel">
+                        <div id="orgUnitsTable"></div>
+                    </div>
+                    <input type="file" id="orgExcelInput" accept=".xlsx,.xls" style="display:none;">
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
          내정보 페이지
          =================================== -->
     <div id="page-my-info" class="page-content">
@@ -1855,10 +1975,10 @@
     <!-- Scripts 순서 중요 -->
     <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="/static/js/config.js?v=3.2"></script>
+    <script src="/static/js/config.js?v=3.3"></script>
     <script src="/static/js/auth.js?v=2.5"></script>
     <script src="/static/js/utils.js?v=2.5"></script>
-    <script src="/static/js/navigation.js?v=4.0"></script>  <!-- ⭐ 버전 업 (openClientForm 추가됨) -->
+    <script src="/static/js/navigation.js?v=4.1"></script>  <!-- ⭐ 버전 업 -->
     <script src="/static/js/stage-icons.js"></script>
     <script src="/static/js/project-form.js?v=3.6"></script>
     <script src="/static/js/clients-list.js?v=3.5"></script>  <!-- ⭐ 버전 추가 -->
@@ -1866,6 +1986,9 @@
     <script src="/static/js/users-list.js?v=2.2"></script>
     <script src="/static/js/users-form.js?v=1.4"></script>
     <script src="/static/js/common-codes.js?v=1.5"></script>
+    <script src="/static/js/industry-fields.js?v=1.0"></script>
+    <script src="/static/js/service-codes.js?v=1.0"></script>
+    <script src="/static/js/org-units.js?v=1.0"></script>
     <script src="/static/js/my-info.js?v=1.1"></script>
     <script src="/static/js/app.js?v=3.0"></script>
     <script src="/static/js/mobile.js?v=2.5"></script>

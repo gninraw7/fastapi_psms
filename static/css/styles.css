@@ -218,6 +218,12 @@ body {
     font-size: 1rem;
 }
 
+.btn-xs {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 6px;
+}
+
 .btn-primary {
     background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
     color: white;
@@ -705,6 +711,15 @@ body {
     gap: 1rem;
 }
 
+.common-code-layout.single {
+    grid-template-columns: 1fr;
+    width: 100%;
+}
+
+.common-code-layout.single .common-code-panel {
+    width: 100%;
+}
+
 .common-code-panel {
     background: white;
     border-radius: 12px;
@@ -747,6 +762,21 @@ body {
 
 .common-code-panel .table-panel {
     overflow-x: auto;
+}
+
+.status-new {
+    color: #2ecc71;
+    font-weight: 600;
+}
+
+.status-updated {
+    color: #f39c12;
+    font-weight: 600;
+}
+
+.status-deleted {
+    color: #e74c3c;
+    font-weight: 600;
 }
 
 @media (max-width: 1200px) {
