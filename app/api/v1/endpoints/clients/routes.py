@@ -99,27 +99,29 @@ async def get_clients_list(
         # 기본 쿼리
         base_query = """
             SELECT 
-                client_id,
-                client_name,
-                business_number,
-                ceo_name,
-                address,
-                phone,
-                email,
-                fax,
-                homepage,
-                industry_type,
-                employee_count,
-                established_date,
-                is_active,
-                remarks,
-                created_at,
-                updated_at
-            FROM clients
+                c.client_id,
+                c.client_name,
+                c.business_number,
+                c.ceo_name,
+                c.address,
+                c.phone,
+                c.email,
+                c.fax,
+                c.homepage,
+                c.industry_type,
+                f.field_name as industry_name,
+                c.employee_count,
+                c.established_date,
+                c.is_active,
+                c.remarks,
+                c.created_at,
+                c.updated_at
+            FROM clients c
+            LEFT JOIN industry_fields f ON f.field_code = c.industry_type
             WHERE 1=1
         """
         
-        count_query = "SELECT COUNT(*) as total FROM clients WHERE 1=1"
+        count_query = "SELECT COUNT(*) as total FROM clients c WHERE 1=1"
         
         # 통계 쿼리
         stats_query = """
@@ -142,31 +144,31 @@ async def get_clients_list(
             if search_field:
                 # 특정 필드 검색
                 if search_field == "client_name":
-                    filter_condition += " AND client_name LIKE :search"
+                    filter_condition += " AND c.client_name LIKE :search"
                 elif search_field == "business_number":
-                    filter_condition += " AND business_number LIKE :search"
+                    filter_condition += " AND c.business_number LIKE :search"
                 elif search_field == "ceo_name":
-                    filter_condition += " AND ceo_name LIKE :search"
+                    filter_condition += " AND c.ceo_name LIKE :search"
                 elif search_field == "phone":
-                    filter_condition += " AND phone LIKE :search"
+                    filter_condition += " AND c.phone LIKE :search"
                 else:
                     # 알 수 없는 필드는 전체 검색으로 처리
                     filter_condition += """
                         AND (
-                            client_name LIKE :search
-                            OR business_number LIKE :search
-                            OR ceo_name LIKE :search
-                            OR phone LIKE :search
+                            c.client_name LIKE :search
+                            OR c.business_number LIKE :search
+                            OR c.ceo_name LIKE :search
+                            OR c.phone LIKE :search
                         )
                     """
             else:
                 # ⭐ search_field가 없으면 전체 필드 검색
                 filter_condition += """
                     AND (
-                        client_name LIKE :search
-                        OR business_number LIKE :search
-                        OR ceo_name LIKE :search
-                        OR phone LIKE :search
+                        c.client_name LIKE :search
+                        OR c.business_number LIKE :search
+                        OR c.ceo_name LIKE :search
+                        OR c.phone LIKE :search
                     )
                 """
             
@@ -176,7 +178,7 @@ async def get_clients_list(
         # 업종 필터
         # ===================================
         if industry_type:
-            filter_condition += " AND industry_type = :industry_type"
+            filter_condition += " AND c.industry_type = :industry_type"
             params['industry_type'] = industry_type
         
         # ===================================
@@ -184,9 +186,9 @@ async def get_clients_list(
         # ===================================
         if is_active is not None:
             if is_active:
-                filter_condition += " AND (is_active = 1 OR is_active IS NULL)"
+                filter_condition += " AND (c.is_active = 1 OR c.is_active IS NULL)"
             else:
-                filter_condition += " AND is_active = 0"
+                filter_condition += " AND c.is_active = 0"
         
         # 쿼리 완성
         base_query += filter_condition
@@ -194,17 +196,18 @@ async def get_clients_list(
         
         # 정렬 및 페이징
         allowed_sort_fields = {
-            "client_id": "client_id",
-            "client_name": "client_name",
-            "business_number": "business_number",
-            "ceo_name": "ceo_name",
-            "industry_type": "industry_type",
-            "phone": "phone",
-            "email": "email",
-            "employee_count": "employee_count",
-            "established_date": "established_date",
-            "created_at": "created_at",
-            "updated_at": "updated_at"
+            "client_id": "c.client_id",
+            "client_name": "c.client_name",
+            "business_number": "c.business_number",
+            "ceo_name": "c.ceo_name",
+            "industry_type": "c.industry_type",
+            "industry_name": "f.field_name",
+            "phone": "c.phone",
+            "email": "c.email",
+            "employee_count": "c.employee_count",
+            "established_date": "c.established_date",
+            "created_at": "c.created_at",
+            "updated_at": "c.updated_at"
         }
         if sort_field in allowed_sort_fields:
             direction = "ASC" if (sort_dir or "").lower() == "asc" else "DESC"
@@ -236,23 +239,25 @@ async def get_clients_list(
         # ===================================
         items = []
         for row in rows:
+            data = row._mapping
             items.append({
-                'client_id': row[0],
-                'client_name': row[1] or '',
-                'business_number': row[2] or '',
-                'ceo_name': row[3] or '',
-                'address': row[4] or '',
-                'phone': row[5] or '',
-                'email': row[6] or '',
-                'fax': row[7] or '',
-                'homepage': row[8] or '',
-                'industry_type': row[9] or '',
-                'employee_count': row[10],
-                'established_date': row[11].isoformat() if row[11] else None,
-                'is_active': bool(row[12]) if row[12] is not None else True,
-                'remarks': row[13] or '',
-                'created_at': row[14].isoformat() if row[14] else None,
-                'updated_at': row[15].isoformat() if row[15] else None,
+                'client_id': data.get('client_id'),
+                'client_name': data.get('client_name') or '',
+                'business_number': data.get('business_number') or '',
+                'ceo_name': data.get('ceo_name') or '',
+                'address': data.get('address') or '',
+                'phone': data.get('phone') or '',
+                'email': data.get('email') or '',
+                'fax': data.get('fax') or '',
+                'homepage': data.get('homepage') or '',
+                'industry_type': data.get('industry_type') or '',
+                'industry_name': data.get('industry_name') or '',
+                'employee_count': data.get('employee_count'),
+                'established_date': data.get('established_date').isoformat() if data.get('established_date') else None,
+                'is_active': bool(data.get('is_active')) if data.get('is_active') is not None else True,
+                'remarks': data.get('remarks') or '',
+                'created_at': data.get('created_at').isoformat() if data.get('created_at') else None,
+                'updated_at': data.get('updated_at').isoformat() if data.get('updated_at') else None,
             })
         
         # 페이지 계산
@@ -471,12 +476,13 @@ async def get_client_detail(
         
         query = text("""
             SELECT 
-                client_id, client_name, business_number, ceo_name, address,
-                phone, email, fax, homepage, industry_type, employee_count,
-                established_date, is_active, remarks, created_at, updated_at,
-                created_by, updated_by
-            FROM clients
-            WHERE client_id = :client_id
+                c.client_id, c.client_name, c.business_number, c.ceo_name, c.address,
+                c.phone, c.email, c.fax, c.homepage, c.industry_type, f.field_name as industry_name,
+                c.employee_count, c.established_date, c.is_active, c.remarks, c.created_at, c.updated_at,
+                c.created_by, c.updated_by
+            FROM clients c
+            LEFT JOIN industry_fields f ON f.field_code = c.industry_type
+            WHERE c.client_id = :client_id
         """)
         
         result = db.execute(query, {'client_id': client_id})
@@ -496,14 +502,15 @@ async def get_client_detail(
             'fax': row[7] or '',
             'homepage': row[8] or '',
             'industry_type': row[9] or '',
-            'employee_count': row[10],
-            'established_date': row[11].isoformat() if row[11] else None,
-            'is_active': bool(row[12]) if row[12] is not None else True,
-            'remarks': row[13] or '',
-            'created_at': row[14].isoformat() if row[14] else None,
-            'updated_at': row[15].isoformat() if row[15] else None,
-            'created_by': row[16] or '',
-            'updated_by': row[17] or ''
+            'industry_name': row[10] or '',
+            'employee_count': row[11],
+            'established_date': row[12].isoformat() if row[12] else None,
+            'is_active': bool(row[13]) if row[13] is not None else True,
+            'remarks': row[14] or '',
+            'created_at': row[15].isoformat() if row[15] else None,
+            'updated_at': row[16].isoformat() if row[16] else None,
+            'created_by': row[17] or '',
+            'updated_by': row[18] or ''
         }
         
         app_logger.info(f"✅ 거래처 상세 조회 성공")

@@ -55,21 +55,28 @@ function initializeClientFormPage(mode, clientId) {
         const deleteBtn = document.getElementById('btnDeleteClient');
         const deleteBtnBottom = document.getElementById('btnDeleteClientBottom');
         
-        if (currentMode === 'edit' && currentClientId) {
-            // 수정 모드
-            if (deleteBtn) deleteBtn.style.display = 'inline-block';
-            if (deleteBtnBottom) deleteBtnBottom.style.display = 'inline-block';
-            
-            // 거래처 데이터 로드
-            loadClientData(currentClientId);
-        } else {
-            // 신규 등록 모드
-            if (deleteBtn) deleteBtn.style.display = 'none';
-            if (deleteBtnBottom) deleteBtnBottom.style.display = 'none';
-            
-            // 폼 초기화
-            initializeNewClientForm();
-        }
+        const initAfterOptions = () => {
+            if (currentMode === 'edit' && currentClientId) {
+                // 수정 모드
+                if (deleteBtn) deleteBtn.style.display = 'inline-block';
+                if (deleteBtnBottom) deleteBtnBottom.style.display = 'inline-block';
+                
+                // 거래처 데이터 로드
+                loadClientData(currentClientId);
+            } else {
+                // 신규 등록 모드
+                if (deleteBtn) deleteBtn.style.display = 'none';
+                if (deleteBtnBottom) deleteBtnBottom.style.display = 'none';
+                
+                // 폼 초기화
+                initializeNewClientForm();
+            }
+        };
+        
+        // 업종(분야) 옵션 로드 후 진행
+        loadClientIndustryOptionsForForm()
+            .catch(() => {})
+            .finally(initAfterOptions);
         
         // 자동 포맷팅 이벤트 바인딩
         setupAutoFormatting();
@@ -81,6 +88,29 @@ function initializeClientFormPage(mode, clientId) {
         
     } catch (error) {
         console.error('❌ 거래처 폼 초기화 실패:', error);
+    }
+}
+
+/**
+ * 업종(분야) 옵션 로드
+ */
+async function loadClientIndustryOptionsForForm() {
+    const select = document.getElementById('industryType');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">선택하세요</option>';
+
+    try {
+        const response = await API.get(`${API_CONFIG.ENDPOINTS.INDUSTRY_FIELDS}/list?is_use=Y`);
+        const items = response?.items || [];
+        items.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.field_code;
+            opt.textContent = item.field_name || item.field_code;
+            select.appendChild(opt);
+        });
+    } catch (error) {
+        console.warn('⚠️ 업종(분야) 목록 로드 실패:', error);
     }
 }
 

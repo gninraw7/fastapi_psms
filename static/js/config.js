@@ -42,6 +42,13 @@ const API_CONFIG = {
         INDUSTRY_FIELDS: '/industry-fields',
         SERVICE_CODES: '/service-codes',
         ORG_UNITS_ADMIN: '/org-units',
+
+        // 영업계획/실적/리포트
+        SALES_PLANS: '/sales-plans',
+        SALES_PLAN_LINES: '/sales-plans/lines',
+        SALES_ACTUALS: '/sales-actuals',
+        SALES_ACTUAL_LINES: '/sales-actuals/lines',
+        REPORTS: '/reports'
     },
     
     TIMEOUT: 30000,

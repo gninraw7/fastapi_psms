@@ -102,7 +102,7 @@ CREATE TABLE `clients` (
   `email` varchar(100) NULL COMMENT '이메일',
   `fax` varchar(20) NULL COMMENT '팩스번호',
   `homepage` varchar(200) NULL COMMENT '홈페이지 URL',
-  `industry_type` varchar(50) NULL COMMENT '업종',
+  `industry_type` varchar(20) NULL COMMENT '업종(분야) 코드',
   `employee_count` int NULL COMMENT '직원 수',
   `established_date` date NULL COMMENT '설립일자',
   `is_active` boolean DEFAULT TRUE COMMENT '활성 상태 (TRUE: 활성, FALSE: 비활성)',
@@ -115,7 +115,9 @@ CREATE TABLE `clients` (
   UNIQUE KEY `client_name` (`client_name`),
   KEY `idx_business_number` (`business_number`),
   KEY `idx_phone` (`phone`),
-  KEY `idx_is_active` (`is_active`)
+  KEY `idx_is_active` (`is_active`),
+  KEY `idx_industry_type` (`industry_type`),
+  CONSTRAINT `fk_clients_industry_type` FOREIGN KEY (`industry_type`) REFERENCES `industry_fields` (`field_code`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='고객사 및 발주처 정보 마스터';
 
 -- 7. 프로젝트 기본 (projects)

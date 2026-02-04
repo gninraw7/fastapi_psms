@@ -57,6 +57,8 @@ ALTER TABLE users
 ALTER TABLE clients ADD INDEX idx_business_number (business_number);
 ALTER TABLE clients ADD INDEX idx_phone (phone);
 ALTER TABLE clients ADD INDEX idx_is_active (is_active);
+ALTER TABLE clients MODIFY industry_type varchar(20) DEFAULT NULL COMMENT '업종(분야) 코드';
+ALTER TABLE clients ADD INDEX idx_industry_type (industry_type);
 
 ALTER TABLE projects 
   ADD COLUMN service_code varchar(20) DEFAULT NULL COMMENT '서비스 코드' AFTER field_code,
@@ -74,6 +76,33 @@ ALTER TABLE projects
 -- SELECT p.org_id FROM projects p LEFT JOIN org_units o ON p.org_id = o.org_id
 --  WHERE p.org_id IS NOT NULL AND o.org_id IS NULL GROUP BY p.org_id;
 
+-- 2-1-1. clients.industry_type 값 매핑 (문자열 → field_code)
+-- 매핑: 금융/보험→금융, 공공기관→공공, IT/소프트웨어→AICC, 제조업→제조, 교육→교육,
+--       의료/헬스케어→의료, 서비스업→문화, 유통/도소매→교통, 기타→문화
+UPDATE clients
+SET industry_type = CASE
+    WHEN industry_type = '금융/보험' THEN '금융'
+    WHEN industry_type = '공공기관' THEN '공공'
+    WHEN industry_type = 'IT/소프트웨어' THEN 'AICC'
+    WHEN industry_type = '제조업' THEN '제조'
+    WHEN industry_type = '교육' THEN '교육'
+    WHEN industry_type = '의료/헬스케어' THEN '의료'
+    WHEN industry_type = '서비스업' THEN '문화'
+    WHEN industry_type = '유통/도소매' THEN '교통'
+    WHEN industry_type = '기타' THEN '문화'
+    ELSE industry_type
+END
+WHERE industry_type IS NOT NULL AND industry_type <> '';
+
+-- 2-1-2. 매핑 누락 체크 (industry_fields에 없는 코드)
+SELECT c.industry_type, COUNT(*) AS cnt
+FROM clients c
+LEFT JOIN industry_fields f ON f.field_code = c.industry_type
+WHERE c.industry_type IS NOT NULL AND c.industry_type <> ''
+  AND f.field_code IS NULL
+GROUP BY c.industry_type
+ORDER BY cnt DESC;
+
 -- 2-2. FK 추가 (마스터 데이터 적재/정합성 확보 후 실행)
 ALTER TABLE users
   ADD CONSTRAINT fk_users_org FOREIGN KEY (org_id) REFERENCES org_units (org_id) ON DELETE SET NULL;
@@ -82,6 +111,9 @@ ALTER TABLE projects
   ADD CONSTRAINT projects_ibfk_field FOREIGN KEY (field_code) REFERENCES industry_fields (field_code) ON DELETE SET NULL,
   ADD CONSTRAINT projects_ibfk_service FOREIGN KEY (service_code) REFERENCES service_codes (service_code) ON DELETE SET NULL,
   ADD CONSTRAINT projects_ibfk_org FOREIGN KEY (org_id) REFERENCES org_units (org_id) ON DELETE SET NULL;
+
+ALTER TABLE clients
+  ADD CONSTRAINT fk_clients_industry_type FOREIGN KEY (industry_type) REFERENCES industry_fields (field_code) ON DELETE SET NULL;
 
 -- 3. 신규 테이블 생성 (계획/실적)
 CREATE TABLE `sales_plan` (

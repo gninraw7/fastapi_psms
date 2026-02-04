@@ -23,6 +23,7 @@
 	<link rel="stylesheet" href="/static/css/mobile.css">
     <link rel="stylesheet" href="/static/css/clients.css?v=1.0.0">
     <link rel="stylesheet" href="/static/css/breadcrumb.css">
+    <link rel="stylesheet" href="/static/css/sales-planning.css">
 
     <!-- ⭐ 인증 관리 스크립트 추가 -->
     <script src="/static/js/auth.js"></script>    
@@ -43,40 +44,46 @@
                 <li class="navbar-item">
                     <a href="#" class="navbar-link">
                         <i class="fas fa-chart-line"></i>
-                        영업
+                        프로젝트 관리
                     </a>
                     <ul class="dropdown-menu">
                         <li><a href="#" data-page="projects-list"><i class="fas fa-list"></i> 프로젝트 목록</a></li>
                         <li><a href="#" data-page="projects-new" data-mode="new"><i class="fas fa-plus-circle"></i> 신규 프로젝트</a></li>
                         <li><a href="#" data-page="clients-list"><i class="fas fa-building"></i> 거래처 관리</a></li>
                         <li class="dropdown-divider"></li>
-                        <li><a href="#" data-page="sales-dashboard"><i class="fas fa-tachometer-alt"></i> 영업 대시보드</a></li>
+                        <li><a href="#" data-page="sales-dashboard"><i class="fas fa-tachometer-alt"></i> 프로젝트 대시보드</a></li>
                     </ul>
                 </li>
                 
                 <li class="navbar-item">
                     <a href="#" class="navbar-link">
-                        <i class="fas fa-file-signature"></i>
-                        계약
+                        <i class="fas fa-calendar-check"></i>
+                        영업계획
                     </a>
                     <ul class="dropdown-menu">
-                        <li><a href="#" data-page="contracts-list"><i class="fas fa-list"></i> 계약 목록</a></li>
-                        <li><a href="#" data-page="contracts-new"><i class="fas fa-plus-circle"></i> 계약 등록</a></li>
-                        <li class="dropdown-divider"></li>
-                        <li><a href="#" data-page="contracts-dashboard"><i class="fas fa-chart-pie"></i> 계약 현황</a></li>
+                        <li><a href="#" data-page="sales-plan-list"><i class="fas fa-list"></i> 계획 목록</a></li>
+                        <li><a href="#" data-page="sales-plan-edit"><i class="fas fa-pen-to-square"></i> 계획 입력</a></li>
                     </ul>
                 </li>
                 
                 <li class="navbar-item">
                     <a href="#" class="navbar-link">
-                        <i class="fas fa-won-sign"></i>
-                        매출
+                        <i class="fas fa-chart-bar"></i>
+                        실적관리
                     </a>
                     <ul class="dropdown-menu">
-                        <li><a href="#" data-page="revenue-list"><i class="fas fa-list"></i> 매출 목록</a></li>
-                        <li><a href="#" data-page="revenue-new"><i class="fas fa-plus-circle"></i> 매출 등록</a></li>
-                        <li class="dropdown-divider"></li>
-                        <li><a href="#" data-page="revenue-dashboard"><i class="fas fa-chart-bar"></i> 매출 현황</a></li>
+                        <li><a href="#" data-page="sales-actual-entry"><i class="fas fa-clipboard-check"></i> 실적 등록</a></li>
+                        <li><a href="#" data-page="sales-actual-dashboard"><i class="fas fa-chart-line"></i> 실적 현황</a></li>
+                    </ul>
+                </li>
+
+                <li class="navbar-item">
+                    <a href="#" class="navbar-link">
+                        <i class="fas fa-chart-pie"></i>
+                        Report
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" data-page="report-hub"><i class="fas fa-layer-group"></i> 유형별 현황</a></li>
                     </ul>
                 </li>
                 
@@ -95,34 +102,6 @@
                         <li><a href="#" data-page="settings"><i class="fas fa-sliders-h"></i> 시스템 설정</a></li>
                     </ul>
                 </li>
-			
-				<!-- ⭐ 관리자 메뉴 다음에 Mobile 메뉴 추가 -->
-				<li class="navbar-item">
-					<a href="#" class="navbar-link">
-						<i class="fas fa-mobile-alt"></i>
-						<span>Mobile</span>
-					</a>
-					<ul class="dropdown-menu">
-						<li>
-							<a href="#" data-page="mobile-projects">
-								<i class="fas fa-list"></i>
-								프로젝트 목록
-							</a>
-						</li>
-						<li>
-							<a href="#" data-page="mobile-project-new">
-								<i class="fas fa-plus-circle"></i>
-								프로젝트 등록
-							</a>
-						</li>
-						<li>
-							<a href="#" data-page="mobile-history-new">
-								<i class="fas fa-history"></i>
-								이력 등록
-							</a>
-						</li>
-					</ul>
-				</li>
 			</ul>			
             
             <div class="navbar-user">
@@ -1191,6 +1170,744 @@
     </div>
 
     <!-- ===================================
+         프로젝트 대시보드
+         =================================== -->
+    <div id="page-sales-dashboard" class="page-content">
+        <main class="app-main">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="fas fa-tachometer-alt"></i>
+                        프로젝트 대시보드
+                    </div>
+                </div>
+                <div class="helper-text">
+                    프로젝트 진행 현황 요약은 준비 중입니다. (요청 시 KPI/파이프라인/단계별 현황을 추가 구성)
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         영업계획 - 목록 페이지
+         =================================== -->
+    <div id="page-sales-plan-list" class="page-content">
+        <main class="app-main">
+            <div class="stats-panel">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);">
+                        <i class="fas fa-folder-open"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="planStatTotal">0</div>
+                        <div class="stat-label">전체 계획</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);">
+                        <i class="fas fa-calendar"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="planStatLatest">-</div>
+                        <div class="stat-label">최신 연도</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);">
+                        <i class="fas fa-pen"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="planStatDraft">0</div>
+                        <div class="stat-label">작성중</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="planStatFinal">0</div>
+                        <div class="stat-label">확정</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-panel">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label><i class="fas fa-calendar-alt"></i> 연도</label>
+                        <select id="planYearFilter" class="form-select">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-code-branch"></i> 버전</label>
+                        <input type="text" id="planVersionFilter" class="form-input" placeholder="v1, v2...">
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-flag"></i> 상태</label>
+                        <select id="planStatusFilter" class="form-select">
+                            <option value="">전체</option>
+                            <option value="DRAFT">작성중</option>
+                            <option value="REVIEW">검토중</option>
+                            <option value="FINAL">확정</option>
+                        </select>
+                    </div>
+                    <div class="filter-group" style="flex: 2;">
+                        <label><i class="fas fa-search"></i> 검색어</label>
+                        <input type="text" id="planKeywordFilter" class="form-input" placeholder="비고/기준일 등">
+                    </div>
+                </div>
+
+                <div class="filter-actions">
+                    <button class="btn btn-primary" id="btnNewPlan">
+                        <i class="fas fa-plus-circle"></i> 신규 계획
+                    </button>
+                    <button class="btn btn-info" id="btnEditPlan">
+                        <i class="fas fa-pen-to-square"></i> 계획 편집
+                    </button>
+                    <button class="btn btn-secondary" id="btnCopyPlan">
+                        <i class="fas fa-copy"></i> 버전 복사
+                    </button>
+                    <button class="btn btn-success" id="btnRefreshPlan">
+                        <i class="fas fa-sync-alt"></i> 새로고침
+                    </button>
+                    <button class="btn btn-outline-secondary" id="btnExportPlan">
+                        <i class="fas fa-file-excel"></i> 엑셀
+                    </button>
+                </div>
+            </div>
+
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="fas fa-route"></i>
+                        워크플로우 가이드
+                    </div>
+                </div>
+                <div class="helper-text">
+                    계획 연도/버전 생성 → 계획 입력 → 검토/확정 순으로 관리합니다. 동일 연도는 버전으로 이력을 분리합니다.
+                </div>
+            </div>
+
+            <div class="table-panel">
+                <div id="salesPlanTable"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         영업계획 - 입력 페이지
+         =================================== -->
+    <div id="page-sales-plan-edit" class="page-content">
+        <main class="app-main">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="fas fa-clipboard-list"></i>
+                        계획 컨텍스트
+                    </div>
+                    <div class="panel-actions">
+                        <button class="btn btn-primary" id="btnPlanHeaderSave">
+                            <i class="fas fa-save"></i> 계획 저장
+                        </button>
+                    </div>
+                </div>
+
+                <div class="plan-context-grid">
+                    <div class="plan-meta-item">
+                        <label>계획 선택</label>
+                        <select id="salesPlanSelect" class="form-select"></select>
+                    </div>
+                    <div class="plan-meta-item">
+                        <label>연도</label>
+                        <input type="text" id="salesPlanYear" class="form-input" placeholder="2026">
+                    </div>
+                    <div class="plan-meta-item">
+                        <label>버전</label>
+                        <input type="text" id="salesPlanVersion" class="form-input" placeholder="v1">
+                    </div>
+                    <div class="plan-meta-item">
+                        <label>상태</label>
+                        <select id="salesPlanStatus" class="form-select">
+                            <option value="DRAFT">작성중</option>
+                            <option value="REVIEW">검토중</option>
+                            <option value="FINAL">확정</option>
+                        </select>
+                    </div>
+                    <div class="plan-meta-item">
+                        <label>기준일</label>
+                        <input type="date" id="salesPlanBaseDate" class="form-input">
+                    </div>
+                    <div class="plan-meta-item">
+                        <label>비고</label>
+                        <input type="text" id="salesPlanRemarks" class="form-input" placeholder="예: 본부 검토본">
+                    </div>
+                </div>
+                <div class="helper-text">
+                    계획 헤더는 연도/버전 단위로 관리합니다. 확정 상태는 수정 권한에 따라 잠금될 수 있습니다.
+                </div>
+            </div>
+
+            <div class="filter-panel">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label><i class="fas fa-sitemap"></i> 조직</label>
+                        <select id="planFilterOrg" class="form-select">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-user"></i> 담당자</label>
+                        <select id="planFilterManager" class="form-select">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-tags"></i> 분야</label>
+                        <select id="planFilterField" class="form-select">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-layer-group"></i> 서비스</label>
+                        <select id="planFilterService" class="form-select">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div class="filter-group" style="flex: 2;">
+                        <label><i class="fas fa-search"></i> 검색어</label>
+                        <input type="text" id="planFilterKeyword" class="form-input" placeholder="프로젝트명/고객사 등">
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-card">
+                <div class="plan-toolbar">
+                    <div class="toolbar-left">
+                        <span class="plan-badge" id="planConsistencyBadge">
+                            <i class="fas fa-circle-check"></i> 합계 검증 대기
+                        </span>
+                        <span class="helper-text">월별 합계는 자동 합산됩니다.</span>
+                        <div class="plan-freeze-control">
+                            <label for="planFreezeColumn"><i class="fas fa-thumbtack"></i> 고정 열</label>
+                            <select id="planFreezeColumn" class="form-select">
+                                <option value="">고정 없음</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="toolbar-right">
+                        <button class="btn btn-info" id="btnPlanImport">
+                            <i class="fas fa-download"></i> 프로젝트 불러오기
+                        </button>
+                        <button class="btn btn-outline-secondary" id="btnPlanMissing">
+                            <i class="fas fa-folder-open"></i> 미편성 프로젝트
+                        </button>
+                        <button class="btn btn-outline-secondary" id="btnPlanShowAll">
+                            <i class="fas fa-list"></i> 전체 라인 보기
+                        </button>
+                        <button class="btn btn-danger" id="btnPlanExclude">
+                            <i class="fas fa-ban"></i> 선택 제외
+                        </button>
+                        <button class="btn btn-outline-secondary" id="btnPlanColumns">
+                            <i class="fas fa-columns"></i> 컬럼 설정
+                        </button>
+                        <button class="btn btn-secondary" id="btnPlanRecalc">
+                            <i class="fas fa-calculator"></i> 합계 계산
+                        </button>
+                        <button class="btn btn-success" id="btnPlanSave">
+                            <i class="fas fa-save"></i> 라인 저장
+                        </button>
+                        <button class="btn btn-outline-secondary" id="btnPlanExport">
+                            <i class="fas fa-file-excel"></i> 엑셀
+                        </button>
+                    </div>
+                </div>
+                <div id="salesPlanLineTable"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         실적관리 - 등록 페이지
+         =================================== -->
+    <div id="page-sales-actual-entry" class="page-content">
+        <main class="app-main">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="fas fa-clipboard-check"></i>
+                        실적 컨텍스트
+                    </div>
+                    <div class="panel-actions">
+                        <button class="btn btn-primary" id="btnActualHeaderSave">
+                            <i class="fas fa-save"></i> 실적 저장
+                        </button>
+                    </div>
+                </div>
+
+                <div class="actual-context-grid">
+                    <div class="actual-meta-item">
+                        <label>연도</label>
+                        <select id="salesActualYear" class="form-select"></select>
+                    </div>
+                    <div class="actual-meta-item">
+                        <label>기준</label>
+                        <span class="actual-badge"><i class="fas fa-chart-line"></i> 수주/이익</span>
+                    </div>
+                    <div class="actual-meta-item">
+                        <label>작성 메모</label>
+                        <input type="text" id="salesActualRemarks" class="form-input" placeholder="예: 1차 결산 기준">
+                    </div>
+                </div>
+                <div class="helper-text">
+                    실적은 연도 단위로 관리하며, 월별 수주금액과 매출이익을 함께 입력합니다.
+                </div>
+            </div>
+
+            <div class="filter-panel">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label><i class="fas fa-sitemap"></i> 조직</label>
+                        <select id="actualFilterOrg" class="form-select">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-user"></i> 담당자</label>
+                        <select id="actualFilterManager" class="form-select">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-tags"></i> 분야</label>
+                        <select id="actualFilterField" class="form-select">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-layer-group"></i> 서비스</label>
+                        <select id="actualFilterService" class="form-select">
+                            <option value="">전체</option>
+                        </select>
+                    </div>
+                    <div class="filter-group" style="flex: 2;">
+                        <label><i class="fas fa-search"></i> 검색어</label>
+                        <input type="text" id="actualFilterKeyword" class="form-input" placeholder="프로젝트명/고객사 등">
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-card">
+                <div class="actual-toolbar">
+                    <div class="toolbar-left">
+                        <span class="actual-badge" id="actualConsistencyBadge">
+                            <i class="fas fa-circle-check"></i> 합계 검증 대기
+                        </span>
+                        <span class="helper-text">월별 합계는 자동 합산됩니다.</span>
+                        <div class="plan-freeze-control">
+                            <label for="actualMonthView"><i class="fas fa-table-columns"></i> 월별 표시</label>
+                            <select id="actualMonthView" class="form-select">
+                                <option value="group">그룹(1월/수주·이익)</option>
+                                <option value="flat">평면(월별/수주·이익)</option>
+                            </select>
+                        </div>
+                        <div class="plan-freeze-control">
+                            <label for="actualFreezeColumn"><i class="fas fa-thumbtack"></i> 고정 열</label>
+                            <select id="actualFreezeColumn" class="form-select">
+                                <option value="">고정 없음</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="toolbar-right">
+                        <button class="btn btn-outline-secondary" id="btnActualColumns">
+                            <i class="fas fa-columns"></i> 컬럼 설정
+                        </button>
+                        <button class="btn btn-secondary" id="btnActualRecalc">
+                            <i class="fas fa-calculator"></i> 합계 계산
+                        </button>
+                        <button class="btn btn-success" id="btnActualSave">
+                            <i class="fas fa-save"></i> 라인 저장
+                        </button>
+                        <button class="btn btn-outline-secondary" id="btnActualExport">
+                            <i class="fas fa-file-excel"></i> 엑셀
+                        </button>
+                    </div>
+                </div>
+                <div id="salesActualLineTable"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         실적관리 - 현황 페이지
+         =================================== -->
+    <div id="page-sales-actual-dashboard" class="page-content">
+        <main class="app-main">
+            <div class="stats-panel">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #4338ca 0%, #2563eb 100%);">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="actualStatOrder">0</div>
+                        <div class="stat-label">수주 합계</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="actualStatProfit">0</div>
+                        <div class="stat-label">매출이익 합계</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="actualStatYear">-</div>
+                        <div class="stat-label">선택 연도</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #64748b 0%, #475569 100%);">
+                        <i class="fas fa-layer-group"></i>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value" id="actualStatGroup">-</div>
+                        <div class="stat-label">집계 기준</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-panel">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label><i class="fas fa-calendar-alt"></i> 연도</label>
+                        <select id="actualSummaryYear" class="form-select"></select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-layer-group"></i> 집계 기준</label>
+                        <select id="actualSummaryGroup" class="form-select">
+                            <option value="org">조직</option>
+                            <option value="manager">담당자</option>
+                            <option value="field">분야</option>
+                            <option value="service">서비스</option>
+                            <option value="customer">고객사</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-coins"></i> 지표</label>
+                        <select id="actualSummaryMetric" class="form-select">
+                            <option value="order">수주금액</option>
+                            <option value="profit">매출이익</option>
+                            <option value="both">수주+이익</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="filter-actions">
+                    <button class="btn btn-primary" id="btnActualSummaryRun">
+                        <i class="fas fa-play"></i> 조회
+                    </button>
+                    <button class="btn btn-success" id="btnActualSummaryExport">
+                        <i class="fas fa-file-excel"></i> 엑셀
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-panel">
+                <div id="salesActualSummaryTable"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         Report - 유형별 현황 페이지
+         =================================== -->
+    <div id="page-report-hub" class="page-content">
+        <main class="app-main">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="fas fa-chart-pie"></i>
+                        Report Builder
+                    </div>
+                    <div class="panel-actions">
+                        <button class="btn btn-primary" id="btnReportRun">
+                            <i class="fas fa-play"></i> 조회
+                        </button>
+                        <button class="btn btn-success" id="btnReportExport">
+                            <i class="fas fa-file-excel"></i> 엑셀
+                        </button>
+                    </div>
+                </div>
+                <div class="helper-text">
+                    조회 유형과 집계 기준을 선택하면 동적으로 보고서를 생성합니다.
+                </div>
+            </div>
+
+            <div class="report-builder">
+                <div class="report-config">
+                    <h3>보고서 설정</h3>
+                    <div class="form-group">
+                        <label>데이터 소스</label>
+                        <select id="reportSource" class="form-select">
+                            <option value="plan">영업계획</option>
+                            <option value="actual">실적관리</option>
+                            <option value="gap">계획 대비 실적</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>기준 연도</label>
+                        <select id="reportYear" class="form-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>집계 기준</label>
+                        <select id="reportDimension" class="form-select">
+                            <option value="org">조직</option>
+                            <option value="manager">담당자</option>
+                            <option value="field">분야</option>
+                            <option value="service">서비스</option>
+                            <option value="customer">고객사</option>
+                            <option value="pipeline">프로젝트</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>기간 단위</label>
+                        <select id="reportPeriod" class="form-select">
+                            <option value="year">연도 합계</option>
+                            <option value="quarter">분기</option>
+                            <option value="month">월</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>지표</label>
+                        <select id="reportMetric" class="form-select">
+                            <option value="order">수주금액</option>
+                            <option value="profit">매출이익</option>
+                            <option value="both">수주+이익</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="report-result">
+                    <div class="report-filter-panel">
+                        <div class="filter-group">
+                            <label><i class="fas fa-sitemap"></i> 조직 (복수)</label>
+                            <select id="reportFilterOrg" class="form-select" multiple size="6"></select>
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-user"></i> 담당자 (복수)</label>
+                            <select id="reportFilterManager" class="form-select" multiple size="6"></select>
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-table"></i> 헤더 표시</label>
+                            <select id="reportHeaderMode" class="form-select">
+                                <option value="two" selected>2줄</option>
+                                <option value="one">1줄</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-arrows-left-right"></i> 표시 방식</label>
+                            <select id="reportViewMode" class="form-select">
+                                <option value="row" selected>세로(행)</option>
+                                <option value="pivot">가로(피벗)</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-thumbtack"></i> 고정 대상 수</label>
+                            <input type="number" id="reportFreezeTargetCount" class="form-input" min="0" value="0" placeholder="0">
+                            <div class="helper-text">0=기본, 1=첫번째 대상까지 고정</div>
+                        </div>
+                        <button class="btn btn-outline-secondary" id="btnReportFilterReset">
+                            <i class="fas fa-undo"></i> 필터 초기화
+                        </button>
+                    </div>
+                    <div class="report-title" id="reportTitle">보고서 조건을 선택하세요.</div>
+                    <div class="table-panel report-table-panel">
+                        <div id="reportTable"></div>
+                    </div>
+                    <div class="report-placeholder" id="reportPlaceholder">
+                        조회 조건을 설정하고 실행하면 결과가 표시됩니다.
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         미편성 프로젝트 모달
+         =================================== -->
+    <div id="missingProjectsModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2><i class="fas fa-folder-open"></i> 미편성 프로젝트</h2>
+                <button class="modal-close" type="button" onclick="closeMissingProjectsModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="filter-panel" style="margin-bottom: 1rem;">
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label><i class="fas fa-sitemap"></i> 조직</label>
+                            <select id="missingFilterOrg" class="form-select">
+                                <option value="">전체</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-user"></i> 담당자</label>
+                            <select id="missingFilterManager" class="form-select">
+                                <option value="">전체</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-tags"></i> 분야</label>
+                            <select id="missingFilterField" class="form-select">
+                                <option value="">전체</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-layer-group"></i> 서비스</label>
+                            <select id="missingFilterService" class="form-select">
+                                <option value="">전체</option>
+                            </select>
+                        </div>
+                        <div class="filter-group" style="flex: 2;">
+                            <label><i class="fas fa-search"></i> 검색어</label>
+                            <input type="text" id="missingFilterKeyword" class="form-input" placeholder="프로젝트명/고객사 등">
+                        </div>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn btn-primary" type="button" id="btnMissingApply">
+                            <i class="fas fa-search"></i> 적용
+                        </button>
+                        <button class="btn btn-secondary" type="button" id="btnMissingReset">
+                            <i class="fas fa-undo"></i> 초기화
+                        </button>
+                    </div>
+                </div>
+                <div class="panel-card" style="padding: 1rem; margin-bottom: 1rem;">
+                    <div class="helper-text" id="missingProjectsFilterSummary">
+                        현재 필터 조건을 적용하여 미편성 프로젝트를 조회합니다.
+                    </div>
+                </div>
+                <div id="missingProjectsTable"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" onclick="refreshMissingProjects()">
+                    <i class="fas fa-sync-alt"></i> 조회
+                </button>
+                <button class="btn btn-primary" type="button" onclick="addSelectedMissingProjects()">
+                    <i class="fas fa-plus-circle"></i> 선택 가져오기
+                </button>
+                <button class="btn btn-outline-secondary" type="button" onclick="closeMissingProjectsModal()">
+                    <i class="fas fa-times"></i> 닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================
+         계획 컬럼 설정 모달
+         =================================== -->
+    <div id="planColumnsModal" class="modal">
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2><i class="fas fa-columns"></i> 계획 컬럼 설정</h2>
+                <button class="modal-close" type="button" onclick="closePlanColumnsModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="column-group-actions">
+                    <div class="column-group">
+                        <span class="column-group-label">기본정보</span>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="togglePlanColumnGroup('base')">
+                            <i class="fas fa-toggle-on"></i> 토글
+                        </button>
+                    </div>
+                    <div class="column-group">
+                        <span class="column-group-label">월별</span>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="togglePlanColumnGroup('month')">
+                            <i class="fas fa-toggle-on"></i> 토글
+                        </button>
+                    </div>
+                </div>
+                <div class="helper-text" style="margin-bottom: 0.75rem;">
+                    컬럼 순서는 그리드 헤더를 드래그해 변경하며, 변경 사항은 자동 저장됩니다.
+                </div>
+                <div id="planColumnsList" class="column-visibility-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" onclick="setAllPlanColumns(true)">
+                    <i class="fas fa-eye"></i> 모두 표시
+                </button>
+                <button class="btn btn-secondary" type="button" onclick="setAllPlanColumns(false)">
+                    <i class="fas fa-eye-slash"></i> 모두 숨김
+                </button>
+                <button class="btn btn-outline-secondary" type="button" onclick="closePlanColumnsModal()">
+                    <i class="fas fa-times"></i> 닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================
+         실적 컬럼 설정 모달
+         =================================== -->
+    <div id="actualColumnsModal" class="modal">
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2><i class="fas fa-columns"></i> 실적 컬럼 설정</h2>
+                <button class="modal-close" type="button" onclick="closeActualColumnsModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="column-group-actions">
+                    <div class="column-group">
+                        <span class="column-group-label">기본정보</span>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="toggleActualColumnGroup('base')">
+                            <i class="fas fa-toggle-on"></i> 토글
+                        </button>
+                    </div>
+                    <div class="column-group">
+                        <span class="column-group-label">월별</span>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="toggleActualColumnGroup('month')">
+                            <i class="fas fa-toggle-on"></i> 토글
+                        </button>
+                    </div>
+                </div>
+                <div class="helper-text" style="margin-bottom: 0.75rem;">
+                    컬럼 순서는 그리드 헤더를 드래그해 변경하며, 변경 사항은 자동 저장됩니다.
+                </div>
+                <div id="actualColumnsList" class="column-visibility-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" onclick="setAllActualColumns(true)">
+                    <i class="fas fa-eye"></i> 모두 표시
+                </button>
+                <button class="btn btn-secondary" type="button" onclick="setAllActualColumns(false)">
+                    <i class="fas fa-eye-slash"></i> 모두 숨김
+                </button>
+                <button class="btn btn-outline-secondary" type="button" onclick="closeActualColumnsModal()">
+                    <i class="fas fa-times"></i> 닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================
          사용자 관리 - 목록 페이지
          =================================== -->
     <div id="page-users" class="page-content">
@@ -1993,14 +2710,17 @@
     <!-- Scripts 순서 중요 -->
     <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="/static/js/config.js?v=3.3"></script>
+    <script src="/static/js/config.js?v=3.4"></script>
     <script src="/static/js/auth.js?v=2.5"></script>
     <script src="/static/js/utils.js?v=2.5"></script>
-    <script src="/static/js/navigation.js?v=4.1"></script>  <!-- ⭐ 버전 업 -->
+    <script src="/static/js/navigation.js?v=4.3"></script>  <!-- ⭐ 버전 업 -->
     <script src="/static/js/stage-icons.js"></script>
     <script src="/static/js/project-form.js?v=3.6"></script>
     <script src="/static/js/clients-list.js?v=3.5"></script>  <!-- ⭐ 버전 추가 -->
     <script src="/static/js/clients-form.js?v=3.0"></script>  <!-- ⭐ 신규 추가 -->
+    <script src="/static/js/sales-plan.js?v=2.0"></script>
+    <script src="/static/js/sales-actual.js?v=1.3"></script>
+    <script src="/static/js/report.js?v=1.11"></script>
     <script src="/static/js/users-list.js?v=2.2"></script>
     <script src="/static/js/users-form.js?v=1.4"></script>
     <script src="/static/js/common-codes.js?v=1.5"></script>

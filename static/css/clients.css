@@ -158,6 +158,11 @@
     color: #2e7d32;
 }
 
+.badge-industry-aicc {
+    background: #ede7f6;
+    color: #5e35b1;
+}
+
 .badge-industry-it {
     background: #e3f2fd;
     color: #1565c0;
@@ -181,6 +186,31 @@
 .badge-industry-public {
     background: #fce4ec;
     color: #ad1457;
+}
+
+.badge-industry-transport {
+    background: #e0f2f1;
+    color: #00695c;
+}
+
+.badge-industry-culture {
+    background: #f3e5f5;
+    color: #6a1b9a;
+}
+
+.badge-industry-broadcast {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.badge-industry-law {
+    background: #f1f8e9;
+    color: #558b2f;
+}
+
+.badge-industry-hotel {
+    background: #fff8e1;
+    color: #f57f17;
 }
 
 .badge-industry-retail {

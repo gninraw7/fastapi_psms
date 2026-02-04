@@ -11,6 +11,9 @@ from app.api.v1.endpoints.projects import routes as projects_routes
 from app.api.v1.endpoints.project_detail import routes as project_detail_routes
 from app.api.v1.endpoints.service_codes import routes as service_codes_routes
 from app.api.v1.endpoints.users import routes as users_routes
+from app.api.v1.endpoints.sales_plans import routes as sales_plans_routes
+from app.api.v1.endpoints.sales_actuals import routes as sales_actuals_routes
+from app.api.v1.endpoints.reports import routes as reports_routes
 
 # API v1 메인 라우터
 api_router = APIRouter()
@@ -69,6 +72,27 @@ api_router.include_router(
     project_detail_routes.router,
     prefix="/project-detail",
     tags=["project-detail"]
+)
+
+# 영업계획
+api_router.include_router(
+    sales_plans_routes.router,
+    prefix="/sales-plans",
+    tags=["sales-plans"]
+)
+
+# 실적관리
+api_router.include_router(
+    sales_actuals_routes.router,
+    prefix="/sales-actuals",
+    tags=["sales-actuals"]
+)
+
+# Report
+api_router.include_router(
+    reports_routes.router,
+    prefix="/reports",
+    tags=["reports"]
 )
 
 # 사용자 관리

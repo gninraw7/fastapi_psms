@@ -61,7 +61,7 @@ async def list_service_codes(
         """
         params = {}
         if is_use:
-            query += " AND is_use = :is_use"
+            query += " AND s.is_use = :is_use"
             params["is_use"] = is_use
         query += " ORDER BY s.sort_order ASC, s.service_code ASC"
         rows = db.execute(text(query), params).fetchall()

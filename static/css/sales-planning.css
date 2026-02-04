@@ -1,0 +1,361 @@
+/* ===================================
+   Sales Planning / Actual / Report UI
+   =================================== */
+
+.panel-card {
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.panel-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.panel-title i {
+    color: var(--primary-color);
+}
+
+.panel-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.plan-context-grid,
+.actual-context-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.plan-meta-item,
+.actual-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.plan-meta-item label,
+.actual-meta-item label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.plan-badge,
+.actual-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.plan-toolbar,
+.actual-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.plan-freeze-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.plan-freeze-control label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0;
+}
+
+.column-visibility-list {
+    display: grid;
+    gap: 0.75rem;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.column-group-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+}
+
+.column-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.column-group-label {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.column-group-section {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.75rem;
+    background: #f8fafc;
+}
+
+.column-group-header {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.column-group-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0.5rem;
+}
+
+.column-visibility-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: #f9fafb;
+}
+
+.column-visibility-item.is-hidden {
+    opacity: 0.65;
+    background: #f1f5f9;
+}
+
+.column-visibility-item input {
+    width: 16px;
+    height: 16px;
+}
+
+.toolbar-left,
+.toolbar-right {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.helper-text {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.report-builder {
+    display: grid;
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+    gap: 1.5rem;
+}
+
+.report-config {
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 1.5rem;
+}
+
+.report-config h3 {
+    font-size: 1.05rem;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.report-config .form-group {
+    margin-bottom: 1rem;
+}
+
+.report-config .form-group:last-child {
+    margin-bottom: 0;
+}
+
+.report-result {
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 1.5rem;
+    min-width: 0;
+}
+
+.report-filter-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+    margin-bottom: 1rem;
+}
+
+.report-filter-panel .filter-group {
+    min-width: 220px;
+}
+
+.report-filter-panel select[multiple] {
+    min-height: 120px;
+}
+
+.report-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+}
+
+.report-header {
+    display: block;
+    padding: 0.35rem 0.5rem;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.report-header-plan {
+    background: #e6f4ea;
+    color: #2f6f3a;
+}
+
+.report-header-order {
+    background: #ffe9d6;
+    color: #9a4d17;
+}
+
+.report-header-ratio {
+    background: #fff4cc;
+    color: #8a6d1f;
+}
+
+.report-header-profit {
+    background: #e7ecff;
+    color: #3b5ea8;
+}
+
+.report-group-title {
+    display: block;
+    padding: 0.35rem 0.5rem;
+    border-radius: 10px;
+    text-align: center;
+    font-weight: 600;
+    background: #f3efe7;
+    color: #5b4b3a;
+}
+
+.report-group-title.report-group-total {
+    background: #e8f5ef;
+    color: #2f6f3a;
+}
+
+.report-group-title.report-group-target {
+    background: #f4ecfb;
+    color: #5a3f8a;
+}
+
+.report-table-panel {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.report-table-panel .tabulator {
+    min-width: 100%;
+    width: max-content;
+}
+
+.report-table-panel .tabulator-tableholder {
+    overflow-x: auto;
+}
+
+.report-table-panel .tabulator .tabulator-header {
+    background: #f8fafc;
+}
+
+.report-table-panel .tabulator .tabulator-header .tabulator-col,
+.report-table-panel .tabulator .tabulator-header .tabulator-col-group {
+    background: #f8fafc;
+}
+
+.report-table-panel .tabulator .tabulator-header .tabulator-frozen {
+    background: #ffffff;
+    z-index: 4;
+    box-shadow: 2px 0 0 rgba(15, 23, 42, 0.08);
+}
+
+.report-table-panel .tabulator .tabulator-tableholder .tabulator-row .tabulator-frozen {
+    background: #ffffff;
+    z-index: 3;
+    box-shadow: 2px 0 0 rgba(15, 23, 42, 0.06);
+}
+
+.tabulator-row.report-subtotal {
+    background: #f1f5f9;
+    font-weight: 600;
+}
+
+.tabulator-row.report-targetsubtotal {
+    background: #eef2ff;
+    font-weight: 600;
+}
+
+.tabulator-row.report-grouptotal {
+    background: #fff4d6;
+    font-weight: 600;
+}
+
+.tabulator-row.report-grandtotal {
+    background: #e2e8f0;
+    font-weight: 700;
+}
+
+.report-placeholder {
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+@media (max-width: 1024px) {
+    .report-builder {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .panel-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

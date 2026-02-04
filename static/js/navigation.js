@@ -8,56 +8,62 @@ const PAGE_INFO = {
     'projects-list': {
         title: '프로젝트 목록',
         icon: 'fas fa-list',
-        path: ['영업', '프로젝트 목록'],
+        path: ['프로젝트 관리', '프로젝트 목록'],
         theme: 'breadcrumb-projects'
     },
     'projects-new': {
         title: '신규 프로젝트',
         icon: 'fas fa-plus-circle',
-        path: ['영업', '신규 프로젝트'],
+        path: ['프로젝트 관리', '신규 프로젝트'],
         theme: 'breadcrumb-projects'
     },
     'sales-dashboard': {
-        title: '영업 현황',
+        title: '프로젝트 대시보드',
         icon: 'fas fa-chart-line',
-        path: ['영업', '영업 현황'],
+        path: ['프로젝트 관리', '프로젝트 대시보드'],
         theme: 'breadcrumb-sales'
     },
     'clients-list': {
         title: '거래처 관리',
         icon: 'fas fa-building',
-        path: ['거래처', '거래처 관리'],
+        path: ['프로젝트 관리', '거래처 관리'],
         theme: 'breadcrumb-clients'
     },
     'clients-form': {
         title: '거래처 등록',
         icon: 'fas fa-building',
-        path: ['거래처', '거래처 등록'],
+        path: ['프로젝트 관리', '거래처 등록'],
         theme: 'breadcrumb-clients'
     },
-    'contracts-list': {
-        title: '계약 목록',
-        icon: 'fas fa-file-signature',
-        path: ['계약', '계약 목록'],
-        theme: 'breadcrumb-contracts'
+    'sales-plan-list': {
+        title: '영업계획 목록',
+        icon: 'fas fa-list',
+        path: ['영업계획', '계획 목록'],
+        theme: 'breadcrumb-plan'
     },
-    'contracts-new': {
-        title: '계약 등록',
-        icon: 'fas fa-plus-circle',
-        path: ['계약', '계약 등록'],
-        theme: 'breadcrumb-contracts'
+    'sales-plan-edit': {
+        title: '영업계획 입력',
+        icon: 'fas fa-pen-to-square',
+        path: ['영업계획', '계획 입력'],
+        theme: 'breadcrumb-plan'
     },
-    'revenue-list': {
-        title: '매출 목록',
-        icon: 'fas fa-won-sign',
-        path: ['매출', '매출 목록'],
-        theme: 'breadcrumb-revenue'
+    'sales-actual-entry': {
+        title: '실적 등록',
+        icon: 'fas fa-clipboard-check',
+        path: ['실적관리', '실적 등록'],
+        theme: 'breadcrumb-actual'
     },
-    'revenue-new': {
-        title: '매출 등록',
-        icon: 'fas fa-plus-circle',
-        path: ['매출', '매출 등록'],
-        theme: 'breadcrumb-revenue'
+    'sales-actual-dashboard': {
+        title: '실적 현황',
+        icon: 'fas fa-chart-line',
+        path: ['실적관리', '실적 현황'],
+        theme: 'breadcrumb-actual'
+    },
+    'report-hub': {
+        title: 'Report',
+        icon: 'fas fa-chart-pie',
+        path: ['Report', '유형별 현황'],
+        theme: 'breadcrumb-report'
     },
     'users': {
         title: '사용자 관리',
@@ -218,6 +224,9 @@ function navigateTo(pageId) {
         else if (pageId === 'org-units') {
             ensureOrgUnitsReady();
         }
+        else if (pageId === 'report-hub') {
+            ensureReportReady();
+        }
         
         console.log('✅ 페이지 전환 완료:', pageId);
     } else {
@@ -330,6 +339,33 @@ function ensureOrgUnitsReady() {
     document.body.appendChild(script);
 }
 
+function ensureReportReady() {
+    if (typeof window.initializeReportHub === 'function') {
+        window.initializeReportHub();
+        return;
+    }
+
+    const existing = document.querySelector('script[data-report-hub]');
+    if (existing) {
+        existing.addEventListener('load', () => {
+            if (typeof window.initializeReportHub === 'function') {
+                window.initializeReportHub();
+            }
+        }, { once: true });
+        return;
+    }
+
+    const script = document.createElement('script');
+    script.src = '/static/js/report.js?v=1.11';
+    script.dataset.reportHub = '1';
+    script.onload = () => {
+        if (typeof window.initializeReportHub === 'function') {
+            window.initializeReportHub();
+        }
+    };
+    document.body.appendChild(script);
+}
+
 /**
  * 사용자 목록 스크립트 로드 보장
  */
@@ -417,38 +453,41 @@ function initializePage(pageId) {
             break;
             
         case 'sales-dashboard':
-            console.log('📊 영업 대시보드 초기화');
+            console.log('📊 프로젝트 대시보드 초기화');
             // TODO: 대시보드 초기화 로직
             break;
             
-        case 'contracts-list':
-            console.log('📝 계약 목록 초기화');
-            // TODO: 계약 목록 초기화 로직
+        case 'sales-plan-list':
+            console.log('🗂️ 영업계획 목록 초기화');
+            if (typeof initializeSalesPlanList === 'function') {
+                initializeSalesPlanList();
+            }
             break;
             
-        case 'contracts-new':
-            console.log('📝 계약 등록 초기화');
-            // TODO: 계약 등록 초기화 로직
+        case 'sales-plan-edit':
+            console.log('📝 영업계획 입력 초기화');
+            if (typeof initializeSalesPlanEdit === 'function') {
+                initializeSalesPlanEdit();
+            }
             break;
             
-        case 'contracts-dashboard':
-            console.log('📊 계약 현황 초기화');
-            // TODO: 계약 현황 초기화 로직
+        case 'sales-actual-entry':
+            console.log('🧾 실적 등록 초기화');
+            if (typeof initializeSalesActualEntry === 'function') {
+                initializeSalesActualEntry();
+            }
             break;
             
-        case 'revenue-list':
-            console.log('💰 매출 목록 초기화');
-            // TODO: 매출 목록 초기화 로직
+        case 'sales-actual-dashboard':
+            console.log('📊 실적 현황 초기화');
+            if (typeof initializeSalesActualDashboard === 'function') {
+                initializeSalesActualDashboard();
+            }
             break;
-            
-        case 'revenue-new':
-            console.log('💰 매출 등록 초기화');
-            // TODO: 매출 등록 초기화 로직
-            break;
-            
-        case 'revenue-dashboard':
-            console.log('📊 매출 현황 초기화');
-            // TODO: 매출 현황 초기화 로직
+
+        case 'report-hub':
+            console.log('📑 Report 초기화');
+            ensureReportReady();
             break;
             
         case 'users':

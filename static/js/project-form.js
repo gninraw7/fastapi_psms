@@ -36,6 +36,7 @@ let histories = [];
 // 콤보박스 데이터 캐시
 let stageOptions = [];
 let attributeOptions = [];
+let managerOptions = [];
 
 // 고객사 선택 모달 상태
 let clientSearchPage = 1;
@@ -86,6 +87,9 @@ async function initializeProjectForm(mode = 'new', pipelineId = null) {
     } else {
         // 신규 모드면 폼 초기화
         resetForm();
+
+        // 신규 모드 기본값: 로그인 사용자 담당자, 조직 자동 설정
+        setDefaultManagerForNew();
         
         // 3.1 신규 등록시 진행단계 기본값 'S01'
         document.getElementById('current_stage').value = 'S01';
@@ -115,6 +119,55 @@ function bindProjectNameDisplay() {
     if (!input || input.dataset.bound === '1') return;
     input.addEventListener('input', () => updateProjectNameDisplay(input.value));
     input.dataset.bound = '1';
+}
+
+// ===================================
+// Current User Helpers
+// ===================================
+function getCurrentUserInfo() {
+    if (window.AUTH && typeof AUTH.getUserInfo === 'function') {
+        return AUTH.getUserInfo();
+    }
+    if (window.currentUser) return window.currentUser;
+    return null;
+}
+
+function syncOrgWithManager(managerId, fallbackOrgId = null) {
+    const orgSelect = document.getElementById('org_id');
+    if (!orgSelect) return;
+
+    let orgId = null;
+    const manager = managerOptions.find(m => (m.manager_id || m.login_id) === managerId);
+    if (manager && manager.org_id) {
+        orgId = manager.org_id;
+    } else if (fallbackOrgId) {
+        orgId = fallbackOrgId;
+    }
+
+    if (orgId !== null && orgId !== undefined && orgId !== '') {
+        orgSelect.value = String(orgId);
+    }
+}
+
+function setDefaultManagerForNew() {
+    const user = getCurrentUserInfo();
+    const managerSelect = document.getElementById('manager_id');
+    if (!user || !managerSelect) return;
+
+    const loginId = user.login_id || user.loginId;
+    if (!loginId) return;
+
+    let option = Array.from(managerSelect.options).find(o => o.value === loginId);
+    if (!option) {
+        option = document.createElement('option');
+        option.value = loginId;
+        option.textContent = user.user_name || user.userName || loginId;
+        if (user.org_id) option.setAttribute('data-org-id', String(user.org_id));
+        managerSelect.appendChild(option);
+    }
+
+    managerSelect.value = loginId;
+    syncOrgWithManager(loginId, user.org_id);
 }
 
 // ===================================
@@ -173,6 +226,21 @@ async function loadFormComboBoxes() {
                 fieldSelect.appendChild(opt);
             });
         }
+
+        // 서비스코드 콤보박스
+        const services = await API.get(`${API_CONFIG.ENDPOINTS.SERVICE_CODES}/list?is_use=Y`);
+        const serviceSelect = document.getElementById('service_code');
+        if (serviceSelect) {
+            serviceSelect.innerHTML = '<option value="">선택하세요</option>';
+            console.log('📥 서비스코드 데이터:', services);
+            const serviceItems = services?.items || [];
+            serviceItems.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.service_code;
+                opt.textContent = s.display_name || s.service_name || s.service_code;
+                serviceSelect.appendChild(opt);
+            });
+        }
         
         // 1.1 담당자 콤보박스
         const managers = await API.get(API_CONFIG.ENDPOINTS.MANAGERS);
@@ -182,12 +250,39 @@ async function loadFormComboBoxes() {
         
         // items 배열에서 데이터 로드
         const managerList = managers?.items || managers?.managers || [];
+        managerOptions = managerList;
         managerList.forEach(m => {
             const opt = document.createElement('option');
             opt.value = m.manager_id || m.login_id;
             opt.textContent = m.manager_name || m.user_name;
+            if (m.org_id !== undefined && m.org_id !== null) {
+                opt.setAttribute('data-org-id', String(m.org_id));
+            }
             managerSelect.appendChild(opt);
         });
+
+        if (managerSelect && managerSelect.dataset.bound !== '1') {
+            managerSelect.addEventListener('change', () => {
+                const val = managerSelect.value;
+                if (val) syncOrgWithManager(val);
+            });
+            managerSelect.dataset.bound = '1';
+        }
+
+        // 담당조직 콤보박스
+        const orgs = await API.get(`${API_CONFIG.ENDPOINTS.ORG_UNITS}?is_use=Y`);
+        const orgSelect = document.getElementById('org_id');
+        if (orgSelect) {
+            orgSelect.innerHTML = '<option value="">선택하세요</option>';
+            console.log('📥 조직 데이터:', orgs);
+            const orgItems = orgs?.items || [];
+            orgItems.forEach(o => {
+                const opt = document.createElement('option');
+                opt.value = o.org_id;
+                opt.textContent = o.org_name || o.org_id;
+                orgSelect.appendChild(opt);
+            });
+        }
         
         // 2.1 프로젝트 속성 콤보박스 데이터 로드
         await loadAttributeOptions();
@@ -235,8 +330,12 @@ async function loadProjectData(pipelineId) {
             document.getElementById('project_name').value = project.project_name || '';
             updateProjectNameDisplay(project.project_name || '');
             document.getElementById('field_code').value = project.field_code || '';
+            const serviceSelect = document.getElementById('service_code');
+            if (serviceSelect) serviceSelect.value = project.service_code || '';
             document.getElementById('current_stage').value = project.current_stage || project.progress_stage || '';
             document.getElementById('manager_id').value = project.manager_id || '';
+            const orgSelect = document.getElementById('org_id');
+            if (orgSelect) orgSelect.value = project.org_id || '';
             
             // ✅ 고객사/발주처 수정 (디버깅 강화)
             console.log('🏢 고객사/발주처 정보:', {
@@ -348,8 +447,12 @@ function resetForm() {
     document.getElementById('project_name').value = '';
     updateProjectNameDisplay('');
     document.getElementById('field_code').value = '';
+    const serviceSelect = document.getElementById('service_code');
+    if (serviceSelect) serviceSelect.value = '';
     document.getElementById('current_stage').value = 'S01';  // 3.1 기본값 S01
     document.getElementById('manager_id').value = '';
+    const orgSelect = document.getElementById('org_id');
+    if (orgSelect) orgSelect.value = '';
     
     // 고객사/발주처 초기화
     const customerIdEl = document.getElementById('customer_id');
@@ -1463,8 +1566,10 @@ async function saveProject() {
             pipeline_id: formMode === 'edit' ? currentPipelineId : null,  // ⭐ 핵심: 수정 모드일 때 pipeline_id 전송
             project_name: projectName,
             field_code: fieldCode,
+            service_code: document.getElementById('service_code')?.value || null,
             current_stage: currentStage,
             manager_id: managerId,
+            org_id: parseInt(document.getElementById('org_id')?.value, 10) || null,
             customer_id: selectedCustomerId || parseInt(document.getElementById('customer_id')?.value) || null,
             ordering_party_id: selectedOrderingPartyId || parseInt(document.getElementById('ordering_party_id')?.value) || null,
             quoted_amount: parseInt(document.getElementById('quoted_amount').value) || 0,

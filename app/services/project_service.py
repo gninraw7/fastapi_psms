@@ -82,10 +82,14 @@ class ProjectService:
                 p.project_name,
                 p.field_code,
                 cc_field.code_name as field_name,
+                p.service_code,
+                sc.service_name as service_name,
                 p.current_stage,
                 cc_stage.code_name as stage_name,
                 p.manager_id,
                 u.user_name as manager_name,
+                p.org_id,
+                o.org_name as org_name,
                 c1.client_name as customer_name,
                 c2.client_name as ordering_party_name,
                 p.quoted_amount,
@@ -98,9 +102,11 @@ class ProjectService:
                 p.updated_at
             FROM projects p
             LEFT JOIN users u ON p.manager_id = u.login_id
+            LEFT JOIN org_units o ON p.org_id = o.org_id
             LEFT JOIN clients c1 ON p.customer_id = c1.client_id
             LEFT JOIN clients c2 ON p.ordering_party_id = c2.client_id
             LEFT JOIN project_contracts pc ON p.pipeline_id = pc.pipeline_id
+            LEFT JOIN service_codes sc ON p.service_code = sc.service_code
             LEFT JOIN comm_code cc_field ON p.field_code = cc_field.code AND cc_field.group_code = 'FIELD'
             LEFT JOIN comm_code cc_stage ON p.current_stage = cc_stage.code AND cc_stage.group_code = 'STAGE'
             WHERE {where_sql}

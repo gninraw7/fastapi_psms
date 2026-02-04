@@ -19,7 +19,9 @@ class ProjectBase(BaseModel):
     """프로젝트 기본 정보"""
     project_name: str = Field(..., description="프로젝트명")
     field_code: Optional[str] = Field(None, description="사업분야 코드")
+    service_code: Optional[str] = Field(None, description="서비스 코드")
     manager_id: Optional[str] = Field(None, description="담당자 ID")
+    org_id: Optional[int] = Field(None, description="담당 조직 ID")
     customer_id: Optional[int] = Field(None, description="고객사 ID")
     ordering_party_id: Optional[int] = Field(None, description="발주처 ID")
     current_stage: Optional[str] = Field(None, description="현재 진행단계")
@@ -42,7 +44,9 @@ class ProjectDetail(ProjectBase):
     """프로젝트 상세 응답 (JOIN 포함)"""
     pipeline_id: str = Field(..., description="파이프라인 ID")
     field_name: Optional[str] = Field(None, description="사업분야명")
+    service_name: Optional[str] = Field(None, description="서비스명")
     manager_name: Optional[str] = Field(None, description="담당자명")
+    org_name: Optional[str] = Field(None, description="조직명")
     customer_name: Optional[str] = Field(None, description="고객사명")
     ordering_party_name: Optional[str] = Field(None, description="발주처명")
     stage_name: Optional[str] = Field(None, description="진행단계명")
@@ -139,7 +143,9 @@ class ProjectSaveRequest(BaseModel):
     pipeline_id: Optional[str] = Field(None, description="파이프라인 ID (수정 시)")
     project_name: str
     field_code: Optional[str] = None
+    service_code: Optional[str] = None
     manager_id: Optional[str] = None
+    org_id: Optional[int] = None
     customer_id: Optional[int] = None
     ordering_party_id: Optional[int] = None
     current_stage: Optional[str] = None

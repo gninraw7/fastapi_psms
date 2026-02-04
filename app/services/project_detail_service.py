@@ -30,8 +30,12 @@ def get_project_detail(db: Session, pipeline_id: str) -> Optional[ProjectDetail]
             p.project_name,
             p.field_code,
             cc_field.code_name as field_name,
+            p.service_code,
+            sc.service_name as service_name,
             p.manager_id,
             u.user_name as manager_name,
+            p.org_id,
+            o.org_name as org_name,
             p.customer_id,
             c1.client_name as customer_name,
             p.ordering_party_id,
@@ -45,8 +49,10 @@ def get_project_detail(db: Session, pipeline_id: str) -> Optional[ProjectDetail]
             p.updated_at
         FROM projects p
         LEFT JOIN users u ON p.manager_id = u.login_id
+        LEFT JOIN org_units o ON p.org_id = o.org_id
         LEFT JOIN clients c1 ON p.customer_id = c1.client_id
         LEFT JOIN clients c2 ON p.ordering_party_id = c2.client_id
+        LEFT JOIN service_codes sc ON p.service_code = sc.service_code
         LEFT JOIN comm_code cc_field ON p.field_code = cc_field.code AND cc_field.group_code = 'FIELD'
         LEFT JOIN comm_code cc_stage ON p.current_stage = cc_stage.code AND cc_stage.group_code = 'STAGE'
         WHERE p.pipeline_id = :pipeline_id
@@ -60,8 +66,12 @@ def get_project_detail(db: Session, pipeline_id: str) -> Optional[ProjectDetail]
             project_name=result.project_name,
             field_code=result.field_code,
             field_name=result.field_name,
+            service_code=result.service_code,
+            service_name=result.service_name,
             manager_id=result.manager_id,
             manager_name=result.manager_name,
+            org_id=result.org_id,
+            org_name=result.org_name,
             customer_id=result.customer_id,
             customer_name=result.customer_name,
             ordering_party_id=result.ordering_party_id,
@@ -202,11 +212,11 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
             
             insert_query = text("""
                 INSERT INTO projects (
-                    pipeline_id, project_name, field_code, manager_id,
+                    pipeline_id, project_name, field_code, service_code, manager_id, org_id,
                     customer_id, ordering_party_id, current_stage, 
                     quoted_amount, win_probability, notes, created_by
                 ) VALUES (
-                    :pipeline_id, :project_name, :field_code, :manager_id,
+                    :pipeline_id, :project_name, :field_code, :service_code, :manager_id, :org_id,
                     :customer_id, :ordering_party_id, :current_stage,
                     :quoted_amount, :win_probability, :notes, :user_id
                 )
@@ -216,7 +226,9 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                 "pipeline_id": pipeline_id,
                 "project_name": data.project_name,
                 "field_code": data.field_code,
+                "service_code": getattr(data, 'service_code', None),
                 "manager_id": data.manager_id,
+                "org_id": getattr(data, 'org_id', None),
                 "customer_id": data.customer_id,
                 "ordering_party_id": data.ordering_party_id,
                 "current_stage": data.current_stage,
@@ -232,7 +244,9 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                 UPDATE projects SET
                     project_name = :project_name,
                     field_code = :field_code,
+                    service_code = :service_code,
                     manager_id = :manager_id,
+                    org_id = :org_id,
                     customer_id = :customer_id,
                     ordering_party_id = :ordering_party_id,
                     current_stage = :current_stage,
@@ -247,7 +261,9 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                 "pipeline_id": pipeline_id,
                 "project_name": data.project_name,
                 "field_code": data.field_code,
+                "service_code": getattr(data, 'service_code', None),
                 "manager_id": data.manager_id,
+                "org_id": getattr(data, 'org_id', None),
                 "customer_id": data.customer_id,
                 "ordering_party_id": data.ordering_party_id,
                 "current_stage": data.current_stage,

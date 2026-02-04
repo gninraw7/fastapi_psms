@@ -10,6 +10,9 @@ let mobileStageConfig = {};
 let mobileFieldConfig = {};
 let mobileUsers = [];
 let mobileClients = [];
+let mobileServiceCodes = [];
+let mobileOrgUnits = [];
+let mobileManagerOptions = [];
 let currentClientSearchType = null; // 'customer' or 'ordering'
 
 /**
@@ -169,8 +172,44 @@ async function loadMobileComboBoxes() {
                 fieldFormSelect.appendChild(option);
             });
         }
+
+        // 3. 서비스코드 콤보박스
+        const serviceSelect = document.getElementById('mobileServiceCode');
+        if (serviceSelect) {
+            serviceSelect.innerHTML = '<option value="">선택하세요</option>';
+            try {
+                const response = await API.get(`${API_CONFIG.ENDPOINTS.SERVICE_CODES}/list?is_use=Y`);
+                mobileServiceCodes = response?.items || [];
+                mobileServiceCodes.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.service_code;
+                    option.textContent = item.display_name || item.service_name || item.service_code;
+                    serviceSelect.appendChild(option);
+                });
+            } catch (e) {
+                console.warn('⚠️ 서비스코드 로드 실패:', e);
+            }
+        }
+
+        // 4. 담당조직 콤보박스
+        const orgSelect = document.getElementById('mobileOrgId');
+        if (orgSelect) {
+            orgSelect.innerHTML = '<option value="">선택하세요</option>';
+            try {
+                const response = await API.get(`${API_CONFIG.ENDPOINTS.ORG_UNITS}?is_use=Y`);
+                mobileOrgUnits = response?.items || [];
+                mobileOrgUnits.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.org_id;
+                    option.textContent = item.org_name || item.org_id;
+                    orgSelect.appendChild(option);
+                });
+            } catch (e) {
+                console.warn('⚠️ 조직 로드 실패:', e);
+            }
+        }
         
-        // 3. 담당자 콤보박스 로드
+        // 5. 담당자 콤보박스 로드
         await loadMobileManagers();
         
         console.log('✅ 콤보박스 설정 완료');
@@ -190,6 +229,7 @@ async function loadMobileManagers() {
         
         if (response && response.managers && Array.isArray(response.managers)) {
             mobileUsers = response.managers;
+            mobileManagerOptions = response.managers;
             
             const managerSelect = document.getElementById('mobileManagerId');
             if (managerSelect) {
@@ -198,8 +238,19 @@ async function loadMobileManagers() {
                     const option = document.createElement('option');
                     option.value = user.login_id;
                     option.textContent = user.user_name || user.login_id;
+                    if (user.org_id !== undefined && user.org_id !== null) {
+                        option.setAttribute('data-org-id', String(user.org_id));
+                    }
                     managerSelect.appendChild(option);
                 });
+            }
+
+            if (managerSelect && managerSelect.dataset.bound !== '1') {
+                managerSelect.addEventListener('change', () => {
+                    const val = managerSelect.value;
+                    if (val) syncMobileOrgWithManager(val, null, false);
+                });
+                managerSelect.dataset.bound = '1';
             }
             
             console.log('✅ 담당자 로드 완료:', mobileUsers.length, '명');
@@ -231,6 +282,57 @@ function loadMobileYearFilter() {
     } catch (error) {
         console.error('❌ 연도 필터 설정 실패:', error);
     }
+}
+
+// ===================================
+// Current User Helpers (Mobile)
+// ===================================
+function getCurrentUserInfoMobile() {
+    if (window.AUTH && typeof AUTH.getUserInfo === 'function') {
+        return AUTH.getUserInfo();
+    }
+    if (window.currentUser) return window.currentUser;
+    return null;
+}
+
+function syncMobileOrgWithManager(managerId, fallbackOrgId = null, overwrite = true) {
+    const orgSelect = document.getElementById('mobileOrgId');
+    if (!orgSelect) return;
+
+    if (!overwrite && orgSelect.value) return;
+
+    let orgId = null;
+    const manager = mobileManagerOptions.find(m => (m.manager_id || m.login_id) === managerId);
+    if (manager && manager.org_id) {
+        orgId = manager.org_id;
+    } else if (fallbackOrgId) {
+        orgId = fallbackOrgId;
+    }
+
+    if (orgId !== null && orgId !== undefined && orgId !== '') {
+        orgSelect.value = String(orgId);
+    }
+}
+
+function setDefaultMobileManagerForNew() {
+    const user = getCurrentUserInfoMobile();
+    const managerSelect = document.getElementById('mobileManagerId');
+    if (!user || !managerSelect) return;
+
+    const loginId = user.login_id || user.loginId;
+    if (!loginId) return;
+
+    let option = Array.from(managerSelect.options).find(o => o.value === loginId);
+    if (!option) {
+        option = document.createElement('option');
+        option.value = loginId;
+        option.textContent = user.user_name || user.userName || loginId;
+        if (user.org_id) option.setAttribute('data-org-id', String(user.org_id));
+        managerSelect.appendChild(option);
+    }
+
+    managerSelect.value = loginId;
+    syncMobileOrgWithManager(loginId, user.org_id, true);
 }
 
 /**
@@ -757,6 +859,9 @@ async function initializeMobileProjectForm() {
         document.getElementById('mobileFormTitle').textContent = '프로젝트 등록';
         document.getElementById('mobilePipelineId').value = '';
         currentMobilePipelineId = null;
+
+        // 신규 모드 기본값: 로그인 사용자 담당자, 조직 자동 설정
+        setDefaultMobileManagerForNew();
         
         // 발주처 clear 버튼 숨김
         const clearBtn = document.querySelector('.mobile-search-field .btn-clear');
@@ -797,9 +902,16 @@ async function loadMobileProjectForEdit(pipelineId) {
         
         // 기본 정보
         document.getElementById('mobileFieldCode').value = project.field_code || '';
+        const serviceSelect = document.getElementById('mobileServiceCode');
+        if (serviceSelect) serviceSelect.value = project.service_code || '';
         document.getElementById('mobileProjectName').value = project.project_name || '';
         document.getElementById('mobileCurrentStage').value = project.current_stage || '';
         document.getElementById('mobileManagerId').value = project.manager_id || '';
+        const orgSelect = document.getElementById('mobileOrgId');
+        if (orgSelect) orgSelect.value = project.org_id || '';
+        if (orgSelect && !orgSelect.value && project.manager_id) {
+            syncMobileOrgWithManager(project.manager_id, null, false);
+        }
         
         // 금액 정보 (quoted_amount를 expected_amount로 매핑)
         document.getElementById('mobileExpectedAmount').value = project.quoted_amount || 0;
@@ -842,6 +954,8 @@ async function saveMobileProject() {
         const projectNameEl = document.getElementById('mobileProjectName');
         const currentStageEl = document.getElementById('mobileCurrentStage');
         const managerIdEl = document.getElementById('mobileManagerId');
+        const serviceCodeEl = document.getElementById('mobileServiceCode');
+        const orgIdEl = document.getElementById('mobileOrgId');
         const orderingPartyIdEl = document.getElementById('mobileOrderingPartyId');
         const expectedAmountEl = document.getElementById('mobileExpectedAmount');
         
@@ -858,6 +972,8 @@ async function saveMobileProject() {
         const currentStage = currentStageEl.value;
         const managerId = managerIdEl ? managerIdEl.value : null;
         const orderingPartyIdStr = orderingPartyIdEl ? orderingPartyIdEl.value : null;
+        const serviceCode = serviceCodeEl ? serviceCodeEl.value : '';
+        const orgIdStr = orgIdEl ? orgIdEl.value : '';
         const expectedAmount = expectedAmountEl ? expectedAmountEl.value : '0';
         
         console.log('📋 수집된 데이터:');
@@ -867,6 +983,8 @@ async function saveMobileProject() {
         console.log('  - current_stage:', currentStage);
         console.log('  - manager_id:', managerId);
         console.log('  - ordering_party_id:', orderingPartyIdStr);
+        console.log('  - service_code:', serviceCode);
+        console.log('  - org_id:', orgIdStr);
         console.log('  - quoted_amount:', expectedAmount);
         
         // 3. 필수 항목 검증
@@ -898,6 +1016,7 @@ async function saveMobileProject() {
         const customerId = parseInt(customerIdStr);
         const orderingPartyId = orderingPartyIdStr ? parseInt(orderingPartyIdStr) : null;
         const quotedAmount = parseFloat(expectedAmount) || 0;
+        const orgId = orgIdStr ? parseInt(orgIdStr) : null;
         
         if (isNaN(customerId)) {
             alert('고객사 정보가 올바르지 않습니다.');
@@ -907,9 +1026,11 @@ async function saveMobileProject() {
         const data = {
             project_name: projectName,
             field_code: fieldCode,
+            service_code: serviceCode || null,
             customer_id: customerId,
             current_stage: currentStage,
             manager_id: managerId || null,
+            org_id: orgId,
             ordering_party_id: orderingPartyId,
             quoted_amount: quotedAmount,
             created_by: 'mobile_user'  // TODO: 실제 로그인 사용자
@@ -1024,11 +1145,13 @@ function viewMobileProject(pipelineId) {
 
 Pipeline ID: ${project.pipeline_id || '-'}
 분야: ${fieldName}
+서비스: ${project.service_name || project.service_code || '-'}
 프로젝트명: ${project.project_name || '-'}
 고객사: ${project.customer_name || project.client_name || '-'}
 발주처: ${project.ordering_party_name || '-'}
 진행단계: ${stageName}
 담당자: ${project.manager_name || '-'}
+담당조직: ${project.org_name || project.org_id || '-'}
 연도/분기: ${project.year || '-'}년 ${project.quarter ? project.quarter + '분기' : ''}
 예상금액: ${formatMobileAmount(project.expected_amount)}
 확정금액: ${formatMobileAmount(project.confirmed_amount)}

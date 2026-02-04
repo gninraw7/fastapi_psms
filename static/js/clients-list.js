@@ -15,6 +15,7 @@
 // ===================================
 let clientsTable = null;
 let selectedClientRow = null;
+let clientIndustryMap = {};
 let currentClientFilters = {
     search_field: '',
     search_text: '',
@@ -41,6 +42,9 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         // 테이블 초기화
         initializeClientsTable();
+
+        // 업종(분야) 옵션 로드
+        loadClientIndustryOptions();
         
         // 이벤트 리스너 등록
         initializeClientEventListeners();
@@ -50,6 +54,33 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('❌ 거래처 목록 초기화 실패:', error);
     }
 });
+
+// ===================================
+// Load Industry Fields (업종)
+// ===================================
+async function loadClientIndustryOptions() {
+    const industrySelect = document.getElementById('clientIndustryType');
+    if (!industrySelect) return;
+
+    industrySelect.innerHTML = '<option value="">전체</option>';
+    clientIndustryMap = {};
+
+    try {
+        const response = await API.get(`${API_CONFIG.ENDPOINTS.INDUSTRY_FIELDS}/list?is_use=Y`);
+        const items = response?.items || [];
+        items.forEach(item => {
+            const code = item.field_code;
+            const name = item.field_name || code;
+            clientIndustryMap[code] = name;
+            const opt = document.createElement('option');
+            opt.value = code;
+            opt.textContent = name;
+            industrySelect.appendChild(opt);
+        });
+    } catch (error) {
+        console.warn('⚠️ 업종(분야) 목록 로드 실패:', error);
+    }
+}
 
 // ===================================
 // Initialize Clients Table
@@ -198,28 +229,29 @@ function initializeClientsTable() {
                 width: 150,
                 hozAlign: "center",
                 formatter: function(cell) {
-                    const value = cell.getValue();
-                    if (!value) return '-';
-
-                    const industryStyleMap = {
-                        '제조업': { cls: 'badge-industry-manufacturing', icon: 'fa-industry' },
-                        'IT/소프트웨어': { cls: 'badge-industry-it', icon: 'fa-laptop-code' },
-                        '서비스업': { cls: 'badge-industry-service', icon: 'fa-concierge-bell' },
-                        '건설업': { cls: 'badge-industry-construction', icon: 'fa-hard-hat' },
-                        '금융/보험': { cls: 'badge-industry-finance', icon: 'fa-coins' },
-                        '공공기관': { cls: 'badge-industry-public', icon: 'fa-landmark' },
-                        '유통/도소매': { cls: 'badge-industry-retail', icon: 'fa-shopping-cart' },
+                    const row = cell.getRow().getData();
+                    const code = cell.getValue();
+                    const name = row.industry_name || clientIndustryMap[code] || code;
+                    if (!name) return '-';
+                    const styleMap = {
+                        'AICC': { cls: 'badge-industry-aicc', icon: 'fa-robot' },
+                        '공공': { cls: 'badge-industry-public', icon: 'fa-landmark' },
                         '교육': { cls: 'badge-industry-education', icon: 'fa-graduation-cap' },
-                        '의료/헬스케어': { cls: 'badge-industry-health', icon: 'fa-hospital' },
-                        '기타': { cls: 'badge-industry-other', icon: 'fa-tag' }
+                        '교통': { cls: 'badge-industry-transport', icon: 'fa-bus' },
+                        '금융': { cls: 'badge-industry-finance', icon: 'fa-coins' },
+                        '문화': { cls: 'badge-industry-culture', icon: 'fa-theater-masks' },
+                        '방송': { cls: 'badge-industry-broadcast', icon: 'fa-broadcast-tower' },
+                        '법률': { cls: 'badge-industry-law', icon: 'fa-gavel' },
+                        '숙박': { cls: 'badge-industry-hotel', icon: 'fa-hotel' },
+                        '의료': { cls: 'badge-industry-health', icon: 'fa-hospital' },
+                        '제조': { cls: 'badge-industry-manufacturing', icon: 'fa-industry' }
                     };
-
-                    const style = industryStyleMap[value] || { cls: 'badge-industry-other', icon: 'fa-tag' };
+                    const style = styleMap[code] || { cls: 'badge-industry-other', icon: 'fa-tag' };
 
                     return `
                         <span class="badge badge-industry ${style.cls}">
                             <i class="fas ${style.icon}"></i>
-                            ${value}
+                            ${name}
                         </span>
                     `;
                 }
