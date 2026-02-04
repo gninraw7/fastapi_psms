@@ -239,6 +239,11 @@
                     </div>
                     
                     <div class="filter-actions">
+                        <button id="toggleLatestHistory" class="btn btn-toggle" type="button" aria-pressed="false" title="마우스 오버 시 최종 이력 표시">
+                            <i class="fas fa-history"></i>
+                            <span class="toggle-label">최종 이력 보기</span>
+                            <span class="toggle-state">OFF</span>
+                        </button>
                         <button id="btnAdd" class="btn btn-primary" title="새 프로젝트 추가">
                             <i class="fas fa-plus-circle"></i> 신규
                         </button>
@@ -256,6 +261,7 @@
                 <div class="table-panel">
                     <div id="projectTable"></div>
                 </div>
+                <div id="latestHistoryTooltip" class="history-tooltip" aria-hidden="true"></div>
             </main>
         </div>
 
@@ -330,12 +336,28 @@
                                 </select>
                             </div>
 
+                            <!-- 서비스코드 -->
+                            <div class="form-group">
+                                <label>서비스코드</label>
+                                <select id="service_code" class="form-select">
+                                    <option value="">선택하세요</option>
+                                </select>
+                            </div>
+
                             <!-- 1.1 담당자 (API 응답 형식 수정) -->
                             <div class="form-group">
                                 <label>담당자 <span class="required">*</span></label>
                                 <select id="manager_id" class="form-select" required>
                                     <option value="">선택하세요</option>
                                     <!-- loadFormComboBoxes()에서 동적 로드 -->
+                                </select>
+                            </div>
+
+                            <!-- 담당조직 -->
+                            <div class="form-group">
+                                <label>담당조직</label>
+                                <select id="org_id" class="form-select">
+                                    <option value="">선택하세요</option>
                                 </select>
                             </div>
 
@@ -634,6 +656,22 @@
 				<div class="mobile-form-group">
 					<label>분야 <span class="required">*</span></label>
 					<select id="mobileFieldCode" required>
+						<option value="">선택하세요</option>
+					</select>
+				</div>
+
+				<!-- 서비스코드 -->
+				<div class="mobile-form-group">
+					<label>서비스코드</label>
+					<select id="mobileServiceCode">
+						<option value="">선택하세요</option>
+					</select>
+				</div>
+
+				<!-- 담당조직 -->
+				<div class="mobile-form-group">
+					<label>담당조직</label>
+					<select id="mobileOrgId">
 						<option value="">선택하세요</option>
 					</select>
 				</div>
@@ -953,16 +991,6 @@
                         <label><i class="fas fa-industry"></i> 업종</label>
                         <select id="clientIndustryType" class="form-select">
                             <option value="">전체</option>
-                            <option value="제조업">제조업</option>
-                            <option value="서비스업">서비스업</option>
-                            <option value="건설업">건설업</option>
-                            <option value="IT/소프트웨어">IT/소프트웨어</option>
-                            <option value="유통/도소매">유통/도소매</option>
-                            <option value="금융/보험">금융/보험</option>
-                            <option value="교육">교육</option>
-                            <option value="의료/헬스케어">의료/헬스케어</option>
-                            <option value="공공기관">공공기관</option>
-                            <option value="기타">기타</option>
                         </select>
                     </div>
                     
@@ -1058,16 +1086,6 @@
                             <label for="industryType">업종</label>
                             <select id="industryType" class="form-select">
                                 <option value="">선택하세요</option>
-                                <option value="제조업">제조업</option>
-                                <option value="서비스업">서비스업</option>
-                                <option value="건설업">건설업</option>
-                                <option value="IT/소프트웨어">IT/소프트웨어</option>
-                                <option value="유통/도소매">유통/도소매</option>
-                                <option value="금융/보험">금융/보험</option>
-                                <option value="교육">교육</option>
-                                <option value="의료/헬스케어">의료/헬스케어</option>
-                                <option value="공공기관">공공기관</option>
-                                <option value="기타">기타</option>
                             </select>
                         </div>
                     </div>

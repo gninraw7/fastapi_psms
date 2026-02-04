@@ -24,6 +24,10 @@ class ProjectItem(BaseModel):
     project_name: Optional[str] = None
     field_code: Optional[str] = None
     field_name: Optional[str] = None  # 코드명
+    service_code: Optional[str] = None
+    service_name: Optional[str] = None
+    org_id: Optional[int] = None
+    org_name: Optional[str] = None
     current_stage: Optional[str] = None
     stage_name: Optional[str] = None  # 단계명
     manager_id: Optional[str] = None
@@ -31,6 +35,9 @@ class ProjectItem(BaseModel):
     customer_name: Optional[str] = None  # JOIN으로 가져옴
     ordering_party_name: Optional[str] = None  # 발주처명
     quoted_amount: Optional[Decimal] = None
+    latest_base_date: Optional[date] = None
+    latest_history_line: Optional[str] = None
+    history_count: Optional[int] = None
     contract_date: Optional[date] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None

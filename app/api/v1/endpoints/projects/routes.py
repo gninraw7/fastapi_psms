@@ -29,7 +29,9 @@ class ProjectCreateRequest(BaseModel):
     """프로젝트 등록 요청"""
     project_name: str
     field_code: Optional[str] = None
+    service_code: Optional[str] = None
     manager_id: Optional[str] = None
+    org_id: Optional[int] = None
     customer_id: Optional[int] = None
     ordering_party_id: Optional[int] = None
     current_stage: Optional[str] = None
@@ -43,7 +45,9 @@ class ProjectUpdateRequest(BaseModel):
     """프로젝트 수정 요청"""
     project_name: Optional[str] = None
     field_code: Optional[str] = None
+    service_code: Optional[str] = None
     manager_id: Optional[str] = None
+    org_id: Optional[int] = None
     customer_id: Optional[int] = None
     ordering_party_id: Optional[int] = None
     current_stage: Optional[str] = None
@@ -131,16 +135,21 @@ async def get_projects(
                 p.project_name,
                 p.field_code,
                 f.code_name as field_name,
+                p.service_code,
+                sc.service_name as service_name,
                 p.current_stage,
                 s.code_name as stage_name,
                 p.manager_id,
                 u.user_name as manager_name,
+                p.org_id,
+                o.org_name as org_name,
                 p.customer_id,
                 c1.client_name as customer_name,
                 p.ordering_party_id,
                 c2.client_name as ordering_party_name,
                 p.quoted_amount,
-                h.latest_base_date,
+                lh.base_date as latest_base_date,
+                lh.strategy_content as latest_history_line,
                 h.history_count,
                 p.win_probability,
                 p.notes,
@@ -150,15 +159,20 @@ async def get_projects(
             LEFT JOIN comm_code f ON f.group_code = 'FIELD' AND f.code = p.field_code
             LEFT JOIN comm_code s ON s.group_code = 'STAGE' AND s.code = p.current_stage
             LEFT JOIN users u ON u.login_id = p.manager_id
+            LEFT JOIN org_units o ON o.org_id = p.org_id
             LEFT JOIN clients c1 ON c1.client_id = p.customer_id
             LEFT JOIN clients c2 ON c2.client_id = p.ordering_party_id
+            LEFT JOIN service_codes sc ON sc.service_code = p.service_code
             LEFT JOIN (
                 SELECT pipeline_id,
-                       MAX(base_date) AS latest_base_date,
-                       COUNT(*) AS history_count
+                       COUNT(*) AS history_count,
+                       MAX(history_id) AS latest_history_id
                 FROM project_history
                 GROUP BY pipeline_id
             ) h ON h.pipeline_id = p.pipeline_id
+            LEFT JOIN project_history lh
+                ON lh.pipeline_id = h.pipeline_id
+               AND lh.history_id = h.latest_history_id
             WHERE 1=1
         """
         
@@ -221,12 +235,14 @@ async def get_projects(
             "pipeline_id": "p.pipeline_id",
             "project_name": "p.project_name",
             "field_name": "f.code_name",
+            "service_name": "sc.service_name",
             "current_stage": "p.current_stage",
             "manager_name": "u.user_name",
+            "org_name": "o.org_name",
             "customer_name": "c1.client_name",
             "ordering_party_name": "c2.client_name",
             "quoted_amount": "p.quoted_amount",
-            "latest_base_date": "h.latest_base_date",
+            "latest_base_date": "lh.base_date",
             "history_count": "h.history_count",
             "created_at": "p.created_at"
         }
@@ -287,11 +303,11 @@ async def create_project(
         # 프로젝트 등록
         insert_query = text("""
             INSERT INTO projects (
-                pipeline_id, project_name, field_code, manager_id,
+                pipeline_id, project_name, field_code, service_code, manager_id, org_id,
                 customer_id, ordering_party_id, current_stage,
                 quoted_amount, win_probability, notes, created_by
             ) VALUES (
-                :pipeline_id, :project_name, :field_code, :manager_id,
+                :pipeline_id, :project_name, :field_code, :service_code, :manager_id, :org_id,
                 :customer_id, :ordering_party_id, :current_stage,
                 :quoted_amount, :win_probability, :notes, :created_by
             )
@@ -301,7 +317,9 @@ async def create_project(
             "pipeline_id": pipeline_id,
             "project_name": request.project_name,
             "field_code": request.field_code,
+            "service_code": request.service_code,
             "manager_id": request.manager_id,
+            "org_id": request.org_id,
             "customer_id": request.customer_id,
             "ordering_party_id": request.ordering_party_id,
             "current_stage": request.current_stage,
@@ -360,9 +378,17 @@ async def update_project(
             update_fields.append("field_code = :field_code")
             params['field_code'] = request.field_code
         
+        if request.service_code is not None:
+            update_fields.append("service_code = :service_code")
+            params['service_code'] = request.service_code
+        
         if request.manager_id is not None:
             update_fields.append("manager_id = :manager_id")
             params['manager_id'] = request.manager_id
+        
+        if request.org_id is not None:
+            update_fields.append("org_id = :org_id")
+            params['org_id'] = request.org_id
         
         if request.customer_id is not None:
             update_fields.append("customer_id = :customer_id")

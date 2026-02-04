@@ -218,6 +218,38 @@ body {
     font-size: 1rem;
 }
 
+.btn-toggle {
+    background: #ffffff;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-toggle:hover {
+    border-color: var(--primary-light);
+    color: var(--text-primary);
+}
+
+.btn-toggle.active {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+    color: #ffffff;
+    border-color: transparent;
+}
+
+.btn-toggle .toggle-state {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: #eef2f7;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-toggle.active .toggle-state {
+    background: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
 .btn-xs {
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
@@ -386,6 +418,51 @@ body {
 
 .tabulator-row:hover {
     background-color: rgba(47, 85, 151, 0.05) !important;
+}
+
+/* ===================================
+   Latest History Tooltip
+   =================================== */
+.history-tooltip {
+    position: fixed;
+    z-index: 9999;
+    width: 416px;
+    max-width: 80vw;
+    padding: 0.75rem 0.9rem;
+    border-radius: var(--radius-md);
+    background: #1f2a44;
+    color: #ffffff;
+    box-shadow: var(--shadow-lg);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    pointer-events: none;
+    white-space: normal;
+}
+
+.history-tooltip.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.history-tooltip-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.history-tooltip-date {
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.75);
+    margin-bottom: 0.35rem;
+}
+
+.history-tooltip-content {
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    white-space: pre-line;
+    word-break: break-word;
 }
 
 .tabulator-row.tabulator-selected {

@@ -30,6 +30,9 @@ let currentFilters = {
     page_size: 25
 };
 let selectedRow = null;
+let latestHistoryEnabled = false;
+let latestHistoryTooltip = null;
+let latestHistoryToggleBtn = null;
 
 // ===================================
 // Initialization
@@ -57,6 +60,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // 4. ⭐ 이벤트 리스너 즉시 등록 (테이블 빌드 기다리지 않음)
         initializeEventListeners();
+
+        // 4-1. 최종 이력 보기 토글 초기화
+        initializeLatestHistoryControls();
         
         // 5. URL 파라미터 체크
         checkURLParameters();
@@ -202,6 +208,9 @@ function initializeTable() {
             ...(commonOptions.columnDefaults || {}),
             headerHozAlign: "center"
         },
+        rowFormatter: function(row) {
+            bindLatestHistoryHover(row);
+        },
         selectable: 1,
         selectableRangeMode: "click",
         
@@ -280,6 +289,18 @@ function initializeTable() {
                 hozAlign: "center"
             },
             {
+                title: "서비스",
+                field: "service_name",
+                width: 140,
+                hozAlign: "center",
+                formatter: function(cell) {
+                    const val = cell.getValue();
+                    if (val) return val;
+                    const row = cell.getRow().getData();
+                    return row.service_code || '-';
+                }
+            },
+            {
                 title: "프로젝트명",
                 field: "project_name",
                 minWidth: 300,
@@ -335,6 +356,19 @@ function initializeTable() {
                 width: 100,
                 hozAlign: "center",
                 headerSort: true
+            },
+            {
+                title: "담당조직",
+                field: "org_name",
+                width: 140,
+                hozAlign: "center",
+                headerSort: true,
+                formatter: function(cell) {
+                    const val = cell.getValue();
+                    if (val) return val;
+                    const row = cell.getRow().getData();
+                    return row.org_id || '-';
+                }
             },
             {
                 title: "견적금액",
@@ -624,6 +658,105 @@ function initializeEventListeners() {
 }
 
 // ===================================
+// Latest History Tooltip Controls
+// ===================================
+function initializeLatestHistoryControls() {
+    latestHistoryToggleBtn = document.getElementById('toggleLatestHistory');
+    latestHistoryTooltip = document.getElementById('latestHistoryTooltip');
+
+    if (!latestHistoryToggleBtn || !latestHistoryTooltip) {
+        console.warn('⚠️ 최종 이력 보기 UI 요소 없음');
+        return;
+    }
+
+    setLatestHistoryToggleState(false);
+
+    latestHistoryToggleBtn.addEventListener('click', function() {
+        latestHistoryEnabled = !latestHistoryEnabled;
+        setLatestHistoryToggleState(latestHistoryEnabled);
+        if (!latestHistoryEnabled) {
+            hideLatestHistoryTooltip();
+        }
+    });
+}
+
+function setLatestHistoryToggleState(enabled) {
+    if (!latestHistoryToggleBtn) return;
+    latestHistoryToggleBtn.classList.toggle('active', enabled);
+    latestHistoryToggleBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    const stateEl = latestHistoryToggleBtn.querySelector('.toggle-state');
+    if (stateEl) {
+        stateEl.textContent = enabled ? 'ON' : 'OFF';
+    }
+}
+
+function bindLatestHistoryHover(row) {
+    const rowEl = row.getElement();
+    if (!rowEl || rowEl.dataset.latestHistoryBound === '1') return;
+    rowEl.dataset.latestHistoryBound = '1';
+
+    rowEl.addEventListener('mouseenter', function(e) {
+        if (!latestHistoryEnabled) return;
+        showLatestHistoryTooltip(e, row.getData());
+    });
+
+    rowEl.addEventListener('mousemove', function(e) {
+        if (!latestHistoryEnabled) return;
+        positionLatestHistoryTooltip(e.clientX, e.clientY);
+    });
+
+    rowEl.addEventListener('mouseleave', function() {
+        hideLatestHistoryTooltip();
+    });
+}
+
+function showLatestHistoryTooltip(e, rowData) {
+    if (!latestHistoryTooltip) return;
+
+    const dateText = rowData && rowData.latest_base_date ? Utils.formatDate(rowData.latest_base_date) : '-';
+    const historyLineRaw = rowData && rowData.latest_history_line ? rowData.latest_history_line : '';
+    const historyLine = historyLineRaw && historyLineRaw.trim().length > 0 ? historyLineRaw.trim() : '이력 없음';
+
+    latestHistoryTooltip.innerHTML = `
+        <div class="history-tooltip-title">최종 이력</div>
+        <div class="history-tooltip-date">${Utils.escapeHtml(dateText)}</div>
+        <div class="history-tooltip-content">${Utils.escapeHtml(historyLine)}</div>
+    `;
+
+    latestHistoryTooltip.classList.add('active');
+    latestHistoryTooltip.setAttribute('aria-hidden', 'false');
+    positionLatestHistoryTooltip(e.clientX, e.clientY);
+}
+
+function hideLatestHistoryTooltip() {
+    if (!latestHistoryTooltip) return;
+    latestHistoryTooltip.classList.remove('active');
+    latestHistoryTooltip.setAttribute('aria-hidden', 'true');
+}
+
+function positionLatestHistoryTooltip(clientX, clientY) {
+    if (!latestHistoryTooltip) return;
+
+    const offsetX = 14;
+    const offsetY = 18;
+    const padding = 12;
+
+    let left = clientX + offsetX;
+    let top = clientY + offsetY;
+
+    const rect = latestHistoryTooltip.getBoundingClientRect();
+    if (left + rect.width + padding > window.innerWidth) {
+        left = clientX - rect.width - offsetX;
+    }
+    if (top + rect.height + padding > window.innerHeight) {
+        top = clientY - rect.height - offsetY;
+    }
+
+    latestHistoryTooltip.style.left = Math.max(padding, left) + 'px';
+    latestHistoryTooltip.style.top = Math.max(padding, top) + 'px';
+}
+
+// ===================================
 // Open Project Detail Modal
 // ===================================
 async function openProjectDetail(pipelineId) {
@@ -725,11 +858,13 @@ function renderProjectDetail(response, pipelineId) {
         '<div class="detail-grid">' +
             '<div class="detail-item"><label>파이프라인 ID</label><span>' + (project.pipeline_id || '-') + '</span></div>' +
             '<div class="detail-item"><label>프로젝트명</label><span>' + (project.project_name || '-') + '</span></div>' +
-            '<div class="detail-item"><label>사업분야</label><span>' + (project.field_name || project.field_code || '-') + '</span></div>' +
-            '<div class="detail-item"><label>진행단계</label><span>' + renderStageForDetail(project.current_stage) + '</span></div>' +
-            '<div class="detail-item"><label>담당자</label><span>' + (project.manager_name || '-') + '</span></div>' +
-            '<div class="detail-item"><label>고객사</label><span>' + (project.customer_name || '-') + '</span></div>' +
-            '<div class="detail-item"><label>발주처</label><span>' + (project.ordering_party_name || '-') + '</span></div>' +
+        '<div class="detail-item"><label>사업분야</label><span>' + (project.field_name || project.field_code || '-') + '</span></div>' +
+        '<div class="detail-item"><label>서비스</label><span>' + (project.service_name || project.service_code || '-') + '</span></div>' +
+        '<div class="detail-item"><label>진행단계</label><span>' + renderStageForDetail(project.current_stage) + '</span></div>' +
+        '<div class="detail-item"><label>담당자</label><span>' + (project.manager_name || '-') + '</span></div>' +
+        '<div class="detail-item"><label>담당조직</label><span>' + (project.org_name || project.org_id || '-') + '</span></div>' +
+        '<div class="detail-item"><label>고객사</label><span>' + (project.customer_name || '-') + '</span></div>' +
+        '<div class="detail-item"><label>발주처</label><span>' + (project.ordering_party_name || '-') + '</span></div>' +
             '<div class="detail-item"><label>견적금액</label><span>' + (project.quoted_amount ? Utils.formatNumber(project.quoted_amount) + ' 원' : '-') + '</span></div>' +
             '<div class="detail-item"><label>수주확률</label><span>' + (project.win_probability ? project.win_probability + '%' : '-') + '</span></div>' +
             '<div class="detail-item full-width"><label>비고</label><span>' + (project.notes || '-') + '</span></div>' +
