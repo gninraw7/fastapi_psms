@@ -88,6 +88,7 @@ async def get_projects_list(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=500),  # ⭐ 기본값 25로 변경
     field_code: Optional[str] = None,
+    service_code: Optional[str] = None,
     current_stage: Optional[str] = None,
     manager_id: Optional[str] = None,          # ⭐ 추가
     sales_plan_id: Optional[int] = None,
@@ -100,8 +101,19 @@ async def get_projects_list(
 ):
     """프로젝트 목록 조회 (/list 경로)"""
     return await get_projects(
-        page, page_size, field_code, current_stage, 
-        manager_id, sales_plan_id, search_field, search_text, keyword, sort_field, sort_dir, db
+        page=page,
+        page_size=page_size,
+        field_code=field_code,
+        service_code=service_code,
+        current_stage=current_stage,
+        manager_id=manager_id,
+        sales_plan_id=sales_plan_id,
+        search_field=search_field,
+        search_text=search_text,
+        keyword=keyword,
+        sort_field=sort_field,
+        sort_dir=sort_dir,
+        db=db
     )
 
 
@@ -110,6 +122,7 @@ async def get_projects(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=500),  # ⭐ 기본값 25로 변경
     field_code: Optional[str] = None,
+    service_code: Optional[str] = None,
     current_stage: Optional[str] = None,
     manager_id: Optional[str] = None,          # ⭐ 추가
     sales_plan_id: Optional[int] = None,
@@ -124,7 +137,7 @@ async def get_projects(
     try:
         app_logger.info(
             f"📋 프로젝트 목록 조회 - page: {page}, page_size: {page_size}, "
-            f"field_code: {field_code}, current_stage: {current_stage}, "
+            f"field_code: {field_code}, service_code: {service_code}, current_stage: {current_stage}, "
             f"manager_id: {manager_id}, sales_plan_id: {sales_plan_id}, search_field: {search_field}, "
             f"search_text: {search_text}, keyword: {keyword}, "
             f"sort_field: {sort_field}, sort_dir: {sort_dir}"
@@ -184,6 +197,11 @@ async def get_projects(
         if field_code:
             base_query += " AND p.field_code = :field_code"
             params['field_code'] = field_code
+
+        # 서비스 필터
+        if service_code:
+            base_query += " AND p.service_code = :service_code"
+            params['service_code'] = service_code
         
         # 진행단계 필터
         if current_stage:

@@ -25,6 +25,7 @@ let currentFilters = {
     search_text: '',
     manager_id: '',
     field_code: '',
+    service_code: '',
     current_stage: '',
     sales_plan_id: '',
     page: 1,
@@ -122,17 +123,37 @@ async function initializeFilters() {
         const fieldSelect = document.getElementById('filterField');
         if (fieldSelect) {
             try {
-                const fields = await API.get(API_CONFIG.ENDPOINTS.COMBO_DATA + '/FIELD');
+                const fields = await API.get(`${API_CONFIG.ENDPOINTS.INDUSTRY_FIELDS}/list?is_use=Y`);
                 if (fields && fields.items) {
                     fields.items.forEach(f => {
                         const opt = document.createElement('option');
-                        opt.value = f.code;
-                        opt.textContent = f.code_name;
+                        opt.value = f.field_code;
+                        opt.textContent = f.field_name || f.field_code;
                         fieldSelect.appendChild(opt);
                     });
                 }
             } catch (e) {
                 console.warn('⚠️ 사업분야 로드 실패:', e);
+            }
+        }
+
+        // 서비스 로드 (하위 서비스만: parent_code IS NOT NULL)
+        const serviceSelect = document.getElementById('filterService');
+        if (serviceSelect) {
+            try {
+                const services = await API.get(`${API_CONFIG.ENDPOINTS.SERVICE_CODES}/list?is_use=Y`);
+                if (services && services.items) {
+                    services.items
+                        .filter(s => s.parent_code)
+                        .forEach(s => {
+                            const opt = document.createElement('option');
+                            opt.value = s.service_code;
+                            opt.textContent = s.display_name || '';
+                            serviceSelect.appendChild(opt);
+                        });
+                }
+            } catch (e) {
+                console.warn('⚠️ 서비스 로드 실패:', e);
             }
         }
         
@@ -253,6 +274,9 @@ function initializeTable() {
             }
             if (currentFilters.field_code) {
                 queryParams.field_code = currentFilters.field_code;
+            }
+            if (currentFilters.service_code) {
+                queryParams.service_code = currentFilters.service_code;
             }
             if (currentFilters.current_stage) {
                 queryParams.current_stage = currentFilters.current_stage;
@@ -637,6 +661,19 @@ function initializeEventListeners() {
     } else {
         console.warn('  ✗ filterField 요소 없음');
     }
+
+    // 서비스 필터
+    const filterService = document.getElementById('filterService');
+    if (filterService) {
+        filterService.addEventListener('change', function(e) {
+            currentFilters.service_code = e.target.value;
+            console.log('🔍 서비스 필터:', currentFilters.service_code);
+            if (projectTable) projectTable.setData();
+        });
+        console.log('  ✓ filterService 이벤트 등록');
+    } else {
+        console.warn('  ✗ filterService 요소 없음');
+    }
     
     // 진행단계 필터
     const filterStage = document.getElementById('filterStage');
@@ -974,14 +1011,451 @@ function updateStatistics(response) {
 // Export to Excel
 // ===================================
 function exportToExcel() {
-    console.log('📊 엑셀 내보내기');
-    if (projectTable) {
-        projectTable.download("xlsx", "프로젝트_목록.xlsx", {
-            sheetName: "프로젝트"
-        });
+    openExcelExportModal();
+}
+
+function getCurrentProjectSort() {
+    if (!projectTable || typeof projectTable.getSorters !== 'function') {
+        return { sort_field: '', sort_dir: '' };
+    }
+    const sorters = projectTable.getSorters() || [];
+    if (!sorters.length) return { sort_field: '', sort_dir: '' };
+    return {
+        sort_field: sorters[0].field || '',
+        sort_dir: sorters[0].dir || ''
+    };
+}
+
+function buildProjectListQueryParams(page = 1, pageSize = 25) {
+    const params = {
+        page,
+        page_size: pageSize
+    };
+
+    if (currentFilters.search_field) params.search_field = currentFilters.search_field;
+    if (currentFilters.search_text) params.search_text = currentFilters.search_text;
+    if (currentFilters.manager_id) params.manager_id = currentFilters.manager_id;
+    if (currentFilters.field_code) params.field_code = currentFilters.field_code;
+    if (currentFilters.service_code) params.service_code = currentFilters.service_code;
+    if (currentFilters.current_stage) params.current_stage = currentFilters.current_stage;
+    if (currentFilters.sales_plan_id) params.sales_plan_id = currentFilters.sales_plan_id;
+
+    const sort = getCurrentProjectSort();
+    if (sort.sort_field) {
+        params.sort_field = sort.sort_field;
+        params.sort_dir = sort.sort_dir || 'asc';
+    }
+
+    return params;
+}
+
+function getDateIsoString(dateObj) {
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+function formatExportDateValue(value) {
+    if (!value) return '-';
+    if (value instanceof Date) return getDateIsoString(value);
+    const s = String(value);
+    if (s.includes('T')) return s.split('T')[0];
+    if (s.includes(' ')) return s.split(' ')[0];
+    return s;
+}
+
+function openExcelExportModal() {
+    const modal = document.getElementById('excelExportModal');
+    if (!modal) {
+        console.warn('⚠️ excelExportModal 요소 없음, 기본 다운로드로 대체');
+        if (projectTable) {
+            projectTable.download("xlsx", "프로젝트_목록.xlsx", { sheetName: "프로젝트" });
+        }
+        return;
+    }
+
+    const exportType = document.getElementById('excelExportType');
+    const exportLayout = document.getElementById('excelExportLayout');
+    const fromDate = document.getElementById('excelExportFromDate');
+    const toDate = document.getElementById('excelExportToDate');
+    const summary = document.getElementById('excelExportFilterSummary');
+    const progress = document.getElementById('excelExportProgress');
+
+    if (exportType) exportType.value = 'filtered';
+    if (exportLayout) exportLayout.value = 'single_sheet';
+
+    const today = new Date();
+    const lastWeek = new Date();
+    lastWeek.setDate(today.getDate() - 6);
+    if (fromDate) fromDate.value = getDateIsoString(lastWeek);
+    if (toDate) toDate.value = getDateIsoString(today);
+    if (summary) summary.textContent = getFilterSummaryText();
+    if (progress) progress.textContent = '';
+
+    onExcelExportTypeChange();
+    modal.classList.add('active');
+}
+
+function closeExcelExportModal() {
+    const modal = document.getElementById('excelExportModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function onExcelExportTypeChange() {
+    const exportType = document.getElementById('excelExportType')?.value || 'filtered';
+    const periodRow = document.getElementById('excelExportPeriodRow');
+    if (periodRow) {
+        periodRow.style.display = exportType === 'activity' ? 'grid' : 'none';
+    }
+}
+
+function getFilterSummaryText() {
+    const parts = [];
+    if (currentFilters.search_field || currentFilters.search_text) {
+        parts.push(`검색(${currentFilters.search_field || '전체'}): ${currentFilters.search_text || '-'}`);
+    }
+    if (currentFilters.manager_id) parts.push(`담당자: ${currentFilters.manager_id}`);
+    if (currentFilters.field_code) parts.push(`사업분야: ${currentFilters.field_code}`);
+    if (currentFilters.service_code) parts.push(`서비스: ${currentFilters.service_code}`);
+    if (currentFilters.current_stage) parts.push(`진행단계: ${currentFilters.current_stage}`);
+    if (currentFilters.sales_plan_id) parts.push(`영업계획: ${currentFilters.sales_plan_id}`);
+    return parts.length ? parts.join(' | ') : '필터 없음(전체)';
+}
+
+function normalizeHistoryDate(history) {
+    const raw = history?.base_date || history?.history_date || history?.record_date || '';
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (!Number.isNaN(d.getTime())) return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    return null;
+}
+
+function isHistoryInRange(history, fromDate, toDate) {
+    const d = normalizeHistoryDate(history);
+    if (!d) return false;
+    return d >= fromDate && d <= toDate;
+}
+
+function sanitizeSheetName(raw) {
+    const base = String(raw || 'Sheet')
+        .replace(/[\\/*?:[\]]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return (base || 'Sheet').slice(0, 31);
+}
+
+function getProjectBaseRow(project) {
+    return [
+        project.pipeline_id || '-',
+        project.project_name || '-',
+        project.field_name || project.field_code || '-',
+        project.service_name || project.service_code || '-',
+        project.stage_name || project.current_stage || '-',
+        project.manager_name || project.manager_id || '-',
+        project.org_name || project.org_id || '-',
+        project.customer_name || '-',
+        project.ordering_party_name || '-',
+        Number(project.quoted_amount || 0),
+        `${Number(project.win_probability || 0)}%`,
+        project.notes || ''
+    ];
+}
+
+function buildProjectSheetRows(entry, opts, index) {
+    const project = entry.project || {};
+    const attributes = entry.attributes || [];
+    const histories = entry.histories || [];
+    const rows = [];
+
+    rows.push([`[${index + 1}] ${project.pipeline_id || '-'} - ${project.project_name || '-'}`]);
+    rows.push(['']);
+    rows.push(['파이프라인ID', '프로젝트명', '사업분야', '서비스', '진행단계', '담당자', '조직', '고객사', '발주처', '견적금액', '수주확률', '비고']);
+    rows.push(getProjectBaseRow(project));
+    rows.push(['']);
+
+    rows.push(['속성정보']);
+    rows.push(['속성코드', '속성명', '값']);
+    if (attributes.length === 0) {
+        rows.push(['-', '(없음)', '-']);
     } else {
-        console.error('❌ projectTable이 없음');
-        alert('테이블이 초기화되지 않았습니다.');
+        attributes.forEach(attr => {
+            rows.push([
+                attr.attr_code || '-',
+                attr.attr_name || attr.attribute_name || attr.attr_code || '-',
+                attr.attr_value || attr.attribute_value || '-'
+            ]);
+        });
+    }
+    rows.push(['']);
+
+    rows.push(['변경이력']);
+    rows.push(['기준일', '진행단계', '내용', '작성자']);
+    if (histories.length === 0) {
+        rows.push(['-', '-', '(없음)', '-']);
+    } else {
+        histories.forEach(hist => {
+            rows.push([
+                formatExportDateValue(hist.base_date || hist.history_date || hist.record_date),
+                hist.stage_name || hist.progress_stage || '-',
+                hist.strategy_content || '-',
+                hist.creator_name || hist.creator_id || '-'
+            ]);
+        });
+    }
+
+    if (opts.exportType === 'activity') {
+        rows.push(['']);
+        rows.push([`활동 기간`, `${opts.fromDateRaw} ~ ${opts.toDateRaw}`]);
+    }
+
+    return rows;
+}
+
+function buildSummaryRows(entries, opts) {
+    const totalHistories = entries.reduce((acc, entry) => acc + ((entry.histories || []).length), 0);
+    const typeLabel = opts.exportType === 'activity' ? '주간/월간 활동내역' : '필터링 프로젝트 전체';
+    const layoutLabel = opts.layout === 'per_project' ? '프로젝트별 시트' : '단일 시트';
+    const now = new Date();
+    const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    const rows = [
+        ['PSMS 프로젝트 엑셀 리포트 요약'],
+        [''],
+        ['출력 유형', typeLabel],
+        ['시트 구성', layoutLabel],
+        ['출력 일시', ts],
+        ['프로젝트 수', entries.length],
+        ['이력 행 수', totalHistories],
+        ['필터 조건', getFilterSummaryText()]
+    ];
+
+    if (opts.exportType === 'activity') {
+        rows.push(['활동 기간', `${opts.fromDateRaw} ~ ${opts.toDateRaw}`]);
+    }
+    return rows;
+}
+
+function buildWorkbook(entries, opts) {
+    const wb = XLSX.utils.book_new();
+
+    const summaryRows = buildSummaryRows(entries, opts);
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+    wsSummary['!cols'] = [{ wch: 22 }, { wch: 80 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, '요약');
+
+    if (opts.layout === 'single_sheet') {
+        const rows = [];
+        entries.forEach((entry, idx) => {
+            const block = buildProjectSheetRows(entry, opts, idx);
+            block.forEach(row => rows.push(row));
+            rows.push(['']);
+            rows.push(['']);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = [
+            { wch: 14 }, { wch: 30 }, { wch: 16 }, { wch: 16 },
+            { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 20 },
+            { wch: 20 }, { wch: 14 }, { wch: 10 }, { wch: 50 }
+        ];
+        XLSX.utils.book_append_sheet(wb, ws, '전체리포트');
+    } else {
+        const usedNames = new Set(['요약']);
+        entries.forEach((entry, idx) => {
+            const project = entry.project || {};
+            const candidate = sanitizeSheetName(`${project.pipeline_id || idx + 1}_${project.project_name || '프로젝트'}`);
+            let name = candidate || `프로젝트_${idx + 1}`;
+            let suffix = 1;
+            while (usedNames.has(name)) {
+                const trimmed = candidate.slice(0, Math.max(1, 28));
+                name = `${trimmed}_${suffix}`;
+                suffix += 1;
+            }
+            usedNames.add(name);
+
+            const rows = buildProjectSheetRows(entry, opts, idx);
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            ws['!cols'] = [
+                { wch: 14 }, { wch: 30 }, { wch: 16 }, { wch: 16 },
+                { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 20 },
+                { wch: 20 }, { wch: 14 }, { wch: 10 }, { wch: 50 }
+            ];
+            XLSX.utils.book_append_sheet(wb, ws, name);
+        });
+    }
+
+    return wb;
+}
+
+async function fetchAllProjectsForExport() {
+    const allItems = [];
+    let page = 1;
+    const pageSize = 500;
+
+    while (true) {
+        const params = buildProjectListQueryParams(page, pageSize);
+        const query = new URLSearchParams(params).toString();
+        const response = await API.get(`${API_CONFIG.ENDPOINTS.PROJECTS_LIST}?${query}`);
+        const items = response?.items || [];
+        allItems.push(...items);
+
+        const totalPages = response?.total_pages || 1;
+        if (page >= totalPages) break;
+        page += 1;
+    }
+
+    return allItems;
+}
+
+async function fetchProjectDetailsForExport(projects, onProgress) {
+    if (!projects.length) return [];
+    const results = new Array(projects.length);
+    const concurrency = Math.min(6, projects.length);
+    let cursor = 0;
+    let completed = 0;
+
+    async function worker() {
+        while (true) {
+            const index = cursor;
+            cursor += 1;
+            if (index >= projects.length) break;
+
+            const row = projects[index];
+            const pipelineId = row.pipeline_id;
+            try {
+                const detail = await API.get(`${API_CONFIG.ENDPOINTS.PROJECT_DETAIL}/${pipelineId}/full`);
+                const project = detail?.project || {};
+                const mergedProject = { ...row, ...project };
+                results[index] = {
+                    project: mergedProject,
+                    attributes: detail?.attributes || [],
+                    histories: detail?.histories || []
+                };
+            } catch (error) {
+                console.warn(`⚠️ 상세 조회 실패: ${pipelineId}`, error);
+                results[index] = {
+                    project: row,
+                    attributes: [],
+                    histories: []
+                };
+            } finally {
+                completed += 1;
+                if (typeof onProgress === 'function') onProgress(completed, projects.length);
+            }
+        }
+    }
+
+    const workers = [];
+    for (let i = 0; i < concurrency; i += 1) {
+        workers.push(worker());
+    }
+    await Promise.all(workers);
+    return results.filter(Boolean);
+}
+
+function setExcelExportProgress(message) {
+    const el = document.getElementById('excelExportProgress');
+    if (el) el.textContent = message;
+}
+
+function setExcelExportRunningState(isRunning) {
+    const btn = document.getElementById('btnExcelExportRun');
+    if (!btn) return;
+    btn.disabled = isRunning;
+    btn.innerHTML = isRunning
+        ? '<i class="fas fa-spinner fa-spin"></i> 생성 중...'
+        : '<i class="fas fa-file-excel"></i> 엑셀 생성';
+}
+
+async function runExcelExport() {
+    const exportType = document.getElementById('excelExportType')?.value || 'filtered';
+    const layout = document.getElementById('excelExportLayout')?.value || 'single_sheet';
+    const fromDateRaw = document.getElementById('excelExportFromDate')?.value || '';
+    const toDateRaw = document.getElementById('excelExportToDate')?.value || '';
+
+    let fromDate = null;
+    let toDate = null;
+
+    if (exportType === 'activity') {
+        if (!fromDateRaw || !toDateRaw) {
+            alert('활동내역 출력은 기간(From/To) 입력이 필요합니다.');
+            return;
+        }
+        fromDate = new Date(fromDateRaw);
+        toDate = new Date(toDateRaw);
+        if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+            alert('기간 형식이 올바르지 않습니다.');
+            return;
+        }
+        fromDate = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate());
+        toDate = new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate());
+        if (fromDate > toDate) {
+            alert('From 날짜는 To 날짜보다 같거나 이전이어야 합니다.');
+            return;
+        }
+    }
+
+    try {
+        setExcelExportRunningState(true);
+        setExcelExportProgress('대상 프로젝트 조회 중...');
+        Utils.showLoading(true);
+
+        const projects = await fetchAllProjectsForExport();
+        if (!projects.length) {
+            alert('출력할 프로젝트가 없습니다.');
+            return;
+        }
+
+        setExcelExportProgress(`상세 데이터 조회 중... (0/${projects.length})`);
+        const details = await fetchProjectDetailsForExport(projects, (done, total) => {
+            setExcelExportProgress(`상세 데이터 조회 중... (${done}/${total})`);
+        });
+
+        let entries = details.map(entry => ({
+            project: entry.project || {},
+            attributes: entry.attributes || [],
+            histories: entry.histories || []
+        }));
+
+        if (exportType === 'activity') {
+            entries = entries
+                .map(entry => ({
+                    ...entry,
+                    histories: (entry.histories || []).filter(hist => isHistoryInRange(hist, fromDate, toDate))
+                }))
+                .filter(entry => (entry.histories || []).length > 0);
+        }
+
+        if (!entries.length) {
+            alert(exportType === 'activity'
+                ? '지정 기간에 이력이 등록된 프로젝트가 없습니다.'
+                : '출력할 프로젝트가 없습니다.');
+            return;
+        }
+
+        setExcelExportProgress('엑셀 파일 생성 중...');
+        const workbook = buildWorkbook(entries, {
+            exportType,
+            layout,
+            fromDateRaw,
+            toDateRaw
+        });
+
+        const now = new Date();
+        const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+        const typeLabel = exportType === 'activity' ? '활동내역' : '필터전체';
+        const fileName = `프로젝트_${typeLabel}_${stamp}.xlsx`;
+
+        XLSX.writeFile(workbook, fileName);
+        setExcelExportProgress(`완료: ${entries.length}개 프로젝트 출력`);
+        closeExcelExportModal();
+    } catch (error) {
+        console.error('❌ 엑셀 리포트 생성 실패:', error);
+        alert('엑셀 리포트 생성 중 오류가 발생했습니다.');
+    } finally {
+        Utils.showLoading(false);
+        setExcelExportRunningState(false);
     }
 }
 
@@ -993,5 +1467,9 @@ window.editProject = editProject;
 window.switchDetailTab = switchDetailTab;
 window.closeModal = closeModal;
 window.exportToExcel = exportToExcel;
+window.openExcelExportModal = openExcelExportModal;
+window.closeExcelExportModal = closeExcelExportModal;
+window.onExcelExportTypeChange = onExcelExportTypeChange;
+window.runExcelExport = runExcelExport;
 
 console.log('📦 app.js 모듈 로드 완료');

@@ -212,8 +212,8 @@ async function loadFormComboBoxes() {
             });
         }
         
-        // 1.1 사업분야 콤보박스 (FIELD)
-        const fields = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/FIELD`);
+        // 1.1 사업분야 콤보박스 (industry_fields)
+        const fields = await API.get(`${API_CONFIG.ENDPOINTS.INDUSTRY_FIELDS}/list?is_use=Y`);
         const fieldSelect = document.getElementById('field_code');
         fieldSelect.innerHTML = '<option value="">선택하세요</option>';
         console.log('📥 사업분야 데이터:', fields);
@@ -221,8 +221,8 @@ async function loadFormComboBoxes() {
         if (fields && fields.items) {
             fields.items.forEach(f => {
                 const opt = document.createElement('option');
-                opt.value = f.code;
-                opt.textContent = f.code_name;
+                opt.value = f.field_code;
+                opt.textContent = f.field_name || f.field_code;
                 fieldSelect.appendChild(opt);
             });
         }

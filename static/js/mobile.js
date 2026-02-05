@@ -53,7 +53,7 @@ async function initializeMobileProjects() {
 }
 
 /**
- * 공통코드 로드 (STAGE, FIELD)
+ * 공통코드/기준정보 로드 (STAGE, industry_fields)
  */
 async function loadMobileCommonCodes() {
     try {
@@ -74,14 +74,14 @@ async function loadMobileCommonCodes() {
             setDefaultStageConfig();
         }
         
-        // FIELD 로드
-        console.log('📡 FIELD 공통코드 로드...');
-        const fieldResponse = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/FIELD`);
-        
+        // FIELD 로드 (industry_fields)
+        console.log('📡 분야코드(industry_fields) 로드...');
+        const fieldResponse = await API.get(`${API_CONFIG.ENDPOINTS.INDUSTRY_FIELDS}/list?is_use=Y`);
+
         if (fieldResponse && fieldResponse.items && Array.isArray(fieldResponse.items)) {
             mobileFieldConfig = {};
             fieldResponse.items.forEach(field => {
-                mobileFieldConfig[field.code] = field.code_name;
+                mobileFieldConfig[field.field_code] = field.field_name || field.field_code;
             });
             console.log('✅ FIELD 로드 완료:', Object.keys(mobileFieldConfig).length, '개');
         } else {

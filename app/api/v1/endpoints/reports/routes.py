@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional, Dict, List
+from datetime import date, datetime
 
 from app.core.database import get_db
 from app.core.logger import app_logger
@@ -357,6 +358,46 @@ def _sum_rows(rows: List[Dict], metric_fields: List[str], period: str) -> Dict:
     return totals
 
 
+def _month_sum_expr(column_prefix: str, column_suffix: str = "") -> str:
+    return " + ".join([f"COALESCE({column_prefix}{str(i).zfill(2)}{column_suffix},0)" for i in range(1, 13)])
+
+
+def _month_sum_select(column_prefix: str, column_suffix: str = "") -> str:
+    return ", ".join([
+        f"SUM(COALESCE({column_prefix}{str(i).zfill(2)}{column_suffix},0)) AS m{str(i).zfill(2)}"
+        for i in range(1, 13)
+    ])
+
+
+def _to_float(value) -> float:
+    return float(value or 0)
+
+
+def _row_months(row: Dict) -> List[float]:
+    if not row:
+        return [0.0] * 12
+    return [_to_float(row.get(f"m{str(i).zfill(2)}")) for i in range(1, 13)]
+
+
+def _quarter_sums(months: List[float]) -> List[float]:
+    return [
+        sum(months[0:3]),
+        sum(months[3:6]),
+        sum(months[6:9]),
+        sum(months[9:12]),
+    ]
+
+
+def _build_ordered_in_clause(values: List[int], prefix: str = "id"):
+    placeholders = []
+    params: Dict[str, int] = {}
+    for idx, value in enumerate(values):
+        key = f"{prefix}{idx}"
+        placeholders.append(f":{key}")
+        params[key] = value
+    return ", ".join(placeholders), params
+
+
 # ============================================
 # Report Summary
 # ============================================
@@ -476,4 +517,373 @@ async def report_summary(
         raise
     except Exception as e:
         app_logger.exception("❌ Report summary 실패")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# CEO Dashboard
+# ============================================
+@router.get("/ceo-dashboard")
+async def get_ceo_dashboard(
+    year: Optional[int] = Query(None, description="기준 연도 (기본: 현재 연도)"),
+    db: Session = Depends(get_db)
+):
+    try:
+        base_year = year or date.today().year
+        prev_year = base_year - 1
+
+        active_stage_filter = "(p.current_stage IS NULL OR p.current_stage NOT IN ('S05','S06','S07','S08','S09'))"
+
+        years_rows = db.execute(text("""
+            SELECT DISTINCT y
+            FROM (
+                SELECT actual_year AS y FROM sales_actual_line
+                UNION
+                SELECT plan_year AS y FROM sales_plan
+                UNION
+                SELECT YEAR(created_at) AS y FROM projects
+            ) t
+            WHERE y IS NOT NULL
+            ORDER BY y DESC
+        """)).fetchall()
+        available_years = [int(row[0]) for row in years_rows if row[0] is not None]
+        if base_year not in available_years:
+            available_years.insert(0, base_year)
+
+        # KPI - 프로젝트 파이프라인
+        kpi_project_row = db.execute(text(f"""
+            SELECT
+                COUNT(*) AS total_projects,
+                SUM(COALESCE(p.quoted_amount,0)) AS total_quoted_amount,
+                SUM(CASE WHEN {active_stage_filter} THEN 1 ELSE 0 END) AS active_projects,
+                SUM(CASE WHEN {active_stage_filter} THEN COALESCE(p.quoted_amount,0) ELSE 0 END) AS active_pipeline_amount,
+                SUM(CASE WHEN {active_stage_filter}
+                         THEN COALESCE(p.quoted_amount,0) * COALESCE(p.win_probability,0) / 100
+                         ELSE 0 END) AS expected_amount,
+                AVG(CASE WHEN {active_stage_filter} THEN COALESCE(p.win_probability,0) END) AS avg_win_probability,
+                SUM(CASE WHEN p.current_stage IN ('S05','S06') THEN 1 ELSE 0 END) AS lost_projects,
+                SUM(CASE WHEN p.current_stage IN ('S07','S08','S09') THEN 1 ELSE 0 END) AS closed_projects
+            FROM projects p
+        """)).mappings().first()
+
+        # KPI - 위험 신호
+        kpi_risk_row = db.execute(text(f"""
+            SELECT
+                SUM(CASE WHEN {active_stage_filter}
+                             AND pc.end_date IS NOT NULL
+                             AND pc.end_date < CURDATE()
+                         THEN 1 ELSE 0 END) AS overdue_projects,
+                SUM(CASE WHEN {active_stage_filter}
+                             AND DATEDIFF(CURDATE(), COALESCE(DATE(p.updated_at), DATE(p.created_at))) >= 90
+                         THEN 1 ELSE 0 END) AS stale_projects,
+                SUM(CASE WHEN {active_stage_filter}
+                             AND COALESCE(p.win_probability,0) < 30
+                         THEN 1 ELSE 0 END) AS low_probability_projects
+            FROM projects p
+            LEFT JOIN project_contracts pc ON pc.pipeline_id = p.pipeline_id
+        """)).mappings().first()
+
+        # KPI - 실적/전년 비교
+        actual_sum_expr = _month_sum_expr("m", "_order")
+        profit_sum_expr = _month_sum_expr("m", "_profit")
+
+        kpi_actual_row = db.execute(text(f"""
+            SELECT
+                SUM({actual_sum_expr}) AS order_total,
+                SUM({profit_sum_expr}) AS profit_total
+            FROM sales_actual_line
+            WHERE actual_year = :year
+        """), {"year": base_year}).mappings().first()
+
+        kpi_actual_prev_row = db.execute(text(f"""
+            SELECT
+                SUM({actual_sum_expr}) AS order_total,
+                SUM({profit_sum_expr}) AS profit_total
+            FROM sales_actual_line
+            WHERE actual_year = :year
+        """), {"year": prev_year}).mappings().first()
+
+        # 계획 합계 (해당 연도 최신 계획)
+        plan_ids = _get_latest_plan_ids(db, base_year, None, None, None)
+        plan_total = 0.0
+        if plan_ids:
+            in_clause, in_params = _build_ordered_in_clause(plan_ids, "pid")
+            plan_row = db.execute(text(f"""
+                SELECT SUM({_plan_sum_expr()}) AS plan_total
+                FROM sales_plan_line spl
+                WHERE spl.plan_id IN ({in_clause})
+            """), in_params).mappings().first()
+            plan_total = _to_float(plan_row.get("plan_total")) if plan_row else 0.0
+
+        order_total = _to_float(kpi_actual_row.get("order_total")) if kpi_actual_row else 0.0
+        prev_order_total = _to_float(kpi_actual_prev_row.get("order_total")) if kpi_actual_prev_row else 0.0
+        order_yoy = ((order_total - prev_order_total) / prev_order_total) if prev_order_total else None
+        achievement_rate = (order_total / plan_total) if plan_total else None
+
+        # 월별 추이 (실적/전년/계획)
+        actual_month_row = db.execute(text(f"""
+            SELECT {_month_sum_select('m', '_order')}
+            FROM sales_actual_line
+            WHERE actual_year = :year
+        """), {"year": base_year}).mappings().first() or {}
+
+        prev_month_row = db.execute(text(f"""
+            SELECT {_month_sum_select('m', '_order')}
+            FROM sales_actual_line
+            WHERE actual_year = :year
+        """), {"year": prev_year}).mappings().first() or {}
+
+        plan_month_row = {}
+        if plan_ids:
+            in_clause, in_params = _build_ordered_in_clause(plan_ids, "pmid")
+            plan_month_row = db.execute(text(f"""
+                SELECT {_month_sum_select('plan_m')}
+                FROM sales_plan_line
+                WHERE plan_id IN ({in_clause})
+            """), in_params).mappings().first() or {}
+
+        actual_months = _row_months(actual_month_row)
+        prev_months = _row_months(prev_month_row)
+        plan_months = _row_months(plan_month_row)
+
+        monthly_trend = []
+        for i in range(1, 13):
+            monthly_trend.append({
+                "month": i,
+                "actual_order": actual_months[i - 1],
+                "previous_order": prev_months[i - 1],
+                "plan_order": plan_months[i - 1],
+            })
+
+        actual_quarters = _quarter_sums(actual_months)
+        plan_quarters = _quarter_sums(plan_months)
+        quarter_comparison = []
+        for idx in range(4):
+            plan_val = plan_quarters[idx]
+            actual_val = actual_quarters[idx]
+            quarter_comparison.append({
+                "quarter": f"Q{idx + 1}",
+                "actual_order": actual_val,
+                "plan_order": plan_val,
+                "achievement_rate": (actual_val / plan_val) if plan_val else None
+            })
+
+        # 단계별 파이프라인
+        stage_funnel_rows = db.execute(text(f"""
+            SELECT
+                COALESCE(p.current_stage, '-') AS stage_code,
+                COALESCE(cc.code_name, p.current_stage, '미지정') AS stage_name,
+                COUNT(*) AS project_count,
+                SUM(COALESCE(p.quoted_amount,0)) AS total_amount,
+                AVG(COALESCE(p.win_probability,0)) AS avg_probability
+            FROM projects p
+            LEFT JOIN comm_code cc
+              ON cc.group_code = 'STAGE'
+             AND cc.code = p.current_stage
+            GROUP BY COALESCE(p.current_stage, '-'), COALESCE(cc.code_name, p.current_stage, '미지정')
+            ORDER BY CASE stage_code
+                WHEN 'S01' THEN 1
+                WHEN 'S02' THEN 2
+                WHEN 'S03' THEN 3
+                WHEN 'S04' THEN 4
+                WHEN 'S05' THEN 5
+                WHEN 'S06' THEN 6
+                WHEN 'S07' THEN 7
+                WHEN 'S08' THEN 8
+                WHEN 'S09' THEN 9
+                ELSE 99
+            END
+        """)).mappings().all()
+        stage_funnel = [{
+            "stage_code": row["stage_code"],
+            "stage_name": row["stage_name"],
+            "project_count": int(row["project_count"] or 0),
+            "total_amount": _to_float(row["total_amount"]),
+            "avg_probability": _to_float(row["avg_probability"]),
+        } for row in stage_funnel_rows]
+
+        # 수주확률 분포 (활동중 대상)
+        probability_rows = db.execute(text(f"""
+            SELECT
+                CASE
+                    WHEN COALESCE(p.win_probability,0) >= 90 THEN '90-100%'
+                    WHEN COALESCE(p.win_probability,0) >= 70 THEN '70-89%'
+                    WHEN COALESCE(p.win_probability,0) >= 50 THEN '50-69%'
+                    WHEN COALESCE(p.win_probability,0) >= 30 THEN '30-49%'
+                    ELSE '0-29%'
+                END AS probability_band,
+                COUNT(*) AS project_count,
+                SUM(COALESCE(p.quoted_amount,0)) AS total_amount
+            FROM projects p
+            WHERE {active_stage_filter}
+            GROUP BY probability_band
+            ORDER BY CASE probability_band
+                WHEN '90-100%' THEN 1
+                WHEN '70-89%' THEN 2
+                WHEN '50-69%' THEN 3
+                WHEN '30-49%' THEN 4
+                ELSE 5
+            END
+        """)).mappings().all()
+        probability_bands = [{
+            "probability_band": row["probability_band"],
+            "project_count": int(row["project_count"] or 0),
+            "total_amount": _to_float(row["total_amount"]),
+        } for row in probability_rows]
+
+        # 담당자 TOP5
+        manager_rows = db.execute(text(f"""
+            SELECT
+                p.manager_id,
+                COALESCE(u.user_name, p.manager_id, '미지정') AS manager_name,
+                COUNT(*) AS project_count,
+                SUM(COALESCE(p.quoted_amount,0)) AS total_amount,
+                SUM(COALESCE(p.quoted_amount,0) * COALESCE(p.win_probability,0) / 100) AS expected_amount
+            FROM projects p
+            LEFT JOIN users u ON u.login_id = p.manager_id
+            WHERE {active_stage_filter}
+            GROUP BY p.manager_id, COALESCE(u.user_name, p.manager_id, '미지정')
+            ORDER BY expected_amount DESC
+            LIMIT 5
+        """)).mappings().all()
+        manager_top = [{
+            "manager_id": row["manager_id"],
+            "manager_name": row["manager_name"],
+            "project_count": int(row["project_count"] or 0),
+            "total_amount": _to_float(row["total_amount"]),
+            "expected_amount": _to_float(row["expected_amount"]),
+        } for row in manager_rows]
+
+        # 분야별 파이프라인 비중
+        field_rows = db.execute(text(f"""
+            SELECT
+                p.field_code,
+                COALESCE(f.field_name, p.field_code, '미분류') AS field_name,
+                COUNT(*) AS project_count,
+                SUM(COALESCE(p.quoted_amount,0)) AS total_amount,
+                SUM(COALESCE(p.quoted_amount,0) * COALESCE(p.win_probability,0) / 100) AS expected_amount
+            FROM projects p
+            LEFT JOIN industry_fields f ON f.field_code = p.field_code
+            WHERE {active_stage_filter}
+            GROUP BY p.field_code, COALESCE(f.field_name, p.field_code, '미분류')
+            ORDER BY total_amount DESC
+            LIMIT 8
+        """)).mappings().all()
+        field_mix = [{
+            "field_code": row["field_code"],
+            "field_name": row["field_name"],
+            "project_count": int(row["project_count"] or 0),
+            "total_amount": _to_float(row["total_amount"]),
+            "expected_amount": _to_float(row["expected_amount"]),
+        } for row in field_rows]
+
+        # 고객사 TOP10
+        customer_rows = db.execute(text(f"""
+            SELECT
+                p.customer_id,
+                COALESCE(c.client_name, '미지정') AS customer_name,
+                COUNT(*) AS project_count,
+                SUM(COALESCE(p.quoted_amount,0)) AS total_amount,
+                SUM(COALESCE(p.quoted_amount,0) * COALESCE(p.win_probability,0) / 100) AS expected_amount
+            FROM projects p
+            LEFT JOIN clients c ON c.client_id = p.customer_id
+            WHERE {active_stage_filter}
+            GROUP BY p.customer_id, COALESCE(c.client_name, '미지정')
+            ORDER BY expected_amount DESC
+            LIMIT 10
+        """)).mappings().all()
+        customer_top = [{
+            "customer_id": row["customer_id"],
+            "customer_name": row["customer_name"],
+            "project_count": int(row["project_count"] or 0),
+            "total_amount": _to_float(row["total_amount"]),
+            "expected_amount": _to_float(row["expected_amount"]),
+        } for row in customer_rows]
+
+        # 리스크 프로젝트 목록
+        risk_rows = db.execute(text(f"""
+            SELECT
+                p.pipeline_id,
+                p.project_name,
+                COALESCE(cc.code_name, p.current_stage, '-') AS stage_name,
+                COALESCE(p.quoted_amount,0) AS quoted_amount,
+                COALESCE(p.win_probability,0) AS win_probability,
+                pc.end_date,
+                p.updated_at,
+                DATEDIFF(CURDATE(), COALESCE(DATE(p.updated_at), DATE(p.created_at))) AS stale_days,
+                CASE
+                    WHEN pc.end_date IS NOT NULL AND pc.end_date < CURDATE() THEN 1 ELSE 0
+                END AS is_overdue,
+                CASE
+                    WHEN DATEDIFF(CURDATE(), COALESCE(DATE(p.updated_at), DATE(p.created_at))) >= 90 THEN 1 ELSE 0
+                END AS is_stale,
+                CASE
+                    WHEN COALESCE(p.win_probability,0) < 30 THEN 1 ELSE 0
+                END AS is_low_probability
+            FROM projects p
+            LEFT JOIN project_contracts pc ON pc.pipeline_id = p.pipeline_id
+            LEFT JOIN comm_code cc
+              ON cc.group_code = 'STAGE'
+             AND cc.code = p.current_stage
+            WHERE {active_stage_filter}
+              AND (
+                    (pc.end_date IS NOT NULL AND pc.end_date < CURDATE())
+                 OR (DATEDIFF(CURDATE(), COALESCE(DATE(p.updated_at), DATE(p.created_at))) >= 90)
+                 OR (COALESCE(p.win_probability,0) < 30)
+              )
+            ORDER BY is_overdue DESC,
+                     is_low_probability DESC,
+                     stale_days DESC,
+                     p.updated_at ASC
+            LIMIT 12
+        """)).mappings().all()
+
+        risk_projects = [{
+            "pipeline_id": row["pipeline_id"],
+            "project_name": row["project_name"],
+            "stage_name": row["stage_name"],
+            "quoted_amount": _to_float(row["quoted_amount"]),
+            "win_probability": int(row["win_probability"] or 0),
+            "end_date": row["end_date"].isoformat() if row.get("end_date") else None,
+            "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
+            "stale_days": int(row["stale_days"] or 0),
+            "is_overdue": bool(row["is_overdue"]),
+            "is_stale": bool(row["is_stale"]),
+            "is_low_probability": bool(row["is_low_probability"]),
+        } for row in risk_rows]
+
+        return {
+            "year": base_year,
+            "available_years": available_years,
+            "kpi": {
+                "order_total": order_total,
+                "profit_total": _to_float(kpi_actual_row.get("profit_total")) if kpi_actual_row else 0.0,
+                "plan_total": plan_total,
+                "achievement_rate": achievement_rate,
+                "order_yoy_rate": order_yoy,
+                "total_projects": int((kpi_project_row or {}).get("total_projects") or 0),
+                "active_projects": int((kpi_project_row or {}).get("active_projects") or 0),
+                "closed_projects": int((kpi_project_row or {}).get("closed_projects") or 0),
+                "lost_projects": int((kpi_project_row or {}).get("lost_projects") or 0),
+                "active_pipeline_amount": _to_float((kpi_project_row or {}).get("active_pipeline_amount")),
+                "expected_amount": _to_float((kpi_project_row or {}).get("expected_amount")),
+                "avg_win_probability": _to_float((kpi_project_row or {}).get("avg_win_probability")),
+                "overdue_projects": int((kpi_risk_row or {}).get("overdue_projects") or 0),
+                "stale_projects": int((kpi_risk_row or {}).get("stale_projects") or 0),
+                "low_probability_projects": int((kpi_risk_row or {}).get("low_probability_projects") or 0),
+            },
+            "monthly_trend": monthly_trend,
+            "quarter_comparison": quarter_comparison,
+            "stage_funnel": stage_funnel,
+            "probability_bands": probability_bands,
+            "manager_top": manager_top,
+            "field_mix": field_mix,
+            "customer_top": customer_top,
+            "risk_projects": risk_projects,
+            "generated_at": datetime.now().isoformat(timespec="seconds")
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        app_logger.exception("❌ CEO dashboard 조회 실패")
         raise HTTPException(status_code=500, detail=str(e))

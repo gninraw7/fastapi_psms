@@ -24,6 +24,7 @@
     <link rel="stylesheet" href="/static/css/clients.css?v=1.0.0">
     <link rel="stylesheet" href="/static/css/breadcrumb.css">
     <link rel="stylesheet" href="/static/css/sales-planning.css?v=2.4">
+    <link rel="stylesheet" href="/static/css/sales-dashboard.css?v=1.1">
 
     <!-- ⭐ 인증 관리 스크립트 추가 -->
     <script src="/static/js/auth.js"></script>    
@@ -205,6 +206,13 @@
                         <div class="filter-group">
                             <label><i class="fas fa-briefcase"></i> 사업분야</label>
                             <select id="filterField" class="form-select">
+                                <option value="">전체</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label><i class="fas fa-concierge-bell"></i> 서비스</label>
+                            <select id="filterService" class="form-select">
                                 <option value="">전체</option>
                             </select>
                         </div>
@@ -1180,16 +1188,100 @@
          프로젝트 대시보드
          =================================== -->
     <div id="page-sales-dashboard" class="page-content">
-        <main class="app-main">
-            <div class="panel-card">
-                <div class="panel-header">
-                    <div class="panel-title">
-                        <i class="fas fa-tachometer-alt"></i>
-                        프로젝트 대시보드
+        <main class="app-main ceo-dashboard-main">
+            <div class="ceo-dashboard-shell">
+                <div class="ceo-dashboard-header">
+                    <div>
+                        <h2><i class="fas fa-chart-line"></i> CEO 프로젝트 대시보드</h2>
+                        <p>파이프라인, 실적, 리스크를 한 화면에서 확인합니다.</p>
+                    </div>
+                    <div class="ceo-dashboard-controls">
+                        <label for="ceoYearSelect">기준연도</label>
+                        <select id="ceoYearSelect" class="form-select"></select>
+                        <button class="btn btn-primary" id="btnCeoRefresh">
+                            <i class="fas fa-rotate"></i> 새로고침
+                        </button>
                     </div>
                 </div>
-                <div class="helper-text">
-                    프로젝트 진행 현황 요약은 준비 중입니다. (요청 시 KPI/파이프라인/단계별 현황을 추가 구성)
+
+                <div class="ceo-kpi-grid">
+                    <div class="ceo-kpi-card">
+                        <div class="ceo-kpi-title">연간 수주</div>
+                        <div class="ceo-kpi-value" id="ceoKpiOrderTotal">-</div>
+                        <div class="ceo-kpi-sub" id="ceoKpiOrderYoY">전년 대비 -</div>
+                    </div>
+                    <div class="ceo-kpi-card">
+                        <div class="ceo-kpi-title">연간 이익</div>
+                        <div class="ceo-kpi-value" id="ceoKpiProfitTotal">-</div>
+                        <div class="ceo-kpi-sub">실적 집계 기준</div>
+                    </div>
+                    <div class="ceo-kpi-card">
+                        <div class="ceo-kpi-title">계획 대비 달성률</div>
+                        <div class="ceo-kpi-value" id="ceoKpiAchievement">-</div>
+                        <div class="ceo-kpi-sub" id="ceoKpiPlanTotal">계획 -</div>
+                    </div>
+                    <div class="ceo-kpi-card">
+                        <div class="ceo-kpi-title">활동 파이프라인</div>
+                        <div class="ceo-kpi-value" id="ceoKpiPipeline">-</div>
+                        <div class="ceo-kpi-sub" id="ceoKpiExpected">예상매출 -</div>
+                    </div>
+                    <div class="ceo-kpi-card">
+                        <div class="ceo-kpi-title">평균 수주확률</div>
+                        <div class="ceo-kpi-value" id="ceoKpiAvgProb">-</div>
+                        <div class="ceo-kpi-sub" id="ceoKpiProjectCount">활동 프로젝트 -건</div>
+                    </div>
+                    <div class="ceo-kpi-card ceo-kpi-risk">
+                        <div class="ceo-kpi-title">리스크 프로젝트</div>
+                        <div class="ceo-kpi-value" id="ceoKpiRiskCount">-</div>
+                        <div class="ceo-kpi-sub" id="ceoKpiRiskDetail">기한/저확률/장기미갱신</div>
+                    </div>
+                </div>
+
+                <div class="ceo-chart-grid">
+                    <section class="ceo-card ceo-card-wide">
+                        <div class="ceo-card-title">월별 수주 추이 (실적/전년/계획)</div>
+                        <canvas id="ceoMonthlyTrendChart"></canvas>
+                    </section>
+
+                    <section class="ceo-card">
+                        <div class="ceo-card-title">분기별 계획 대비 실적</div>
+                        <canvas id="ceoQuarterCompareChart"></canvas>
+                    </section>
+
+                    <section class="ceo-card">
+                        <div class="ceo-card-title">단계별 파이프라인</div>
+                        <canvas id="ceoStageFunnelChart"></canvas>
+                    </section>
+
+                    <section class="ceo-card">
+                        <div class="ceo-card-title">수주확률 분포</div>
+                        <canvas id="ceoProbabilityChart"></canvas>
+                    </section>
+
+                    <section class="ceo-card">
+                        <div class="ceo-card-title">담당자 TOP5 (예상매출)</div>
+                        <canvas id="ceoManagerTopChart"></canvas>
+                    </section>
+
+                    <section class="ceo-card">
+                        <div class="ceo-card-title">분야별 파이프라인 비중</div>
+                        <canvas id="ceoFieldMixChart"></canvas>
+                    </section>
+                </div>
+
+                <div class="ceo-list-grid">
+                    <section class="ceo-card">
+                        <div class="ceo-card-title">리스크 프로젝트</div>
+                        <div id="ceoRiskProjects" class="ceo-list-scroll"></div>
+                    </section>
+                    <section class="ceo-card">
+                        <div class="ceo-card-title">고객사 TOP10 (예상매출)</div>
+                        <div id="ceoTopCustomers" class="ceo-list-scroll"></div>
+                    </section>
+                </div>
+
+                <div class="ceo-dashboard-footer">
+                    <span id="ceoDashboardGeneratedAt">갱신시각: -</span>
                 </div>
             </div>
         </main>
@@ -2970,19 +3062,79 @@
         </div>
     </div>
 
+    <!-- 엑셀 리포트 출력 옵션 -->
+    <div id="excelExportModal" class="modal">
+        <div class="modal-content" style="max-width: 760px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-file-excel"></i> 프로젝트 엑셀 리포트 출력</h3>
+                <button class="modal-close" type="button" onclick="closeExcelExportModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="excelExportType">출력 유형</label>
+                        <select id="excelExportType" class="form-select" onchange="onExcelExportTypeChange()">
+                            <option value="filtered">필터 조건 전체 프로젝트 (기본+속성+이력)</option>
+                            <option value="activity">주간/월간 활동내역 (기간 내 이력 존재 프로젝트)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="excelExportLayout">시트 구성</label>
+                        <select id="excelExportLayout" class="form-select">
+                            <option value="single_sheet">단일 시트(프로젝트 블록 반복)</option>
+                            <option value="per_project">프로젝트별 시트</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="excelExportPeriodRow" class="form-row" style="display: none;">
+                    <div class="form-group">
+                        <label for="excelExportFromDate">기간 From</label>
+                        <input type="date" id="excelExportFromDate" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="excelExportToDate">기간 To</label>
+                        <input type="date" id="excelExportToDate" class="form-input">
+                    </div>
+                </div>
+
+                <div class="helper-text" style="margin-top: 0.75rem;">
+                    현재 프로젝트 목록의 필터 조건을 적용한 전체 프로젝트를 대상으로 출력합니다.
+                </div>
+                <div class="helper-text" id="excelExportFilterSummary" style="margin-top: 0.35rem; font-weight: 600;">
+                    필터 요약: -
+                </div>
+                <div class="helper-text" id="excelExportProgress" style="margin-top: 0.75rem; color: #0f766e;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeExcelExportModal()">
+                    <i class="fas fa-times"></i> 취소
+                </button>
+                <button type="button" class="btn btn-success" id="btnExcelExportRun" onclick="runExcelExport()">
+                    <i class="fas fa-file-excel"></i> 엑셀 생성
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts 순서 중요 -->
     <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="/static/js/config.js?v=3.4"></script>
     <script src="/static/js/auth.js?v=2.5"></script>
     <script src="/static/js/utils.js?v=2.5"></script>
-    <script src="/static/js/navigation.js?v=4.4"></script>  <!-- ⭐ 버전 업 -->
+    <script src="/static/js/navigation.js?v=4.5"></script>  <!-- ⭐ 버전 업 -->
     <script src="/static/js/stage-icons.js"></script>
     <script src="/static/js/project-form.js?v=3.8"></script>
     <script src="/static/js/clients-list.js?v=3.5"></script>  <!-- ⭐ 버전 추가 -->
     <script src="/static/js/clients-form.js?v=3.0"></script>  <!-- ⭐ 신규 추가 -->
     <script src="/static/js/sales-plan.js?v=2.6"></script>
     <script src="/static/js/sales-actual.js?v=3.1"></script>
+    <script src="/static/js/sales-dashboard.js?v=1.1"></script>
     <script src="/static/js/report.js?v=1.16"></script>
     <script src="/static/js/users-list.js?v=2.2"></script>
     <script src="/static/js/users-form.js?v=1.4"></script>
@@ -2991,7 +3143,7 @@
     <script src="/static/js/service-codes.js?v=1.0"></script>
     <script src="/static/js/org-units.js?v=1.0"></script>
     <script src="/static/js/my-info.js?v=1.1"></script>
-    <script src="/static/js/app.js?v=3.1"></script>
+    <script src="/static/js/app.js?v=3.2"></script>
     <script src="/static/js/mobile.js?v=2.5"></script>
     <script src="/static/js/markdown-formatter.js"></script>
 

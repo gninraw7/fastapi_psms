@@ -416,7 +416,9 @@ function initializePage(pageId) {
             
         case 'sales-dashboard':
             console.log('📊 프로젝트 대시보드 초기화');
-            // TODO: 대시보드 초기화 로직
+            if (typeof initializeSalesDashboard === 'function') {
+                initializeSalesDashboard();
+            }
             break;
             
         case 'sales-plan-list':
