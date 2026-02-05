@@ -5,6 +5,7 @@
 
 let reportTable = null;
 let lastReportResponse = null;
+let cachedReportPlans = [];
 
 function getCurrentLoginId() {
     if (typeof AUTH !== 'undefined' && typeof AUTH.getUserInfo === 'function') {
@@ -99,6 +100,7 @@ function buildPeriodGroupedMetricColumns(metricColumns, period, headerMode, incl
         if (!periodCols.length) return;
         periodGroups.push({
             title: label,
+            titleFormatter: () => `<span class="report-group-title report-group-period">${label}</span>`,
             columns: formatReportMetricColumns(periodCols)
         });
     });
@@ -183,6 +185,50 @@ function populateReportYears() {
     });
 }
 
+function shouldUseReportPlanSelector(source) {
+    return source === 'plan' || source === 'gap';
+}
+
+function toggleReportPlanSelector() {
+    const source = document.getElementById('reportSource')?.value || 'gap';
+    const wrap = document.getElementById('reportPlanWrap');
+    if (!wrap) return;
+    wrap.style.display = shouldUseReportPlanSelector(source) ? '' : 'none';
+}
+
+function populateReportPlanOptions(plans, preserveSelected = true) {
+    const select = document.getElementById('reportPlanId');
+    if (!select) return;
+    const prev = preserveSelected ? (select.value || '') : '';
+    select.innerHTML = '<option value="">자동(최신 계획)</option>';
+    (plans || []).forEach(plan => {
+        const opt = document.createElement('option');
+        opt.value = String(plan.plan_id);
+        const year = plan.plan_year || '-';
+        const version = plan.plan_version || '-';
+        const status = plan.status_code || '-';
+        opt.textContent = `${year} ${version} (${status})`;
+        select.appendChild(opt);
+    });
+    if (prev && Array.from(select.options).some(option => option.value === prev)) {
+        select.value = prev;
+    }
+}
+
+async function loadReportPlansByYear(year) {
+    const select = document.getElementById('reportPlanId');
+    if (!select) return;
+    try {
+        const response = await API.get(`${API_CONFIG.ENDPOINTS.SALES_PLANS}/list?page=1&page_size=500&plan_year=${encodeURIComponent(year)}`);
+        cachedReportPlans = response?.items || [];
+        populateReportPlanOptions(cachedReportPlans, true);
+    } catch (error) {
+        console.warn('⚠️ Report 영업계획 콤보 로드 실패:', error);
+        cachedReportPlans = [];
+        populateReportPlanOptions([], true);
+    }
+}
+
 function formatReportMetricColumns(columns) {
     return columns.map(col => {
         const isRatio = col.field.includes('ratio');
@@ -191,6 +237,10 @@ function formatReportMetricColumns(columns) {
             ...col,
             hozAlign: 'right',
             minWidth: col.minWidth || 120,
+            accessorDownload: (value) => {
+                if (value === null || value === undefined || value === 'null') return '';
+                return value;
+            },
             titleFormatter: () => `<span class="report-header report-header-${metricType}">${col.title}</span>`,
             formatter: (cell) => {
                 const val = cell.getValue();
@@ -216,7 +266,7 @@ function getSelectedOptions(selectId) {
     return Array.from(select.selectedOptions || []).map(option => ({
         value: option.value,
         label: option.textContent
-    })).filter(item => item.value);
+    })).filter(item => item.value && !item.value.startsWith('__'));
 }
 
 function getReportTargetFilters() {
@@ -224,6 +274,28 @@ function getReportTargetFilters() {
         orgs: getSelectedOptions('reportFilterOrg'),
         managers: getSelectedOptions('reportFilterManager')
     };
+}
+
+function setMultiSelectAll(selectId) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    Array.from(select.options).forEach(option => {
+        option.selected = !option.value.startsWith('__');
+    });
+}
+
+function setMultiSelectClear(selectId) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    Array.from(select.options).forEach(option => {
+        option.selected = false;
+    });
+}
+
+function bindMultiSelectSpecial(selectId) {
+    const select = document.getElementById(selectId);
+    if (!select || select.dataset.boundSpecial) return;
+    select.dataset.boundSpecial = 'true';
 }
 
 function buildTargetNameMaps(filters) {
@@ -306,7 +378,8 @@ function buildReportTitle(meta) {
     const dimensionLabel = {org: '조직', manager: '담당자', field: '분야', service: '서비스', customer: '고객사', pipeline: '프로젝트'}[meta.dimension] || meta.dimension;
     const periodLabel = {year: '연도', quarter: '분기', month: '월'}[meta.period] || meta.period;
     const metricLabel = {order: '수주', profit: '매출이익', both: '수주+이익'}[meta.metric] || meta.metric;
-    return `${meta.year} ${sourceLabel} | 집계 기준: ${dimensionLabel} | 기간: ${periodLabel} | 지표: ${metricLabel} | 대상: ${meta.targetSummary}`;
+    const planLabel = meta.planLabel ? ` | 계획: ${meta.planLabel}` : '';
+    return `${meta.year} ${sourceLabel}${planLabel} | 집계 기준: ${dimensionLabel} | 기간: ${periodLabel} | 지표: ${metricLabel} | 대상: ${meta.targetSummary}`;
 }
 
 function getReportBaseColumns() {
@@ -317,7 +390,8 @@ function getReportBaseColumns() {
             hozAlign: 'center',
             headerSort: false,
             width: 60,
-            frozen: true,
+            frozen: false,
+            accessorDownload: (value) => (value === null || value === undefined || value === 'null' ? '' : value),
             formatter: (cell) => {
                 const data = cell.getRow().getData();
                 return data.row_type ? '' : (data.__seq || '');
@@ -327,13 +401,15 @@ function getReportBaseColumns() {
             title: '집계대상',
             field: 'target_name',
             minWidth: 200,
-            frozen: true
+            frozen: false,
+            accessorDownload: (value) => (value === null || value === undefined || value === 'null' ? '' : value)
         },
         {
             title: '구분',
             field: 'group_name',
             minWidth: 200,
-            frozen: true
+            frozen: false,
+            accessorDownload: (value) => (value === null || value === undefined || value === 'null' ? '' : value)
         }
     ];
 }
@@ -721,9 +797,7 @@ async function loadReportFilters() {
                 opt.textContent = item.org_name || item.name || item.org_id;
                 orgSelect.appendChild(opt);
             });
-            if (!orgSelect.options.length) {
-                orgSelect.innerHTML = '<option value="">데이터 없음</option>';
-            }
+            bindMultiSelectSpecial('reportFilterOrg');
         }
         if (managerSelect) {
             const response = await API.get(API_CONFIG.ENDPOINTS.MANAGERS);
@@ -734,9 +808,7 @@ async function loadReportFilters() {
                 opt.textContent = item.manager_name || item.user_name || item.login_id;
                 managerSelect.appendChild(opt);
             });
-            if (!managerSelect.options.length) {
-                managerSelect.innerHTML = '<option value="">데이터 없음</option>';
-            }
+            bindMultiSelectSpecial('reportFilterManager');
         }
     } catch (error) {
         console.warn('⚠️ Report 필터 로딩 실패:', error);
@@ -790,6 +862,7 @@ function renderReportTable({ columns, items, meta }) {
     if (titleEl && meta) {
         titleEl.textContent = buildReportTitle(meta);
     }
+    reportTable.redraw(true);
 }
 
 function applyReportFreeze(targetCount, viewMode) {
@@ -834,11 +907,23 @@ function applyReportFreeze(targetCount, viewMode) {
     reportTable.redraw(true);
 }
 
+function sanitizeDownloadRows(rows) {
+    return (rows || []).map(row => {
+        const next = {};
+        Object.entries(row || {}).forEach(([key, value]) => {
+            next[key] = (value === null || value === undefined || value === 'null') ? '' : value;
+        });
+        return next;
+    });
+}
+
 async function initializeReportHub() {
     const tableEl = document.getElementById('reportTable');
     if (!tableEl) return;
 
     populateReportYears();
+    await loadReportPlansByYear(document.getElementById('reportYear')?.value || new Date().getFullYear());
+    toggleReportPlanSelector();
     const orgSelect = document.getElementById('reportFilterOrg');
     const managerSelect = document.getElementById('reportFilterManager');
     if (orgSelect && !orgSelect.options.length) {
@@ -848,6 +933,8 @@ async function initializeReportHub() {
         managerSelect.innerHTML = '<option value="">로딩중...</option>';
     }
     await ensureReportFiltersLoaded();
+    bindMultiSelectSpecial('reportFilterOrg');
+    bindMultiSelectSpecial('reportFilterManager');
     const layout = loadReportLayout();
     const freezeInputEl = document.getElementById('reportFreezeTargetCount');
     if (freezeInputEl && layout?.freezeTargetCount !== undefined) {
@@ -857,10 +944,11 @@ async function initializeReportHub() {
     if (!reportTable) {
         reportTable = new Tabulator('#reportTable', {
             height: '520px',
-            layout: 'fitData',
+            layout: 'fitDataTable',
             placeholder: '보고서 결과가 없습니다.',
             responsiveLayout: false,
             movableColumns: true,
+            downloadDataFormatter: (rows) => sanitizeDownloadRows(rows),
             columnDefaults: {
                 headerSort: true
             },
@@ -904,6 +992,11 @@ async function initializeReportHub() {
             const headerMode = document.getElementById('reportHeaderMode')?.value || 'two';
             const viewMode = document.getElementById('reportViewMode')?.value || 'row';
             const freezeTargetCount = Number(document.getElementById('reportFreezeTargetCount')?.value || 0);
+            const reportPlanSelect = document.getElementById('reportPlanId');
+            const selectedPlanId = reportPlanSelect?.value || '';
+            const planLabel = selectedPlanId
+                ? (reportPlanSelect?.options?.[reportPlanSelect.selectedIndex]?.text || '')
+                : '자동(최신 계획)';
             const filters = getReportTargetFilters();
             const targetSummary = buildReportTargetSummary(filters);
 
@@ -920,7 +1013,11 @@ async function initializeReportHub() {
                     org_ids: filters.orgs.map(item => item.value).join(','),
                     manager_ids: filters.managers.map(item => item.value).join(',')
                 }).toString();
-                const response = await API.get(`${API_CONFIG.ENDPOINTS.REPORTS}/summary?${query}`);
+                const queryParams = new URLSearchParams(query);
+                if (shouldUseReportPlanSelector(source) && selectedPlanId) {
+                    queryParams.set('plan_id', selectedPlanId);
+                }
+                const response = await API.get(`${API_CONFIG.ENDPOINTS.REPORTS}/summary?${queryParams.toString()}`);
                 const normalizedTargets = normalizeReportTargets(response?.targets || [], filters);
                 const normalizedItems = normalizeReportItems(response?.items || [], filters);
                 lastReportResponse = {
@@ -932,7 +1029,7 @@ async function initializeReportHub() {
                 renderReportTable({
                     columns: response?.columns || [],
                     items: normalizedItems,
-                    meta: { source, year, dimension, period, metric, targetSummary, headerMode, viewMode, freezeTargetCount, targets: normalizedTargets, filters }
+                    meta: { source, year, dimension, period, metric, targetSummary, headerMode, viewMode, freezeTargetCount, targets: normalizedTargets, filters, planLabel: shouldUseReportPlanSelector(source) ? planLabel : '' }
                 });
             } catch (error) {
                 console.warn('⚠️ Report 조회 실패, 샘플로 대체합니다.', error);
@@ -943,7 +1040,7 @@ async function initializeReportHub() {
                 renderReportTable({
                     columns: sample.columns,
                     items: normalizedItems,
-                    meta: { source, year, dimension, period, metric, targetSummary, headerMode, viewMode, freezeTargetCount, targets: normalizedTargets, filters }
+                    meta: { source, year, dimension, period, metric, targetSummary, headerMode, viewMode, freezeTargetCount, targets: normalizedTargets, filters, planLabel: shouldUseReportPlanSelector(source) ? planLabel : '' }
                 });
             }
 
@@ -978,7 +1075,8 @@ async function initializeReportHub() {
                 viewMode: document.getElementById('reportViewMode')?.value || 'row',
                 freezeTargetCount: Number(document.getElementById('reportFreezeTargetCount')?.value || 0),
                 targets: lastReportResponse?.targets || [],
-                filters
+                filters,
+                planLabel: document.getElementById('reportPlanId')?.options?.[document.getElementById('reportPlanId')?.selectedIndex || 0]?.text || ''
             };
             renderReportTable({
                 columns: lastReportResponse.columns || [],
@@ -1005,13 +1103,30 @@ async function initializeReportHub() {
                 viewMode: viewSelect.value || 'row',
                 freezeTargetCount: Number(document.getElementById('reportFreezeTargetCount')?.value || 0),
                 targets: lastReportResponse?.targets || [],
-                filters
+                filters,
+                planLabel: document.getElementById('reportPlanId')?.options?.[document.getElementById('reportPlanId')?.selectedIndex || 0]?.text || ''
             };
             renderReportTable({
                 columns: lastReportResponse.columns || [],
                 items: lastReportResponse.items || [],
                 meta
             });
+        });
+    }
+
+    const sourceSelect = document.getElementById('reportSource');
+    if (sourceSelect && !sourceSelect.dataset.bound) {
+        sourceSelect.dataset.bound = 'true';
+        sourceSelect.addEventListener('change', () => {
+            toggleReportPlanSelector();
+        });
+    }
+
+    const yearSelect = document.getElementById('reportYear');
+    if (yearSelect && !yearSelect.dataset.bound) {
+        yearSelect.dataset.bound = 'true';
+        yearSelect.addEventListener('change', async () => {
+            await loadReportPlansByYear(yearSelect.value || new Date().getFullYear());
         });
     }
 
@@ -1029,11 +1144,30 @@ async function initializeReportHub() {
     if (resetBtn && !resetBtn.dataset.bound) {
         resetBtn.dataset.bound = 'true';
         resetBtn.addEventListener('click', () => {
-            const orgSelect = document.getElementById('reportFilterOrg');
-            const managerSelect = document.getElementById('reportFilterManager');
-            if (orgSelect) Array.from(orgSelect.options).forEach(option => option.selected = false);
-            if (managerSelect) Array.from(managerSelect.options).forEach(option => option.selected = false);
+            setMultiSelectClear('reportFilterOrg');
+            setMultiSelectClear('reportFilterManager');
         });
+    }
+
+    const orgAllBtn = document.getElementById('btnReportOrgAll');
+    if (orgAllBtn && !orgAllBtn.dataset.bound) {
+        orgAllBtn.dataset.bound = 'true';
+        orgAllBtn.addEventListener('click', () => setMultiSelectAll('reportFilterOrg'));
+    }
+    const orgClearBtn = document.getElementById('btnReportOrgClear');
+    if (orgClearBtn && !orgClearBtn.dataset.bound) {
+        orgClearBtn.dataset.bound = 'true';
+        orgClearBtn.addEventListener('click', () => setMultiSelectClear('reportFilterOrg'));
+    }
+    const managerAllBtn = document.getElementById('btnReportManagerAll');
+    if (managerAllBtn && !managerAllBtn.dataset.bound) {
+        managerAllBtn.dataset.bound = 'true';
+        managerAllBtn.addEventListener('click', () => setMultiSelectAll('reportFilterManager'));
+    }
+    const managerClearBtn = document.getElementById('btnReportManagerClear');
+    if (managerClearBtn && !managerClearBtn.dataset.bound) {
+        managerClearBtn.dataset.bound = 'true';
+        managerClearBtn.addEventListener('click', () => setMultiSelectClear('reportFilterManager'));
     }
 }
 

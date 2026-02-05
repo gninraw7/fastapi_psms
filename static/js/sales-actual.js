@@ -5,8 +5,14 @@
 
 let salesActualLineTable = null;
 let salesActualSummaryTable = null;
+let actualTargetPreviewTable = null;
 let cachedActualLines = [];
 let currentActualViewMode = 'group';
+let cachedActualPlans = [];
+let pendingActualCandidates = [];
+let pendingActualMergeMode = 'append';
+let pendingActualPreviewMeta = null;
+let currentActualEditPipelineId = null;
 
 const ACTUAL_BASE_FIELDS = [
     { field: 'pipeline_id', title: '파이프라인ID' },
@@ -35,6 +41,15 @@ const ACTUAL_MONTH_FIELDS = Array.from({ length: 12 }, (_, i) => {
 const ACTUAL_COLUMN_GROUPS = {
     base: ACTUAL_BASE_FIELDS.map(col => col.field),
     month: ACTUAL_MONTH_FIELDS.map(col => col.field)
+};
+
+const ACTUAL_SUMMARY_DIMENSIONS = {
+    org: { title: '조직', field: 'org_name_snapshot' },
+    manager: { title: '담당자', field: 'manager_name_snapshot' },
+    field: { title: '분야', field: 'field_name_snapshot' },
+    service: { title: '서비스', field: 'service_name_snapshot' },
+    customer: { title: '고객사', field: 'customer_name_snapshot' },
+    pipeline: { title: '파이프라인', field: 'pipeline_id' }
 };
 
 const SAMPLE_ACTUAL_LINES = [
@@ -92,6 +107,462 @@ function getCurrentLoginId() {
     return 'system';
 }
 
+function toNumberOrNull(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isNaN(n) ? null : n;
+}
+
+function toText(value) {
+    return value === null || value === undefined ? '' : String(value);
+}
+
+function parseNumberInput(value) {
+    const cleaned = String(value || '').replace(/[^0-9.-]/g, '');
+    const n = Number(cleaned);
+    return Number.isNaN(n) ? 0 : n;
+}
+
+function hasRegisteredActualAmount(row = {}) {
+    if (!row || typeof row !== 'object') return false;
+    if (parseNumberInput(row.order_total) !== 0 || parseNumberInput(row.profit_total) !== 0) {
+        return true;
+    }
+    for (let i = 1; i <= 12; i += 1) {
+        const month = String(i).padStart(2, '0');
+        if (parseNumberInput(row[`m${month}_order`]) !== 0 || parseNumberInput(row[`m${month}_profit`]) !== 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function formatIntegerLike(value) {
+    const n = Number(value || 0);
+    return n.toLocaleString('ko-KR');
+}
+
+function createManualActualLine() {
+    const row = {
+        _is_manual: true,
+        pipeline_id: `MANUAL-${Date.now()}`,
+        project_name_snapshot: '수기 입력',
+        field_name_snapshot: '',
+        service_name_snapshot: '',
+        customer_name_snapshot: '',
+        ordering_party_name_snapshot: '',
+        org_name_snapshot: '',
+        manager_name_snapshot: '',
+        contract_date: '',
+        start_date: '',
+        end_date: '',
+        order_total: 0,
+        profit_total: 0
+    };
+    for (let i = 1; i <= 12; i += 1) {
+        const month = String(i).padStart(2, '0');
+        row[`m${month}_order`] = 0;
+        row[`m${month}_profit`] = 0;
+    }
+    return row;
+}
+
+function mapPlanLineToActualRow(line) {
+    const row = {
+        _is_manual: false,
+        pipeline_id: line.pipeline_id,
+        field_code: line.field_code || null,
+        service_code: line.service_code || null,
+        customer_id: toNumberOrNull(line.customer_id),
+        ordering_party_id: toNumberOrNull(line.ordering_party_id),
+        org_id: toNumberOrNull(line.org_id),
+        manager_id: toText(line.manager_id) || null,
+        field_name_snapshot: line.field_name_snapshot || '',
+        service_name_snapshot: line.service_name_snapshot || '',
+        customer_name_snapshot: line.customer_name_snapshot || '',
+        ordering_party_name_snapshot: line.ordering_party_name_snapshot || '',
+        project_name_snapshot: line.project_name_snapshot || '',
+        org_name_snapshot: line.org_name_snapshot || '',
+        manager_name_snapshot: line.manager_name_snapshot || '',
+        contract_date: line.contract_plan_date || line.contract_date || '',
+        start_date: line.start_plan_date || line.start_date || '',
+        end_date: line.end_plan_date || line.end_date || '',
+        order_total: Number(line.order_total || 0),
+        profit_total: Number(line.profit_total || 0)
+    };
+    for (let i = 1; i <= 12; i += 1) {
+        const month = String(i).padStart(2, '0');
+        row[`m${month}_order`] = Number(line[`m${month}_order`] || 0);
+        row[`m${month}_profit`] = Number(line[`m${month}_profit`] || 0);
+    }
+    return row;
+}
+
+function mapProjectToActualRow(project) {
+    const row = {
+        _is_manual: false,
+        pipeline_id: project.pipeline_id,
+        field_code: project.field_code || null,
+        service_code: project.service_code || null,
+        customer_id: toNumberOrNull(project.customer_id),
+        ordering_party_id: toNumberOrNull(project.ordering_party_id),
+        org_id: toNumberOrNull(project.org_id),
+        manager_id: toText(project.manager_id) || null,
+        field_name_snapshot: project.field_name || project.field_name_snapshot || '',
+        service_name_snapshot: project.service_name || project.service_name_snapshot || '',
+        customer_name_snapshot: project.customer_name || project.customer_name_snapshot || '',
+        ordering_party_name_snapshot: project.ordering_party_name || project.ordering_party_name_snapshot || '',
+        project_name_snapshot: project.project_name || project.project_name_snapshot || '',
+        org_name_snapshot: project.org_name || project.org_name_snapshot || '',
+        manager_name_snapshot: project.manager_name || project.manager_name_snapshot || '',
+        contract_date: project.contract_date || '',
+        start_date: project.start_date || '',
+        end_date: project.end_date || '',
+        order_total: Number(project.order_total || 0),
+        profit_total: Number(project.profit_total || 0)
+    };
+    for (let i = 1; i <= 12; i += 1) {
+        const month = String(i).padStart(2, '0');
+        row[`m${month}_order`] = Number(project[`m${month}_order`] || 0);
+        row[`m${month}_profit`] = Number(project[`m${month}_profit`] || 0);
+    }
+    return row;
+}
+
+function mergeActualRows(existingRows, incomingRows, mergeMode = 'append') {
+    if (mergeMode === 'replace') {
+        return incomingRows;
+    }
+    const map = new Map((existingRows || []).map(row => [row.pipeline_id, row]));
+    (incomingRows || []).forEach(row => {
+        if (!map.has(row.pipeline_id)) {
+            map.set(row.pipeline_id, row);
+        }
+    });
+    return Array.from(map.values());
+}
+
+function getRegisteredPipelineSet() {
+    const rows = salesActualLineTable?.getData?.() || [];
+    return new Set(rows.map(row => row.pipeline_id));
+}
+
+function markRegisteredStatus(candidates) {
+    const registered = getRegisteredPipelineSet();
+    return (candidates || []).map(row => ({
+        ...row,
+        _registered: registered.has(row.pipeline_id),
+        _registered_label: registered.has(row.pipeline_id) ? '등록완료' : '미등록'
+    }));
+}
+
+function stripPreviewMeta(rows) {
+    return (rows || []).map(row => {
+        const next = { ...row };
+        delete next._registered;
+        delete next._registered_label;
+        return next;
+    });
+}
+
+function refreshActualPreviewRegistrationStatus() {
+    if (!actualTargetPreviewTable || !pendingActualCandidates.length) return;
+    pendingActualCandidates = markRegisteredStatus(stripPreviewMeta(pendingActualCandidates));
+    actualTargetPreviewTable.setData(pendingActualCandidates);
+    updateActualPreviewSummary();
+}
+
+function ensureActualTargetPreviewTable() {
+    if (actualTargetPreviewTable) return;
+    actualTargetPreviewTable = new Tabulator('#actualTargetPreviewTable', {
+        height: '420px',
+        layout: 'fitDataStretch',
+        selectable: true,
+        placeholder: '대상 데이터가 없습니다.',
+        columnDefaults: {
+            headerSort: true
+        },
+        columns: [
+            { formatter: "rowSelection", titleFormatter: "rowSelection", hozAlign: "center", headerSort: false, width: 48 },
+            { title: '등록상태', field: '_registered_label', width: 110, hozAlign: 'center' },
+            { title: '파이프라인ID', field: 'pipeline_id', width: 140 },
+            { title: '프로젝트명', field: 'project_name_snapshot', minWidth: 240 },
+            { title: '분야', field: 'field_name_snapshot', width: 120 },
+            { title: '서비스', field: 'service_name_snapshot', width: 140 },
+            { title: '고객사', field: 'customer_name_snapshot', width: 140 },
+            { title: '담당조직', field: 'org_name_snapshot', width: 140 },
+            { title: '담당자', field: 'manager_name_snapshot', width: 120 }
+        ]
+    });
+    actualTargetPreviewTable.on("dataFiltered", () => updateActualPreviewSummary());
+    actualTargetPreviewTable.on("dataSorted", () => updateActualPreviewSummary());
+}
+
+function openActualTargetPreviewModal(candidates, mergeMode) {
+    const modal = document.getElementById('actualTargetPreviewModal');
+    if (!modal) return;
+    pendingActualCandidates = markRegisteredStatus(candidates || []);
+    pendingActualMergeMode = mergeMode || 'append';
+
+    const countEl = document.getElementById('actualTargetPreviewCount');
+    if (countEl) countEl.textContent = String(pendingActualCandidates.length);
+
+    ensureActualTargetPreviewTable();
+    actualTargetPreviewTable.setData(pendingActualCandidates);
+    updateActualPreviewSummary();
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+    setTimeout(() => actualTargetPreviewTable?.redraw(true), 0);
+}
+
+function showActualTargetPreviewModal() {
+    const modal = document.getElementById('actualTargetPreviewModal');
+    if (!modal) return;
+    ensureActualTargetPreviewTable();
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+    setTimeout(() => actualTargetPreviewTable?.redraw(true), 0);
+}
+
+function closeActualTargetPreviewModal() {
+    const modal = document.getElementById('actualTargetPreviewModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+    const searchInput = document.getElementById('actualTargetPreviewSearch');
+    if (searchInput) searchInput.value = '';
+    if (actualTargetPreviewTable) actualTargetPreviewTable.clearFilter(true);
+}
+
+function applySelectedActualTargetsFromPreview() {
+    if (!salesActualLineTable || !actualTargetPreviewTable) return;
+    const selectedRows = actualTargetPreviewTable.getSelectedData() || [];
+    if (!selectedRows.length) {
+        alert('반영할 대상을 선택하세요.');
+        return;
+    }
+    const newTargets = selectedRows.filter(row => !row._registered);
+    const targets = stripPreviewMeta(newTargets);
+    if (!targets.length) {
+        alert('선택된 항목은 모두 이미 등록되어 있습니다.');
+        return;
+    }
+    const merged = mergeActualRows(salesActualLineTable.getData(), targets, pendingActualMergeMode);
+    salesActualLineTable.setData(merged);
+    updateActualConsistencyBadge();
+    pendingActualCandidates = markRegisteredStatus(pendingActualCandidates);
+    actualTargetPreviewTable.setData(pendingActualCandidates);
+    updateActualPreviewSummary();
+}
+
+function getActualPreviewModeLabel(mode) {
+    if (mode === 'plan') return '영업계획 등록 프로젝트';
+    if (mode === 'unplanned') return '영업계획 미등록 프로젝트';
+    if (mode === 'project') return '프로젝트 직접 선택';
+    if (mode === 'manual') return '수기 추가';
+    return mode || '-';
+}
+
+function updateActualPreviewSummary() {
+    const summaryEl = document.getElementById('actualTargetPreviewSummary');
+    if (!summaryEl) return;
+    const filters = pendingActualPreviewMeta?.filters || {};
+    const modeLabel = getActualPreviewModeLabel(pendingActualPreviewMeta?.mode);
+    const mergeLabel = pendingActualPreviewMeta?.mergeMode === 'replace' ? '현재 화면 행 교체' : '기존 유지 + 신규 추가';
+    const filterParts = [];
+    if (filters.org_id) filterParts.push(`조직:${filters.org_id}`);
+    if (filters.manager_id) filterParts.push(`담당자:${filters.manager_id}`);
+    if (filters.field_code) filterParts.push(`분야:${filters.field_code}`);
+    if (filters.service_code) filterParts.push(`서비스:${filters.service_code}`);
+    if (filters.keyword) filterParts.push(`검색:${filters.keyword}`);
+    const filterText = filterParts.length ? filterParts.join(', ') : '없음';
+
+    const total = pendingActualCandidates.length;
+    const filtered = actualTargetPreviewTable ? actualTargetPreviewTable.getDataCount("active") : total;
+    const registered = pendingActualCandidates.filter(row => row._registered).length;
+    summaryEl.textContent = `등록방식: ${modeLabel} | 반영방식: ${mergeLabel} | 필터: ${filterText} | 미리보기: ${filtered}/${total}건 | 등록완료: ${registered}건 | 정렬: 헤더 클릭`;
+}
+
+function applyActualPreviewSearch() {
+    const searchInput = document.getElementById('actualTargetPreviewSearch');
+    if (!actualTargetPreviewTable || !searchInput) return;
+    const keyword = String(searchInput.value || '').trim().toLowerCase();
+    if (!keyword) {
+        actualTargetPreviewTable.clearFilter(true);
+        return;
+    }
+    actualTargetPreviewTable.setFilter((rowData) => {
+        const targets = [
+            rowData.pipeline_id,
+            rowData.project_name_snapshot,
+            rowData.customer_name_snapshot,
+            rowData.org_name_snapshot,
+            rowData.manager_name_snapshot
+        ].map(v => String(v || '').toLowerCase());
+        return targets.some(v => v.includes(keyword));
+    });
+}
+
+function validateManualActualRows(rows) {
+    const errors = [];
+    (rows || []).forEach((row, idx) => {
+        if (!row?._is_manual) return;
+        const rowNo = idx + 1;
+        if (!row.pipeline_id || !String(row.pipeline_id).trim()) {
+            errors.push(`${rowNo}행: 파이프라인ID는 필수입니다.`);
+        }
+        if (!row.project_name_snapshot || !String(row.project_name_snapshot).trim()) {
+            errors.push(`${rowNo}행: 사업명은 필수입니다.`);
+        }
+        if (!row.org_name_snapshot || !String(row.org_name_snapshot).trim()) {
+            errors.push(`${rowNo}행: 담당부서는 필수입니다.`);
+        }
+        if (!row.manager_name_snapshot || !String(row.manager_name_snapshot).trim()) {
+            errors.push(`${rowNo}행: 담당자는 필수입니다.`);
+        }
+    });
+    return errors;
+}
+
+function buildActualLineMonthEditors() {
+    const container = document.getElementById('actualLineMonthGrid');
+    if (!container) return;
+    if (container.children.length > 0) return;
+    const html = [];
+    for (let i = 1; i <= 12; i += 1) {
+        const month = String(i).padStart(2, '0');
+        html.push(`
+            <div class="actual-line-month-item">
+                <div class="actual-line-month-item-title">${i}월</div>
+                <div>
+                    <label for="actualEditM${month}Order">${i}월 수주</label>
+                    <input type="text" id="actualEditM${month}Order" class="form-input actual-amount-input" inputmode="numeric" autocomplete="off">
+                </div>
+                <div>
+                    <label for="actualEditM${month}Profit">${i}월 이익</label>
+                    <input type="text" id="actualEditM${month}Profit" class="form-input actual-amount-input" inputmode="numeric" autocomplete="off">
+                </div>
+            </div>
+        `);
+    }
+    container.innerHTML = html.join('');
+    bindActualAmountInputFormatters();
+}
+
+function bindActualAmountInputFormatters() {
+    const inputs = document.querySelectorAll('.actual-amount-input');
+    inputs.forEach(input => {
+        if (input.dataset.boundFormatter) return;
+        input.dataset.boundFormatter = 'true';
+        input.addEventListener('focus', () => {
+            const numeric = parseNumberInput(input.value);
+            input.value = numeric ? String(numeric) : '';
+            input.select();
+        });
+        input.addEventListener('blur', () => {
+            const numeric = parseNumberInput(input.value);
+            input.value = formatIntegerLike(numeric);
+        });
+    });
+}
+
+function getSelectedActualRow() {
+    if (!salesActualLineTable) return null;
+    const selected = salesActualLineTable.getSelectedData() || [];
+    if (!selected.length) return null;
+    return selected[0];
+}
+
+function openActualLineEditModal() {
+    const selected = getSelectedActualRow();
+    if (!selected) {
+        alert('실적 입력할 프로젝트를 1건 선택하세요.');
+        return;
+    }
+    currentActualEditPipelineId = selected.pipeline_id;
+    buildActualLineMonthEditors();
+    const setValue = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.value = value ?? '';
+    };
+    setValue('actualEditPipelineId', selected.pipeline_id || '');
+    setValue('actualEditProjectName', selected.project_name_snapshot || '');
+    setValue('actualEditCustomerName', selected.customer_name_snapshot || '');
+    setValue('actualEditOrgName', selected.org_name_snapshot || '');
+    setValue('actualEditManagerName', selected.manager_name_snapshot || '');
+
+    for (let i = 1; i <= 12; i += 1) {
+        const month = String(i).padStart(2, '0');
+        setValue(`actualEditM${month}Order`, formatIntegerLike(selected[`m${month}_order`] ?? 0));
+        setValue(`actualEditM${month}Profit`, formatIntegerLike(selected[`m${month}_profit`] ?? 0));
+    }
+
+    const modal = document.getElementById('actualLineEditModal');
+    if (modal) {
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+    }
+}
+
+function closeActualLineEditModal() {
+    const modal = document.getElementById('actualLineEditModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+}
+
+function applyActualLineEditModal() {
+    if (!salesActualLineTable || !currentActualEditPipelineId) return;
+    const rows = salesActualLineTable.getRows() || [];
+    const row = rows.find(r => (r.getData()?.pipeline_id === currentActualEditPipelineId));
+    if (!row) {
+        alert('선택한 프로젝트를 찾을 수 없습니다.');
+        return;
+    }
+    const payload = {};
+    for (let i = 1; i <= 12; i += 1) {
+        const month = String(i).padStart(2, '0');
+        const orderVal = document.getElementById(`actualEditM${month}Order`)?.value;
+        const profitVal = document.getElementById(`actualEditM${month}Profit`)?.value;
+        payload[`m${month}_order`] = parseNumberInput(orderVal);
+        payload[`m${month}_profit`] = parseNumberInput(profitVal);
+    }
+    let orderTotal = 0;
+    let profitTotal = 0;
+    for (let i = 1; i <= 12; i += 1) {
+        const month = String(i).padStart(2, '0');
+        orderTotal += Number(payload[`m${month}_order`] || 0);
+        profitTotal += Number(payload[`m${month}_profit`] || 0);
+    }
+    payload.order_total = orderTotal;
+    payload.profit_total = profitTotal;
+    row.update(payload);
+    updateActualConsistencyBadge();
+    closeActualLineEditModal();
+}
+
+async function saveActualLines() {
+    if (!salesActualLineTable) return;
+    const actualYear = Number(document.getElementById('salesActualYear')?.value || new Date().getFullYear());
+    const rows = salesActualLineTable.getData() || [];
+    const validationErrors = validateManualActualRows(rows);
+    if (validationErrors.length) {
+        alert(`수기 입력 검증 실패\n- ${validationErrors.join('\n- ')}`);
+        return;
+    }
+    const payload = {
+        actual_year: actualYear,
+        updated_by: getCurrentLoginId(),
+        lines: rows
+    };
+    try {
+        await API.post(API_CONFIG.ENDPOINTS.SALES_ACTUAL_LINES, payload);
+        alert('실적 라인이 저장되었습니다.');
+    } catch (error) {
+        alert('실적 저장 실패: ' + (error.message || error));
+    }
+}
+
 function getActualColumnStorageKey() {
     return `psms.salesActual.columns.${getCurrentLoginId()}`;
 }
@@ -104,7 +575,7 @@ function getActualMonthViewValue() {
 function saveActualColumnSettings() {
     if (!salesActualLineTable) return;
     const leafColumns = getActualLeafColumns();
-    const fields = leafColumns.map(col => col.getField()).filter(Boolean);
+    const fields = Array.from(new Set(leafColumns.map(col => col.getField()).filter(Boolean)));
     const hidden = leafColumns
         .filter(col => col.getField() && !col.isVisible())
         .map(col => col.getField());
@@ -112,7 +583,7 @@ function saveActualColumnSettings() {
     const frozen = freezeSelect?.value || '';
     const payload = {
         order: fields,
-        hidden,
+        hidden: Array.from(new Set(hidden)),
         frozen,
         view_mode: getActualMonthViewValue()
     };
@@ -122,7 +593,13 @@ function saveActualColumnSettings() {
 function loadActualColumnSettings() {
     try {
         const raw = localStorage.getItem(getActualColumnStorageKey());
-        return raw ? JSON.parse(raw) : null;
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return {
+            ...parsed,
+            order: Array.from(new Set(parsed?.order || [])),
+            hidden: Array.from(new Set(parsed?.hidden || []))
+        };
     } catch (error) {
         console.warn('⚠️ 실적 컬럼 설정 로드 실패:', error);
         return null;
@@ -153,6 +630,20 @@ function buildActualLineColumns(settings = null, viewMode = 'group') {
             title: col.title,
             field: col.field
         };
+        const manualEditableFields = new Set([
+            'pipeline_id',
+            'field_name_snapshot',
+            'service_name_snapshot',
+            'customer_name_snapshot',
+            'ordering_party_name_snapshot',
+            'project_name_snapshot',
+            'org_name_snapshot',
+            'manager_name_snapshot'
+        ]);
+        if (manualEditableFields.has(col.field)) {
+            def.editor = 'input';
+            def.editable = (cell) => !!cell.getRow()?.getData()?._is_manual;
+        }
         if (col.field === 'pipeline_id') def.width = 120;
         if (col.field === 'project_name_snapshot') def.minWidth = 220;
         if (col.field === 'customer_name_snapshot') def.width = 140;
@@ -250,11 +741,12 @@ function orderColumns(allColumns, orderList) {
         columnMap[col.field] = col;
     });
     const ordered = [];
-    orderList.forEach(field => {
+    const uniqueOrder = Array.from(new Set(orderList));
+    uniqueOrder.forEach(field => {
         if (columnMap[field]) ordered.push(columnMap[field]);
     });
     allColumns.forEach(col => {
-        if (!orderList.includes(col.field)) ordered.push(col);
+        if (!uniqueOrder.includes(col.field)) ordered.push(col);
     });
     return ordered;
 }
@@ -284,6 +776,8 @@ function getActualLeafColumns() {
         }
     }
     const leafColumns = [];
+    const seenFields = new Set();
+    let selectionAdded = false;
     const walk = (cols) => {
         if (!cols) return;
         cols.forEach(col => {
@@ -292,7 +786,17 @@ function getActualLeafColumns() {
                 : (typeof col.getColumns === 'function' ? col.getColumns() : []);
             if (subColumns && subColumns.length) {
                 walk(subColumns);
-            } else if (col.getField && col.getField()) {
+            } else {
+                const field = col.getField?.();
+                if (!field) {
+                    if (!selectionAdded) {
+                        leafColumns.push(col);
+                        selectionAdded = true;
+                    }
+                    return;
+                }
+                if (seenFields.has(field)) return;
+                seenFields.add(field);
                 leafColumns.push(col);
             }
         });
@@ -331,24 +835,29 @@ function populateActualFreezeOptions() {
 
 function applyActualColumnFreeze(targetField) {
     if (!salesActualLineTable) return;
-    if (!targetField) {
-        salesActualLineTable.getColumns().forEach(col => {
-            if (isSelectionColumn(col)) col.setFrozen(true);
-            else col.setFrozen(false);
-        });
-        return;
-    }
-    let freeze = true;
-    salesActualLineTable.getColumns().forEach(col => {
-        if (isSelectionColumn(col)) {
-            col.setFrozen(true);
+    const leafColumns = getActualLeafColumns();
+    let targetIndex = -1;
+
+    leafColumns.forEach((col, idx) => {
+        const field = col.getField?.();
+        if (field === targetField) targetIndex = idx;
+    });
+
+    leafColumns.forEach((col, idx) => {
+        const field = col.getField?.();
+        const isSelection = !field;
+        if (!targetField) {
+            col.setFrozen(isSelection);
             return;
         }
-        col.setFrozen(freeze);
-        if (columnHasField(col, targetField)) {
-            freeze = false;
+        if (targetIndex < 0) {
+            col.setFrozen(isSelection);
+            return;
         }
+        col.setFrozen(idx <= targetIndex || isSelection);
     });
+
+    salesActualLineTable.redraw(true);
 }
 
 function getActualSelectionColumn() {
@@ -422,7 +931,13 @@ function renderActualColumnsList() {
         group.fields.forEach(field => {
             const col = salesActualLineTable.getColumn(field);
             if (!col) return;
-            const title = col.getDefinition().title || field;
+            let title = col.getDefinition().title || field;
+            const monthMatch = /^m(\d{2})_(order|profit)$/.exec(field);
+            if (monthMatch) {
+                const monthLabel = `${Number(monthMatch[1])}월`;
+                const metricLabel = monthMatch[2] === 'order' ? '수주' : '이익';
+                title = `${monthLabel} ${metricLabel}`;
+            }
             const isVisible = col.isVisible();
 
             const wrapper = document.createElement('label');
@@ -498,6 +1013,159 @@ async function fetchActualLines(actualYear, filters = {}) {
         console.warn('⚠️ 실적 라인 조회 실패, 샘플로 대체합니다.', error);
         return SAMPLE_ACTUAL_LINES;
     }
+}
+
+async function reloadActualLines() {
+    if (!salesActualLineTable) return;
+    const actualYear = Number(document.getElementById('salesActualYear')?.value || new Date().getFullYear());
+    const lines = await fetchActualLines(actualYear, getActualLineFilters());
+    cachedActualLines = lines;
+    salesActualLineTable.setData(lines);
+    updateActualConsistencyBadge();
+    refreshActualPreviewRegistrationStatus();
+}
+
+async function fetchPlansByYear(planYear) {
+    if (typeof API === 'undefined' || !API_CONFIG?.ENDPOINTS?.SALES_PLANS) {
+        return [];
+    }
+    try {
+        const params = new URLSearchParams();
+        if (planYear) params.append('plan_year', String(planYear));
+        const query = params.toString();
+        const response = await API.get(`${API_CONFIG.ENDPOINTS.SALES_PLANS}/list${query ? `?${query}` : ''}`);
+        return response?.items || [];
+    } catch (error) {
+        console.warn('⚠️ 영업계획 목록 조회 실패:', error);
+        return [];
+    }
+}
+
+function populateActualPlanOptions(plans) {
+    const select = document.getElementById('actualPlanSelect');
+    if (!select) return;
+    select.innerHTML = '<option value="">자동(최신 계획)</option>';
+    (plans || []).forEach(plan => {
+        const opt = document.createElement('option');
+        opt.value = plan.plan_id;
+        opt.textContent = `${plan.plan_year} ${plan.plan_version} (${plan.status_code || 'DRAFT'})`;
+        select.appendChild(opt);
+    });
+}
+
+function pickActualTargetPlan(plans) {
+    const selectedId = document.getElementById('actualPlanSelect')?.value;
+    if (selectedId) {
+        return (plans || []).find(p => String(p.plan_id) === String(selectedId)) || null;
+    }
+    if (!(plans || []).length) return null;
+    const sorted = [...plans].sort((a, b) => {
+        if ((a.plan_year || 0) !== (b.plan_year || 0)) return (b.plan_year || 0) - (a.plan_year || 0);
+        return String(b.plan_version || '').localeCompare(String(a.plan_version || ''));
+    });
+    return sorted[0];
+}
+
+async function fetchPlanLinesForActual(planId, filters = {}) {
+    if (!planId || typeof API === 'undefined' || !API_CONFIG?.ENDPOINTS?.SALES_PLANS) {
+        return [];
+    }
+    try {
+        const params = new URLSearchParams();
+        Object.entries(filters || {}).forEach(([key, value]) => {
+            if (value !== null && value !== undefined && value !== '') params.append(key, value);
+        });
+        const query = params.toString();
+        const response = await API.get(`${API_CONFIG.ENDPOINTS.SALES_PLANS}/${planId}/lines${query ? `?${query}` : ''}`);
+        return response?.items || [];
+    } catch (error) {
+        console.warn('⚠️ 계획 라인 조회 실패:', error);
+        return [];
+    }
+}
+
+async function fetchProjectsForActual(filters = {}) {
+    if (typeof API === 'undefined' || !API_CONFIG?.ENDPOINTS?.PROJECTS_LIST) {
+        return [];
+    }
+    const params = new URLSearchParams();
+    Object.entries(filters || {}).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') params.append(key, value);
+    });
+    const pageSize = 300;
+    const items = [];
+    let page = 1;
+    while (true) {
+        params.set('page', String(page));
+        params.set('page_size', String(pageSize));
+        try {
+            const response = await API.get(`${API_CONFIG.ENDPOINTS.PROJECTS_LIST}?${params.toString()}`);
+            const rows = response?.items || [];
+            items.push(...rows);
+            if (rows.length < pageSize) break;
+            if (page >= (response?.total_pages || 1)) break;
+            page += 1;
+        } catch (error) {
+            console.warn('⚠️ 프로젝트 목록 조회 실패:', error);
+            break;
+        }
+    }
+    return items;
+}
+
+function getActualTargetMode() {
+    return document.getElementById('actualTargetMode')?.value || 'plan';
+}
+
+function updateActualTargetModeUI() {
+    const mode = getActualTargetMode();
+    const planWrap = document.getElementById('actualPlanSelectWrap');
+    const hint = document.getElementById('actualFlowHint');
+    const showPlan = mode === 'plan' || mode === 'unplanned';
+    if (planWrap) planWrap.style.display = showPlan ? '' : 'none';
+    if (!hint) return;
+    if (mode === 'plan') hint.textContent = '선택한 영업계획의 프로젝트를 실적 입력 대상으로 가져옵니다.';
+    if (mode === 'unplanned') hint.textContent = '선택한 영업계획에 없는 프로젝트만 추려서 실적 대상으로 가져옵니다.';
+    if (mode === 'project') hint.textContent = '프로젝트 목록에서 현재 필터 조건에 맞는 대상을 직접 가져옵니다.';
+    if (mode === 'manual') hint.textContent = '행을 수기로 추가해 임시/예외 실적을 등록합니다.';
+}
+
+async function loadActualTargetPlans() {
+    const year = Number(document.getElementById('salesActualYear')?.value || new Date().getFullYear());
+    cachedActualPlans = await fetchPlansByYear(year);
+    populateActualPlanOptions(cachedActualPlans);
+}
+
+async function handleActualLoadTargets() {
+    const mode = getActualTargetMode();
+    const mergeMode = document.getElementById('actualMergeMode')?.value || 'append';
+    const filters = getActualLineFilters();
+
+    let candidates = [];
+    if (mode === 'manual') {
+        candidates = [createManualActualLine()];
+    } else if (mode === 'plan' || mode === 'unplanned') {
+        const plan = pickActualTargetPlan(cachedActualPlans);
+        if (!plan) {
+            alert('기준 계획을 찾을 수 없습니다. 계획을 먼저 생성하거나 선택하세요.');
+            return;
+        }
+        const planLines = await fetchPlanLinesForActual(plan.plan_id, filters);
+        if (mode === 'plan') {
+            candidates = planLines.map(mapPlanLineToActualRow);
+        } else {
+            const projects = await fetchProjectsForActual(filters);
+            const planned = new Set(planLines.map(line => line.pipeline_id));
+            candidates = projects
+                .filter(project => !planned.has(project.pipeline_id))
+                .map(mapProjectToActualRow);
+        }
+    } else {
+        const projects = await fetchProjectsForActual(filters);
+        candidates = projects.map(mapProjectToActualRow);
+    }
+    pendingActualPreviewMeta = { mode, mergeMode, filters: { ...filters } };
+    openActualTargetPreviewModal(candidates, mergeMode);
 }
 
 async function loadActualFilters() {
@@ -614,11 +1282,9 @@ async function initializeSalesActualEntry() {
     }
 
     await loadActualFilters();
-    const year = document.getElementById('salesActualYear')?.value || new Date().getFullYear();
-    const lines = await fetchActualLines(year, getActualLineFilters());
-    cachedActualLines = lines;
-    salesActualLineTable.setData(lines);
-    updateActualConsistencyBadge();
+    await loadActualTargetPlans();
+    updateActualTargetModeUI();
+    await reloadActualLines();
 
     const recalcBtn = document.getElementById('btnActualRecalc');
     if (recalcBtn && !recalcBtn.dataset.bound) {
@@ -632,18 +1298,15 @@ async function initializeSalesActualEntry() {
     if (saveBtn && !saveBtn.dataset.bound) {
         saveBtn.dataset.bound = 'true';
         saveBtn.addEventListener('click', async () => {
-            const actualYear = Number(document.getElementById('salesActualYear')?.value || new Date().getFullYear());
-            const payload = {
-                actual_year: actualYear,
-                updated_by: getCurrentLoginId(),
-                lines: salesActualLineTable.getData()
-            };
-            try {
-                await API.post(API_CONFIG.ENDPOINTS.SALES_ACTUAL_LINES, payload);
-                alert('실적 라인이 저장되었습니다.');
-            } catch (error) {
-                alert('실적 저장 실패: ' + (error.message || error));
-            }
+            await saveActualLines();
+        });
+    }
+
+    const headerSaveBtn = document.getElementById('btnActualHeaderSave');
+    if (headerSaveBtn && !headerSaveBtn.dataset.bound) {
+        headerSaveBtn.dataset.bound = 'true';
+        headerSaveBtn.addEventListener('click', async () => {
+            await saveActualLines();
         });
     }
 
@@ -685,13 +1348,149 @@ async function initializeSalesActualEntry() {
     if (yearSelect && !yearSelect.dataset.bound) {
         yearSelect.dataset.bound = 'true';
         yearSelect.addEventListener('change', async () => {
-            const actualYear = Number(yearSelect.value);
-            const lines = await fetchActualLines(actualYear, getActualLineFilters());
-            cachedActualLines = lines;
-            salesActualLineTable.setData(lines);
-            updateActualConsistencyBadge();
+            await loadActualTargetPlans();
+            await reloadActualLines();
         });
     }
+
+    const searchBtn = document.getElementById('btnActualSearch');
+    if (searchBtn && !searchBtn.dataset.bound) {
+        searchBtn.dataset.bound = 'true';
+        searchBtn.addEventListener('click', async () => {
+            await reloadActualLines();
+        });
+    }
+
+    const excludeBtn = document.getElementById('btnActualExcludeSelected');
+    if (excludeBtn && !excludeBtn.dataset.bound) {
+        excludeBtn.dataset.bound = 'true';
+        excludeBtn.addEventListener('click', async () => {
+            if (!salesActualLineTable) return;
+            const selected = salesActualLineTable.getSelectedData() || [];
+            if (!selected.length) {
+                alert('제외할 대상을 선택하세요.');
+                return;
+            }
+            const actualYear = Number(document.getElementById('salesActualYear')?.value || new Date().getFullYear());
+            const pipelineIds = Array.from(new Set(selected.map(row => row.pipeline_id).filter(Boolean)));
+            const rowsWithAmounts = selected.filter(hasRegisteredActualAmount);
+            if (rowsWithAmounts.length > 0) {
+                const ok = confirm(
+                    `선택한 ${selected.length}건 중 ${rowsWithAmounts.length}건은 실적 금액(수주/이익)이 입력되어 있습니다.\n제외 시 입력된 금액이 삭제됩니다.\n계속 진행하시겠습니까?`
+                );
+                if (!ok) return;
+            }
+            try {
+                await API.post(`${API_CONFIG.ENDPOINTS.SALES_ACTUAL_LINES}/delete`, {
+                    actual_year: actualYear,
+                    pipeline_ids: pipelineIds,
+                    updated_by: getCurrentLoginId()
+                });
+            } catch (error) {
+                console.warn('⚠️ 실적 제외 API 실패, 화면에서만 제외합니다.', error);
+            }
+
+            const remain = (salesActualLineTable.getData() || []).filter(row => !pipelineIds.includes(row.pipeline_id));
+            salesActualLineTable.setData(remain);
+            updateActualConsistencyBadge();
+            refreshActualPreviewRegistrationStatus();
+        });
+    }
+
+    const targetModeSelect = document.getElementById('actualTargetMode');
+    if (targetModeSelect && !targetModeSelect.dataset.bound) {
+        targetModeSelect.dataset.bound = 'true';
+        targetModeSelect.addEventListener('change', () => {
+            updateActualTargetModeUI();
+        });
+    }
+
+    const loadTargetsBtn = document.getElementById('btnActualLoadTargets');
+    if (loadTargetsBtn && !loadTargetsBtn.dataset.bound) {
+        loadTargetsBtn.dataset.bound = 'true';
+        loadTargetsBtn.addEventListener('click', () => {
+            showActualTargetPreviewModal();
+            updateActualTargetModeUI();
+        });
+    }
+
+    const planSelect = document.getElementById('actualPlanSelect');
+    if (planSelect && !planSelect.dataset.bound) {
+        planSelect.dataset.bound = 'true';
+        planSelect.addEventListener('change', () => {
+            updateActualTargetModeUI();
+        });
+    }
+
+    const previewApplyBtn = document.getElementById('btnActualPreviewApply');
+    if (previewApplyBtn && !previewApplyBtn.dataset.bound) {
+        previewApplyBtn.dataset.bound = 'true';
+        previewApplyBtn.addEventListener('click', () => {
+            applySelectedActualTargetsFromPreview();
+        });
+    }
+    const previewCloseBtn = document.getElementById('btnActualPreviewClose');
+    if (previewCloseBtn && !previewCloseBtn.dataset.bound) {
+        previewCloseBtn.dataset.bound = 'true';
+        previewCloseBtn.addEventListener('click', () => {
+            closeActualTargetPreviewModal();
+        });
+    }
+
+    const targetSearchBtn = document.getElementById('btnActualTargetSearch');
+    if (targetSearchBtn && !targetSearchBtn.dataset.bound) {
+        targetSearchBtn.dataset.bound = 'true';
+        targetSearchBtn.addEventListener('click', async () => {
+            await handleActualLoadTargets();
+        });
+    }
+
+    const previewSearchInput = document.getElementById('actualTargetPreviewSearch');
+    if (previewSearchInput && !previewSearchInput.dataset.bound) {
+        previewSearchInput.dataset.bound = 'true';
+        previewSearchInput.addEventListener('input', () => {
+            applyActualPreviewSearch();
+            updateActualPreviewSummary();
+        });
+    }
+    const previewSearchClearBtn = document.getElementById('btnActualPreviewSearchClear');
+    if (previewSearchClearBtn && !previewSearchClearBtn.dataset.bound) {
+        previewSearchClearBtn.dataset.bound = 'true';
+        previewSearchClearBtn.addEventListener('click', () => {
+            const input = document.getElementById('actualTargetPreviewSearch');
+            if (input) input.value = '';
+            applyActualPreviewSearch();
+            updateActualPreviewSummary();
+        });
+    }
+
+    const editSelectedBtn = document.getElementById('btnActualEditSelected');
+    if (editSelectedBtn && !editSelectedBtn.dataset.bound) {
+        editSelectedBtn.dataset.bound = 'true';
+        editSelectedBtn.addEventListener('click', () => {
+            openActualLineEditModal();
+        });
+    }
+
+    const lineApplyBtn = document.getElementById('btnActualLineApply');
+    if (lineApplyBtn && !lineApplyBtn.dataset.bound) {
+        lineApplyBtn.dataset.bound = 'true';
+        lineApplyBtn.addEventListener('click', () => {
+            applyActualLineEditModal();
+        });
+    }
+
+    const actualFilterIds = ['actualFilterOrg', 'actualFilterManager', 'actualFilterField', 'actualFilterService', 'actualFilterKeyword'];
+    actualFilterIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el || el.dataset.boundActualFilter) return;
+        el.dataset.boundActualFilter = 'true';
+        const eventName = id === 'actualFilterKeyword' ? 'input' : 'change';
+        const handler = async () => {
+            await reloadActualLines();
+        };
+        el.addEventListener(eventName, handler);
+    });
 }
 
 async function initializeSalesActualDashboard() {
@@ -699,31 +1498,35 @@ async function initializeSalesActualDashboard() {
     if (!tableEl) return;
 
     populateActualYearOptions('actualSummaryYear');
+    toggleActualSummaryPeriodOptions();
 
     if (!salesActualSummaryTable) {
         salesActualSummaryTable = new Tabulator('#salesActualSummaryTable', {
             height: '520px',
-            layout: 'fitDataStretch',
+            layout: 'fitDataTable',
+            renderHorizontal: 'basic',
             placeholder: '집계 데이터가 없습니다.',
-            columns: [
-                {title: '구분', field: 'group_name', minWidth: 200},
-                {title: '수주합계', field: 'order_total', hozAlign: 'right', formatter: (cell) => formatNumber(cell.getValue())},
-                {title: '이익합계', field: 'profit_total', hozAlign: 'right', formatter: (cell) => formatNumber(cell.getValue())}
-            ]
+            columns: [],
+            columnDefaults: {
+                headerSort: false,
+                headerHozAlign: 'center'
+            },
+            rowFormatter: (row) => {
+                const data = row.getData() || {};
+                const el = row.getElement();
+                if (!el) return;
+                if (data.row_type === 'total') el.classList.add('actual-summary-total');
+                else el.classList.remove('actual-summary-total');
+            }
         });
     }
-
-    const summary = await fetchActualSummary();
-    salesActualSummaryTable.setData(summary);
-    updateActualSummaryStats(summary);
+    await runActualSummaryReport();
 
     const runBtn = document.getElementById('btnActualSummaryRun');
     if (runBtn && !runBtn.dataset.bound) {
         runBtn.dataset.bound = 'true';
         runBtn.addEventListener('click', async () => {
-            const summary = await fetchActualSummary();
-            salesActualSummaryTable.setData(summary);
-            updateActualSummaryStats(summary);
+            await runActualSummaryReport();
         });
     }
 
@@ -735,38 +1538,263 @@ async function initializeSalesActualDashboard() {
             salesActualSummaryTable.download('xlsx', 'sales_actual_summary.xlsx', {sheetName: 'Summary'});
         });
     }
+
+    bindActualSummaryControlEvents();
 }
 
-async function fetchActualSummary() {
-    if (typeof API === 'undefined' || !API_CONFIG?.ENDPOINTS?.SALES_ACTUALS) {
-        return SAMPLE_ACTUAL_SUMMARY;
+function bindActualSummaryControlEvents() {
+    const periodSelect = document.getElementById('actualSummaryPeriod');
+    if (periodSelect && !periodSelect.dataset.bound) {
+        periodSelect.dataset.bound = 'true';
+        periodSelect.addEventListener('change', () => {
+            toggleActualSummaryPeriodOptions();
+        });
     }
-    try {
-        const year = document.getElementById('actualSummaryYear')?.value || new Date().getFullYear();
-        const group = document.getElementById('actualSummaryGroup')?.value || 'org';
-        const response = await API.get(`${API_CONFIG.ENDPOINTS.SALES_ACTUALS}/summary?actual_year=${year}&group=${group}`);
-        return response?.items || [];
-    } catch (error) {
-        console.warn('⚠️ 실적 집계 조회 실패, 샘플로 대체합니다.', error);
-        return SAMPLE_ACTUAL_SUMMARY;
+
+    const groupSelect = document.getElementById('actualSummaryGroups');
+    if (groupSelect && !groupSelect.dataset.bound) {
+        groupSelect.dataset.bound = 'true';
+        groupSelect.addEventListener('change', () => updateActualSummaryGroupStat());
+    }
+
+    const upBtn = document.getElementById('btnActualSummaryGroupUp');
+    if (upBtn && !upBtn.dataset.bound) {
+        upBtn.dataset.bound = 'true';
+        upBtn.addEventListener('click', () => moveActualSummaryGroupOption(-1));
+    }
+    const downBtn = document.getElementById('btnActualSummaryGroupDown');
+    if (downBtn && !downBtn.dataset.bound) {
+        downBtn.dataset.bound = 'true';
+        downBtn.addEventListener('click', () => moveActualSummaryGroupOption(1));
+    }
+    const allBtn = document.getElementById('btnActualSummaryGroupAll');
+    if (allBtn && !allBtn.dataset.bound) {
+        allBtn.dataset.bound = 'true';
+        allBtn.addEventListener('click', () => {
+            const select = document.getElementById('actualSummaryGroups');
+            if (!select) return;
+            Array.from(select.options).forEach(option => { option.selected = true; });
+            updateActualSummaryGroupStat();
+        });
+    }
+    const clearBtn = document.getElementById('btnActualSummaryGroupClear');
+    if (clearBtn && !clearBtn.dataset.bound) {
+        clearBtn.dataset.bound = 'true';
+        clearBtn.addEventListener('click', () => {
+            const select = document.getElementById('actualSummaryGroups');
+            if (!select) return;
+            Array.from(select.options).forEach(option => { option.selected = false; });
+            const first = select.options[0];
+            if (first) first.selected = true;
+            updateActualSummaryGroupStat();
+        });
     }
 }
 
-function updateActualSummaryStats(data) {
-    const orderSum = data.reduce((acc, row) => acc + Number(row.order_total || 0), 0);
-    const profitSum = data.reduce((acc, row) => acc + Number(row.profit_total || 0), 0);
+function moveActualSummaryGroupOption(direction) {
+    const select = document.getElementById('actualSummaryGroups');
+    if (!select) return;
+    const options = Array.from(select.options);
+    const selectedIndexes = options
+        .map((option, idx) => ({ option, idx }))
+        .filter(item => item.option.selected)
+        .map(item => item.idx);
+    if (!selectedIndexes.length) return;
+
+    if (direction < 0) {
+        selectedIndexes.forEach(idx => {
+            if (idx <= 0) return;
+            const current = select.options[idx];
+            const prev = select.options[idx - 1];
+            if (prev.selected) return;
+            select.insertBefore(current, prev);
+        });
+    } else {
+        selectedIndexes.reverse().forEach(idx => {
+            if (idx >= select.options.length - 1) return;
+            const current = select.options[idx];
+            const next = select.options[idx + 1];
+            if (next.selected) return;
+            select.insertBefore(next, current);
+        });
+    }
+    updateActualSummaryGroupStat();
+}
+
+function toggleActualSummaryPeriodOptions() {
+    const period = document.getElementById('actualSummaryPeriod')?.value || 'year';
+    const quarterWrap = document.getElementById('actualSummaryQuarterWrap');
+    const monthWrap = document.getElementById('actualSummaryMonthWrap');
+    if (quarterWrap) quarterWrap.style.display = period === 'quarter' ? '' : 'none';
+    if (monthWrap) monthWrap.style.display = period === 'month' ? '' : 'none';
+}
+
+function getSelectedSummaryDimensions() {
+    const select = document.getElementById('actualSummaryGroups');
+    const selected = Array.from(select?.options || [])
+        .filter(option => option.selected)
+        .map(option => option.value)
+        .filter(value => ACTUAL_SUMMARY_DIMENSIONS[value]);
+    return selected.length ? selected : ['org'];
+}
+
+function getSelectedSummaryPeriods(period) {
+    if (period === 'year') {
+        return [{ key: 'year', title: '연간합계', months: [1,2,3,4,5,6,7,8,9,10,11,12] }];
+    }
+    if (period === 'quarter') {
+        const selected = Array.from(document.querySelectorAll('.actual-summary-quarter:checked'))
+            .map(el => Number(el.value))
+            .filter(v => v >= 1 && v <= 4);
+        const quarters = selected.length ? selected : [1, 2, 3, 4];
+        return quarters.map(q => ({
+            key: `q${q}`,
+            title: `Q${q}`,
+            months: [(q - 1) * 3 + 1, (q - 1) * 3 + 2, (q - 1) * 3 + 3]
+        }));
+    }
+    const selected = Array.from(document.querySelectorAll('.actual-summary-month:checked'))
+        .map(el => Number(el.value))
+        .filter(v => v >= 1 && v <= 12);
+    const months = selected.length ? selected : Array.from({ length: 12 }, (_, i) => i + 1);
+    return months.map(m => ({ key: `m${String(m).padStart(2, '0')}`, title: `${m}월`, months: [m] }));
+}
+
+async function fetchActualSummaryLines(year) {
+    const lines = await fetchActualLines(Number(year), {});
+    return lines || [];
+}
+
+function buildActualSummaryColumns(dimensions, periods) {
+    const dimensionColumns = dimensions.map((key) => ({
+        title: ACTUAL_SUMMARY_DIMENSIONS[key]?.title || key,
+        field: `dim_${key}`,
+        width: 160,
+        frozen: false
+    }));
+    const sumColumns = [
+        {
+            title: '수주 합계',
+            field: 'sum_order',
+            width: 150,
+            hozAlign: 'right',
+            frozen: false,
+            formatter: (cell) => formatNumber(cell.getValue())
+        },
+        {
+            title: '이익 합계',
+            field: 'sum_profit',
+            width: 150,
+            hozAlign: 'right',
+            frozen: false,
+            formatter: (cell) => formatNumber(cell.getValue())
+        }
+    ];
+    const periodColumns = periods.map(period => ({
+        title: period.title,
+        columns: [
+            { title: '수주', field: `${period.key}_order`, width: 140, hozAlign: 'right', formatter: (cell) => formatNumber(cell.getValue()) },
+            { title: '이익', field: `${period.key}_profit`, width: 140, hozAlign: 'right', formatter: (cell) => formatNumber(cell.getValue()) }
+        ]
+    }));
+    return [...dimensionColumns, ...sumColumns, ...periodColumns];
+}
+
+function buildActualSummaryRows(lines, dimensions, periods) {
+    const map = new Map();
+    const safeText = (v) => (v === null || v === undefined || String(v).trim() === '' ? '-' : String(v));
+
+    (lines || []).forEach(line => {
+        const dimValues = dimensions.map(key => safeText(line[ACTUAL_SUMMARY_DIMENSIONS[key].field]));
+        const rowKey = dimValues.join('|');
+        if (!map.has(rowKey)) {
+            const base = {};
+            dimensions.forEach((key, idx) => {
+                base[`dim_${key}`] = dimValues[idx];
+            });
+            periods.forEach(period => {
+                base[`${period.key}_order`] = 0;
+                base[`${period.key}_profit`] = 0;
+            });
+            map.set(rowKey, base);
+        }
+        const target = map.get(rowKey);
+        periods.forEach(period => {
+            period.months.forEach(month => {
+                const m = String(month).padStart(2, '0');
+                target[`${period.key}_order`] += Number(line[`m${m}_order`] || 0);
+                target[`${period.key}_profit`] += Number(line[`m${m}_profit`] || 0);
+            });
+        });
+        target.sum_order = periods.reduce((acc, period) => acc + Number(target[`${period.key}_order`] || 0), 0);
+        target.sum_profit = periods.reduce((acc, period) => acc + Number(target[`${period.key}_profit`] || 0), 0);
+    });
+
+    const rows = Array.from(map.values());
+    rows.sort((a, b) => {
+        for (const key of dimensions) {
+            const av = String(a[`dim_${key}`] || '');
+            const bv = String(b[`dim_${key}`] || '');
+            const cmp = av.localeCompare(bv, 'ko');
+            if (cmp !== 0) return cmp;
+        }
+        return 0;
+    });
+
+    const totalRow = {};
+    dimensions.forEach((key, idx) => {
+        totalRow[`dim_${key}`] = idx === 0 ? '합계' : '';
+    });
+    periods.forEach(period => {
+        totalRow[`${period.key}_order`] = rows.reduce((acc, row) => acc + Number(row[`${period.key}_order`] || 0), 0);
+        totalRow[`${period.key}_profit`] = rows.reduce((acc, row) => acc + Number(row[`${period.key}_profit`] || 0), 0);
+    });
+    totalRow.sum_order = rows.reduce((acc, row) => acc + Number(row.sum_order || 0), 0);
+    totalRow.sum_profit = rows.reduce((acc, row) => acc + Number(row.sum_profit || 0), 0);
+    totalRow.row_type = 'total';
+    rows.push(totalRow);
+    return rows;
+}
+
+async function runActualSummaryReport() {
+    const year = Number(document.getElementById('actualSummaryYear')?.value || new Date().getFullYear());
+    const period = document.getElementById('actualSummaryPeriod')?.value || 'year';
+    const dimensions = getSelectedSummaryDimensions();
+    const periods = getSelectedSummaryPeriods(period);
+    const lines = await fetchActualSummaryLines(year);
+    const columns = buildActualSummaryColumns(dimensions, periods);
+    const rows = buildActualSummaryRows(lines, dimensions, periods);
+    if (salesActualSummaryTable) {
+        salesActualSummaryTable.setColumns(columns);
+        salesActualSummaryTable.setData(rows);
+        salesActualSummaryTable.redraw(true);
+    }
+    updateActualSummaryStats(rows, dimensions, year);
+}
+
+function updateActualSummaryStats(data, dimensions = ['org'], year = null) {
+    const total = (data || []).find(row => row.row_type === 'total');
+    const orderSum = total ? Number(total.sum_order || 0) : 0;
+    const profitSum = total ? Number(total.sum_profit || 0) : 0;
 
     const orderEl = document.getElementById('actualStatOrder');
     const profitEl = document.getElementById('actualStatProfit');
     const yearEl = document.getElementById('actualStatYear');
     const groupEl = document.getElementById('actualStatGroup');
-    const yearSelect = document.getElementById('actualSummaryYear');
-    const groupSelect = document.getElementById('actualSummaryGroup');
 
     if (orderEl) orderEl.textContent = formatNumber(orderSum);
     if (profitEl) profitEl.textContent = formatNumber(profitSum);
-    if (yearEl && yearSelect) yearEl.textContent = yearSelect.value || '-';
-    if (groupEl && groupSelect) groupEl.textContent = groupSelect.options[groupSelect.selectedIndex]?.text || '-';
+    if (yearEl) yearEl.textContent = year || document.getElementById('actualSummaryYear')?.value || '-';
+    if (groupEl) {
+        groupEl.textContent = dimensions.map(key => ACTUAL_SUMMARY_DIMENSIONS[key]?.title || key).join(' > ');
+    }
+}
+
+function updateActualSummaryGroupStat() {
+    const groupEl = document.getElementById('actualStatGroup');
+    if (!groupEl) return;
+    const dims = getSelectedSummaryDimensions();
+    groupEl.textContent = dims.map(key => ACTUAL_SUMMARY_DIMENSIONS[key]?.title || key).join(' > ');
 }
 
 // DOMContentLoaded Hook
@@ -787,3 +1815,5 @@ window.openActualColumnsModal = openActualColumnsModal;
 window.closeActualColumnsModal = closeActualColumnsModal;
 window.setAllActualColumns = setAllActualColumns;
 window.toggleActualColumnGroup = toggleActualColumnGroup;
+window.closeActualTargetPreviewModal = closeActualTargetPreviewModal;
+window.closeActualLineEditModal = closeActualLineEditModal;

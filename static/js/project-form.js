@@ -233,7 +233,8 @@ async function loadFormComboBoxes() {
         if (serviceSelect) {
             serviceSelect.innerHTML = '<option value="">선택하세요</option>';
             console.log('📥 서비스코드 데이터:', services);
-            const serviceItems = services?.items || [];
+            // 신규/수정 화면에서는 parent_code가 있는 상세 서비스만 표시
+            const serviceItems = (services?.items || []).filter(item => item.parent_code !== null && item.parent_code !== undefined && String(item.parent_code).trim() !== '');
             serviceItems.forEach(s => {
                 const opt = document.createElement('option');
                 opt.value = s.service_code;
@@ -856,15 +857,14 @@ function openAttributeCodeModal() {
         return;
     }
 
-    const codeInput = document.getElementById('attr_code_input');
     const nameInput = document.getElementById('attr_name_input');
-    const sortInput = document.getElementById('attr_sort_input');
-    const useSelect = document.getElementById('attr_use_input');
+    const dupResult = document.getElementById('attr_name_dup_result');
 
-    if (codeInput) codeInput.value = '';
     if (nameInput) nameInput.value = '';
-    if (sortInput) sortInput.value = '0';
-    if (useSelect) useSelect.value = 'Y';
+    if (dupResult) {
+        dupResult.textContent = '등록 전 속성명 중복 여부를 확인하세요.';
+        dupResult.style.color = '';
+    }
 
     modal.classList.add('active');
     modal.style.display = 'flex';
@@ -879,28 +879,19 @@ function closeAttributeCodeModal() {
 }
 
 async function saveAttributeCode() {
-    const codeInput = document.getElementById('attr_code_input');
     const nameInput = document.getElementById('attr_name_input');
-    const sortInput = document.getElementById('attr_sort_input');
-    const useSelect = document.getElementById('attr_use_input');
 
-    const code = codeInput ? codeInput.value.trim() : '';
     const codeName = nameInput ? nameInput.value.trim() : '';
-    const sortOrder = sortInput ? parseInt(sortInput.value, 10) : 0;
-    const isUse = useSelect ? useSelect.value : 'Y';
 
-    if (!code || !codeName) {
-        alert('코드와 코드명을 입력하세요.');
+    if (!codeName) {
+        alert('코드명을 입력하세요.');
         return;
     }
 
     try {
         const payload = {
             group_code: 'PROJECT_ATTRIBUTE',
-            code: code,
-            code_name: codeName,
-            sort_order: isNaN(sortOrder) ? 0 : sortOrder,
-            is_use: isUse
+            code_name: codeName
         };
 
         await API.post(API_CONFIG.ENDPOINTS.COMBO_DATA, payload);
@@ -911,6 +902,31 @@ async function saveAttributeCode() {
     } catch (error) {
         console.error('❌ 속성 코드 등록 실패:', error);
         alert('속성 등록에 실패했습니다.');
+    }
+}
+
+async function checkAttributeCodeNameDup() {
+    const nameInput = document.getElementById('attr_name_input');
+    const resultEl = document.getElementById('attr_name_dup_result');
+    const codeName = nameInput ? nameInput.value.trim() : '';
+    if (!codeName) {
+        alert('코드명을 입력하세요.');
+        return;
+    }
+    try {
+        const response = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/PROJECT_ATTRIBUTE?is_use=`);
+        const items = response?.items || [];
+        const exists = items.some(item => String(item.code_name || '').trim().toUpperCase() === codeName.toUpperCase());
+        if (resultEl) {
+            resultEl.textContent = exists ? '이미 존재하는 속성명입니다.' : '사용 가능한 속성명입니다.';
+            resultEl.style.color = exists ? '#dc2626' : '#16a34a';
+        }
+    } catch (error) {
+        console.error('❌ 속성명 중복 체크 실패:', error);
+        if (resultEl) {
+            resultEl.textContent = '중복 확인 중 오류가 발생했습니다.';
+            resultEl.style.color = '#dc2626';
+        }
     }
 }
 

@@ -10,6 +10,7 @@ let usingPlanFallback = false;
 let cachedSalesPlans = [];
 let missingProjectsTable = null;
 let isFilterSyncing = false;
+let currentPlanEditPipelineId = null;
 
 const PLAN_LINE_FIELDS = [
     { field: 'pipeline_id', title: '파이프라인ID' },
@@ -114,6 +115,34 @@ function setPlanToStorage(plan) {
     localStorage.setItem('psms.salesPlan.current', JSON.stringify(plan));
 }
 
+function findPlanById(items, planId) {
+    if (!planId) return null;
+    const target = String(planId);
+    return (items || []).find(item => String(item.plan_id) === target) || null;
+}
+
+function resolveCurrentPlanFromList(items) {
+    const storedPlan = getPlanFromStorage();
+    if (storedPlan?.plan_id) {
+        const matched = findPlanById(items, storedPlan.plan_id);
+        if (matched) return matched;
+    }
+    if (currentSalesPlan?.plan_id) {
+        const matched = findPlanById(items, currentSalesPlan.plan_id);
+        if (matched) return matched;
+    }
+    return (items || [])[0] || null;
+}
+
+function resolveSelectedPlanFromTable() {
+    if (!salesPlanTable) return currentSalesPlan;
+    const selected = salesPlanTable.getSelectedData?.() || [];
+    if (selected.length > 0) {
+        return selected[0];
+    }
+    return currentSalesPlan;
+}
+
 function normalizePlanStatus(code) {
     switch (code) {
         case 'FINAL':
@@ -130,6 +159,29 @@ function formatNumber(value) {
         return Utils.formatNumber(value || 0);
     }
     return Number(value || 0).toLocaleString('ko-KR');
+}
+
+function parsePlanAmountInput(value) {
+    const cleaned = String(value || '').replace(/[^0-9.-]/g, '');
+    const n = Number(cleaned);
+    return Number.isNaN(n) ? 0 : n;
+}
+
+function bindPlanAmountInputFormatters() {
+    const inputs = document.querySelectorAll('#planLineMonthGrid input[id^="planEditM"]');
+    inputs.forEach(input => {
+        if (input.dataset.boundFormatter) return;
+        input.dataset.boundFormatter = 'true';
+        input.addEventListener('focus', () => {
+            const numeric = parsePlanAmountInput(input.value);
+            input.value = numeric ? String(numeric) : '';
+            input.select();
+        });
+        input.addEventListener('blur', () => {
+            const numeric = parsePlanAmountInput(input.value);
+            input.value = formatNumber(numeric);
+        });
+    });
 }
 
 function getCurrentLoginId() {
@@ -306,10 +358,13 @@ function bindSalesPlanListEvents() {
 
     if (editBtn) {
         editBtn.addEventListener('click', () => {
-            if (!currentSalesPlan) {
+            const selectedPlan = resolveSelectedPlanFromTable();
+            if (!selectedPlan) {
                 alert('편집할 계획을 선택하세요.');
                 return;
             }
+            currentSalesPlan = selectedPlan;
+            setPlanToStorage(currentSalesPlan);
             navigateTo('sales-plan-edit');
         });
     }
@@ -418,6 +473,95 @@ function recalcPlanRowTotal(row) {
     }
     row.update({plan_total: total});
     updatePlanConsistencyBadge();
+}
+
+function buildPlanLineMonthEditors() {
+    const container = document.getElementById('planLineMonthGrid');
+    if (!container || container.children.length > 0) return;
+    const html = [];
+    for (let i = 1; i <= 12; i += 1) {
+        const month = String(i).padStart(2, '0');
+        html.push(`
+            <div class="plan-line-month-item">
+                <div class="plan-line-month-item-title">${i}월</div>
+                <div>
+                    <label for="planEditM${month}">${i}월 금액</label>
+                    <input type="text" id="planEditM${month}" class="form-input" inputmode="numeric" autocomplete="off">
+                </div>
+            </div>
+        `);
+    }
+    container.innerHTML = html.join('');
+    bindPlanAmountInputFormatters();
+}
+
+function getSelectedPlanLineRow() {
+    if (!salesPlanLineTable) return null;
+    const selected = salesPlanLineTable.getSelectedData() || [];
+    if (!selected.length) return null;
+    return selected[0];
+}
+
+function openPlanLineEditModal() {
+    const selected = getSelectedPlanLineRow();
+    if (!selected) {
+        alert('입력할 프로젝트를 1건 선택하세요.');
+        return;
+    }
+    currentPlanEditPipelineId = selected.pipeline_id;
+    buildPlanLineMonthEditors();
+
+    const setValue = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.value = value ?? '';
+    };
+    setValue('planEditPipelineId', selected.pipeline_id || '');
+    setValue('planEditProjectName', selected.project_name_snapshot || '');
+    setValue('planEditCustomerName', selected.customer_name_snapshot || '');
+    setValue('planEditOrgName', selected.org_name_snapshot || '');
+    setValue('planEditManagerName', selected.manager_name_snapshot || '');
+    setValue('planEditContractDate', selected.contract_plan_date || '');
+    setValue('planEditStartDate', selected.start_plan_date || '');
+    setValue('planEditEndDate', selected.end_plan_date || '');
+
+    for (let i = 1; i <= 12; i += 1) {
+        const month = String(i).padStart(2, '0');
+        setValue(`planEditM${month}`, formatNumber(selected[`plan_m${month}`] || 0));
+    }
+
+    const modal = document.getElementById('planLineEditModal');
+    if (modal) {
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+    }
+}
+
+function closePlanLineEditModal() {
+    const modal = document.getElementById('planLineEditModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    modal.style.display = 'none';
+}
+
+function applyPlanLineEditModal() {
+    if (!salesPlanLineTable || !currentPlanEditPipelineId) return;
+    const row = salesPlanLineTable.getRows().find(r => r.getData()?.pipeline_id === currentPlanEditPipelineId);
+    if (!row) {
+        alert('선택한 프로젝트를 찾을 수 없습니다.');
+        return;
+    }
+    const payload = {
+        contract_plan_date: document.getElementById('planEditContractDate')?.value || null,
+        start_plan_date: document.getElementById('planEditStartDate')?.value || null,
+        end_plan_date: document.getElementById('planEditEndDate')?.value || null
+    };
+    for (let i = 1; i <= 12; i += 1) {
+        const month = String(i).padStart(2, '0');
+        payload[`plan_m${month}`] = parsePlanAmountInput(document.getElementById(`planEditM${month}`)?.value);
+    }
+    row.update(payload);
+    recalcPlanRowTotal(row);
+    closePlanLineEditModal();
 }
 
 function updatePlanConsistencyBadge() {
@@ -544,9 +688,16 @@ async function initializeSalesPlanEdit() {
     cachedSalesPlans = items;
     populatePlanSelect(items);
 
-    const storedPlan = getPlanFromStorage();
-    currentSalesPlan = storedPlan || items[0] || null;
+    currentSalesPlan = resolveCurrentPlanFromList(items);
+    if (!currentSalesPlan && items.length === 0) {
+        const storedPlan = getPlanFromStorage();
+        if (storedPlan?.plan_id) {
+            currentSalesPlan = storedPlan;
+            populatePlanSelect([storedPlan]);
+        }
+    }
     loadPlanHeader(currentSalesPlan);
+    setPlanToStorage(currentSalesPlan);
     if (currentSalesPlan) {
         const lines = await fetchPlanLines(currentSalesPlan.plan_id);
         salesPlanLineTable.setData(lines);
@@ -599,7 +750,9 @@ async function loadPlanFilters() {
         if (serviceSelect) {
             const response = await API.get(`${API_CONFIG.ENDPOINTS.SERVICE_CODES}/list?is_use=Y`);
             serviceSelect.innerHTML = '<option value=\"\">전체</option>';
-            (response?.items || []).forEach(item => {
+            (response?.items || [])
+                .filter(item => item.parent_code !== null && item.parent_code !== undefined && String(item.parent_code).trim() !== '')
+                .forEach(item => {
                 const opt = document.createElement('option');
                 opt.value = item.service_code;
                 opt.textContent = item.display_name || item.service_name || item.service_code;
@@ -635,6 +788,11 @@ async function loadPlanFilters() {
     if (keywordInput && !keywordInput.dataset.bound) {
         keywordInput.dataset.bound = 'true';
         keywordInput.addEventListener('input', onKeywordChanged);
+    }
+    const onlyUnplanned = document.getElementById('missingOnlyUnplanned');
+    if (onlyUnplanned && !onlyUnplanned.dataset.bound) {
+        onlyUnplanned.dataset.bound = 'true';
+        onlyUnplanned.addEventListener('change', onFilterChanged);
     }
 }
 
@@ -811,29 +969,31 @@ function populatePlanFreezeOptions() {
 
 function applyPlanColumnFreeze(targetField) {
     if (!salesPlanLineTable) return;
-    if (!targetField) {
-        salesPlanLineTable.getColumns().forEach(col => {
-            const field = col.getField();
-            if (!field) {
-                col.setFrozen(true);
-            } else {
-                col.setFrozen(false);
-            }
-        });
-        return;
-    }
-    let freeze = true;
-    salesPlanLineTable.getColumns().forEach(col => {
-        const field = col.getField();
-        if (!field) {
-            col.setFrozen(true);
-            return;
-        }
-        col.setFrozen(freeze);
+    const leafColumns = salesPlanLineTable.getColumns(true);
+    let targetIndex = -1;
+
+    leafColumns.forEach((col, idx) => {
+        const field = col.getField?.();
         if (field === targetField) {
-            freeze = false;
+            targetIndex = idx;
         }
     });
+
+    leafColumns.forEach((col, idx) => {
+        const field = col.getField?.();
+        const isSelection = !field;
+        if (!targetField) {
+            col.setFrozen(isSelection);
+            return;
+        }
+        if (targetIndex < 0) {
+            col.setFrozen(isSelection);
+            return;
+        }
+        col.setFrozen(idx <= targetIndex || isSelection);
+    });
+
+    salesPlanLineTable.redraw(true);
 }
 
 function openPlanColumnsModal() {
@@ -941,12 +1101,12 @@ function bindSalesPlanEditEvents() {
     if (select && !select.dataset.bound) {
         select.dataset.bound = 'true';
         select.addEventListener('change', async () => {
-            const planId = Number(select.value);
-            currentSalesPlan = cachedSalesPlans.find(p => p.plan_id === planId) || null;
+            const planId = select.value;
+            currentSalesPlan = findPlanById(cachedSalesPlans, planId) || null;
             setPlanToStorage(currentSalesPlan);
             loadPlanHeader(currentSalesPlan);
             if (currentSalesPlan) {
-                const lines = await fetchPlanLines(planId, getPlanLineFilters());
+                const lines = await fetchPlanLines(currentSalesPlan.plan_id, getPlanLineFilters());
                 salesPlanLineTable.setData(lines);
                 updatePlanConsistencyBadge();
             } else {
@@ -985,30 +1145,11 @@ function bindSalesPlanEditEvents() {
     }
 
     const importBtn = document.getElementById('btnPlanImport');
-    if (importBtn) {
+    if (importBtn && !importBtn.dataset.bound) {
+        importBtn.dataset.bound = 'true';
         importBtn.addEventListener('click', async () => {
             if (!currentSalesPlan?.plan_id) {
-                alert('먼저 계획 헤더를 저장하세요.');
-                return;
-            }
-            try {
-                const params = buildQueryParams(getPlanLineFilters());
-                await API.request(`${API_CONFIG.ENDPOINTS.SALES_PLANS}/${currentSalesPlan.plan_id}/import-projects${params ? `?${params}` : ''}`, { method: 'POST' });
-                const lines = await fetchPlanLines(currentSalesPlan.plan_id, getPlanLineFilters());
-                salesPlanLineTable.setData(lines);
-                updatePlanConsistencyBadge();
-            } catch (error) {
-                alert('프로젝트 불러오기 실패: ' + (error.message || error));
-            }
-        });
-    }
-
-    const missingBtn = document.getElementById('btnPlanMissing');
-    if (missingBtn && !missingBtn.dataset.bound) {
-        missingBtn.dataset.bound = 'true';
-        missingBtn.addEventListener('click', async () => {
-            if (!currentSalesPlan?.plan_id) {
-                alert('먼저 계획을 선택하세요.');
+                alert('먼저 계획을 선택/저장하세요.');
                 return;
             }
             openMissingProjectsModal();
@@ -1067,6 +1208,14 @@ function bindSalesPlanEditEvents() {
         });
     }
 
+    const filterSearchBtn = document.getElementById('btnPlanSearch');
+    if (filterSearchBtn && !filterSearchBtn.dataset.bound) {
+        filterSearchBtn.dataset.bound = 'true';
+        filterSearchBtn.addEventListener('click', async () => {
+            await handleMainFiltersChanged();
+        });
+    }
+
     const exportBtn = document.getElementById('btnPlanExport');
     if (exportBtn && !exportBtn.dataset.bound) {
         exportBtn.dataset.bound = 'true';
@@ -1081,6 +1230,22 @@ function bindSalesPlanEditEvents() {
         columnsBtn.dataset.bound = 'true';
         columnsBtn.addEventListener('click', () => {
             openPlanColumnsModal();
+        });
+    }
+
+    const editSelectedBtn = document.getElementById('btnPlanEditSelected');
+    if (editSelectedBtn && !editSelectedBtn.dataset.bound) {
+        editSelectedBtn.dataset.bound = 'true';
+        editSelectedBtn.addEventListener('click', () => {
+            openPlanLineEditModal();
+        });
+    }
+
+    const lineApplyBtn = document.getElementById('btnPlanLineApply');
+    if (lineApplyBtn && !lineApplyBtn.dataset.bound) {
+        lineApplyBtn.dataset.bound = 'true';
+        lineApplyBtn.addEventListener('click', () => {
+            applyPlanLineEditModal();
         });
     }
 
@@ -1150,9 +1315,23 @@ function closeMissingProjectsModal() {
 async function refreshMissingProjects() {
     if (!currentSalesPlan?.plan_id) return;
     const summary = document.getElementById('missingProjectsFilterSummary');
+    const currentLineSummary = document.getElementById('missingProjectsCurrentLineSummary');
+    const onlyUnplanned = !!document.getElementById('missingOnlyUnplanned')?.checked;
+    const existingSet = new Set((salesPlanLineTable?.getData() || []).map(row => row.pipeline_id));
+
+    if (currentLineSummary) {
+        const selectedRows = salesPlanLineTable?.getSelectedData?.() || [];
+        const selectedIds = selectedRows.slice(0, 5).map(row => row.pipeline_id).filter(Boolean);
+        const selectedText = selectedRows.length
+            ? `선택 ${selectedRows.length}건${selectedIds.length ? ` (${selectedIds.join(', ')}${selectedRows.length > 5 ? '...' : ''})` : ''}`
+            : '선택 없음';
+        currentLineSummary.textContent = `현재 계획 라인: 총 ${existingSet.size}건 | 현재 선택: ${selectedText}`;
+    }
+
     if (summary) {
         const filters = getMissingFilters();
         const parts = [];
+        parts.push(onlyUnplanned ? '옵션: 미편성만' : '옵션: 전체 프로젝트');
         if (filters.org_id) parts.push(`조직: ${filters.org_id}`);
         if (filters.manager_id) parts.push(`담당자: ${filters.manager_id}`);
         if (filters.field_code) parts.push(`분야: ${filters.field_code}`);
@@ -1166,7 +1345,7 @@ async function refreshMissingProjects() {
             height: '520px',
             layout: 'fitDataStretch',
             selectable: true,
-            placeholder: '미편성 프로젝트가 없습니다.',
+            placeholder: '조회된 프로젝트가 없습니다.',
             columns: [
                 {
                     formatter: "rowSelection",
@@ -1175,6 +1354,7 @@ async function refreshMissingProjects() {
                     headerSort: false,
                     width: 50
                 },
+                {title: '반영상태', field: '_registered_label', width: 110, hozAlign: 'center'},
                 {title: '파이프라인', field: 'pipeline_id', width: 120},
                 {title: '프로젝트명', field: 'project_name', minWidth: 200},
                 {title: '고객사', field: 'customer_name', width: 140},
@@ -1189,10 +1369,26 @@ async function refreshMissingProjects() {
 
     const params = buildQueryParams(getMissingFilters());
     try {
-        const response = await API.get(`${API_CONFIG.ENDPOINTS.SALES_PLANS}/${currentSalesPlan.plan_id}/missing-projects${params ? `?${params}` : ''}`);
-        missingProjectsTable.setData(response?.items || []);
+        let items = [];
+        if (onlyUnplanned) {
+            const response = await API.get(`${API_CONFIG.ENDPOINTS.SALES_PLANS}/${currentSalesPlan.plan_id}/missing-projects${params ? `?${params}` : ''}`);
+            items = response?.items || [];
+        } else {
+            const response = await API.get(`${API_CONFIG.ENDPOINTS.PROJECTS_LIST}?${buildQueryParams({
+                page: 1,
+                page_size: 500,
+                ...getMissingFilters()
+            })}`);
+            items = response?.items || [];
+        }
+        const withStatus = items.map(row => ({
+            ...row,
+            _registered: existingSet.has(row.pipeline_id),
+            _registered_label: existingSet.has(row.pipeline_id) ? '반영됨' : '미반영'
+        }));
+        missingProjectsTable.setData(withStatus);
     } catch (error) {
-        alert('미편성 프로젝트 조회 실패: ' + (error.message || error));
+        alert('대상 프로젝트 조회 실패: ' + (error.message || error));
     }
 }
 
@@ -1201,22 +1397,28 @@ async function addSelectedMissingProjects() {
     if (!missingProjectsTable) return;
     const selected = missingProjectsTable.getSelectedData() || [];
     if (selected.length === 0) {
-        alert('가져올 프로젝트를 선택하세요.');
+        alert('반영할 프로젝트를 선택하세요.');
+        return;
+    }
+    const existingSet = new Set((salesPlanLineTable?.getData() || []).map(row => row.pipeline_id));
+    const selectedForAdd = selected.filter(row => !existingSet.has(row.pipeline_id));
+    if (!selectedForAdd.length) {
+        alert('선택된 항목은 모두 이미 반영되어 있습니다.');
         return;
     }
     const payload = {
         plan_id: currentSalesPlan.plan_id,
         updated_by: getCurrentLoginId(),
-        lines: selected.map(row => ({ pipeline_id: row.pipeline_id }))
+        lines: selectedForAdd.map(row => ({ pipeline_id: row.pipeline_id }))
     };
     try {
         await API.post(`${API_CONFIG.ENDPOINTS.SALES_PLANS}/${currentSalesPlan.plan_id}/lines`, payload);
         const lines = await fetchPlanLines(currentSalesPlan.plan_id, getPlanLineFilters());
         salesPlanLineTable.setData(lines);
         updatePlanConsistencyBadge();
-        closeMissingProjectsModal();
+        await refreshMissingProjects();
     } catch (error) {
-        alert('프로젝트 가져오기 실패: ' + (error.message || error));
+        alert('대상 프로젝트 반영 실패: ' + (error.message || error));
     }
 }
 
@@ -1260,7 +1462,9 @@ async function loadMissingFilters() {
         if (serviceSelect) {
             const response = await API.get(`${API_CONFIG.ENDPOINTS.SERVICE_CODES}/list?is_use=Y`);
             serviceSelect.innerHTML = '<option value=\"\">전체</option>';
-            (response?.items || []).forEach(item => {
+            (response?.items || [])
+                .filter(item => item.parent_code !== null && item.parent_code !== undefined && String(item.parent_code).trim() !== '')
+                .forEach(item => {
                 const opt = document.createElement('option');
                 opt.value = item.service_code;
                 opt.textContent = item.display_name || item.service_name || item.service_code;
@@ -1334,6 +1538,7 @@ window.refreshMissingProjects = refreshMissingProjects;
 window.addSelectedMissingProjects = addSelectedMissingProjects;
 window.openPlanColumnsModal = openPlanColumnsModal;
 window.closePlanColumnsModal = closePlanColumnsModal;
+window.closePlanLineEditModal = closePlanLineEditModal;
 window.setAllPlanColumns = setAllPlanColumns;
 window.togglePlanColumnGroup = togglePlanColumnGroup;
 

@@ -26,6 +26,7 @@ let currentFilters = {
     manager_id: '',
     field_code: '',
     current_stage: '',
+    sales_plan_id: '',
     page: 1,
     page_size: 25
 };
@@ -171,6 +172,25 @@ async function initializeFilters() {
                 }
             }
         }
+
+        // 영업계획 로드
+        const salesPlanSelect = document.getElementById('filterSalesPlan');
+        if (salesPlanSelect) {
+            try {
+                const response = await API.get(`${API_CONFIG.ENDPOINTS.SALES_PLANS}/list?page=1&page_size=500`);
+                (response?.items || []).forEach(plan => {
+                    const opt = document.createElement('option');
+                    opt.value = plan.plan_id;
+                    const year = plan.plan_year || '-';
+                    const version = plan.plan_version || '-';
+                    const status = plan.status_code || '-';
+                    opt.textContent = `${year} ${version} (${status})`;
+                    salesPlanSelect.appendChild(opt);
+                });
+            } catch (e) {
+                console.warn('⚠️ 영업계획 콤보 로드 실패:', e);
+            }
+        }
         
         console.log('✅ 필터 로딩 완료');
     } catch (error) {
@@ -236,6 +256,9 @@ function initializeTable() {
             }
             if (currentFilters.current_stage) {
                 queryParams.current_stage = currentFilters.current_stage;
+            }
+            if (currentFilters.sales_plan_id) {
+                queryParams.sales_plan_id = currentFilters.sales_plan_id;
             }
             const sorters = params.sorters || params.sort || params.sorter || [];
             if (sorters.length > 0) {
@@ -626,6 +649,19 @@ function initializeEventListeners() {
         console.log('  ✓ filterStage 이벤트 등록');
     } else {
         console.warn('  ✗ filterStage 요소 없음');
+    }
+
+    // 영업계획 필터
+    const filterSalesPlan = document.getElementById('filterSalesPlan');
+    if (filterSalesPlan) {
+        filterSalesPlan.addEventListener('change', function(e) {
+            currentFilters.sales_plan_id = e.target.value;
+            console.log('🔍 영업계획 필터:', currentFilters.sales_plan_id);
+            if (projectTable) projectTable.setData();
+        });
+        console.log('  ✓ filterSalesPlan 이벤트 등록');
+    } else {
+        console.warn('  ✗ filterSalesPlan 요소 없음');
     }
     
     // 페이지 크기 (있는 경우)

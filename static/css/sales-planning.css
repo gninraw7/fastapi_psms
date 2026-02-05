@@ -58,6 +58,131 @@
     font-weight: 500;
 }
 
+.actual-register-panel {
+    padding-top: 1rem;
+}
+
+.actual-register-flow {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(180px, 1fr)) auto;
+    gap: 0.75rem;
+    align-items: end;
+}
+
+.actual-register-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.actual-register-item label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.actual-register-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    white-space: nowrap;
+}
+
+.actual-preview-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.actual-line-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.actual-line-month-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(200px, 1fr));
+    gap: 0.75rem;
+    max-height: 380px;
+    overflow: auto;
+}
+
+.actual-line-month-item {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.6rem;
+    background: #f8fafc;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+
+.actual-line-month-item-title {
+    grid-column: 1 / -1;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.actual-line-month-item label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.plan-line-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.plan-line-month-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(200px, 1fr));
+    gap: 0.75rem;
+    max-height: 360px;
+    overflow: auto;
+}
+
+.plan-line-month-item {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.6rem;
+    background: #f8fafc;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+}
+
+.plan-line-month-item-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.plan-line-month-item label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.plan-line-month-item .form-input {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: right;
+}
+
+.actual-line-month-item .form-input {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: right;
+}
+
+.actual-line-edit-modal {
+    max-width: min(1400px, 96vw);
+}
+
 .plan-badge,
 .actual-badge {
     display: inline-flex;
@@ -71,13 +196,58 @@
     color: #1d4ed8;
 }
 
+.actual-summary-filter-layout {
+    display: grid;
+    grid-template-columns: minmax(320px, 420px) minmax(180px, 220px) minmax(280px, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.actual-summary-group-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.actual-summary-group-controls select {
+    min-width: 240px;
+}
+
+.actual-summary-group-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.actual-summary-main-controls {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.actual-summary-period-detail {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.actual-summary-check-grid {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.actual-summary-check-grid label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
 .plan-toolbar,
 .actual-toolbar {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-end;
     gap: 1rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
     margin-bottom: 1rem;
 }
 
@@ -168,7 +338,28 @@
 .toolbar-right {
     display: flex;
     gap: 0.75rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    align-items: center;
+    white-space: nowrap;
+}
+
+.toolbar-right {
+    margin-left: auto;
+}
+
+#salesActualLineTable .tabulator .tabulator-header .tabulator-frozen,
+#salesActualLineTable .tabulator .tabulator-tableholder .tabulator-row .tabulator-frozen {
+    background: #ffffff;
+}
+
+#salesActualLineTable .tabulator .tabulator-header .tabulator-frozen {
+    z-index: 4;
+    box-shadow: 2px 0 0 rgba(15, 23, 42, 0.08);
+}
+
+#salesActualLineTable .tabulator .tabulator-tableholder .tabulator-row .tabulator-frozen {
+    z-index: 3;
+    box-shadow: 2px 0 0 rgba(15, 23, 42, 0.06);
 }
 
 .helper-text {
@@ -212,19 +403,60 @@
 }
 
 .report-filter-panel {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    align-items: flex-end;
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr) minmax(340px, 420px);
+    gap: 0.875rem;
+    align-items: start;
     margin-bottom: 1rem;
 }
 
 .report-filter-panel .filter-group {
-    min-width: 220px;
+    min-width: 0;
 }
 
 .report-filter-panel select[multiple] {
-    min-height: 120px;
+    min-height: 132px;
+}
+
+.report-filter-grid .filter-group-multi {
+    grid-column: span 1;
+}
+
+.multi-select-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.multi-select-actions .btn {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8rem;
+}
+
+.report-controls-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.report-control-row {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.report-control-row label {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.report-control-row .helper-text {
+    margin: 0;
 }
 
 .report-title {
@@ -283,19 +515,25 @@
     color: #5a3f8a;
 }
 
+.report-group-title.report-group-period {
+    background: #eef2f7;
+    color: #334155;
+}
+
 .report-table-panel {
     width: 100%;
     max-width: 100%;
-    overflow: hidden;
+    overflow: auto;
 }
 
 .report-table-panel .tabulator {
-    min-width: 100%;
-    width: max-content;
+    width: 100%;
+    min-width: 0;
 }
 
 .report-table-panel .tabulator-tableholder {
-    overflow-x: auto;
+    overflow: auto !important;
+    scrollbar-gutter: stable;
 }
 
 .report-table-panel .tabulator .tabulator-header {
@@ -339,6 +577,67 @@
     font-weight: 700;
 }
 
+#salesActualSummaryTable .tabulator-row.actual-summary-total {
+    background: #e8eef7;
+    font-weight: 700;
+}
+
+#salesActualSummaryTable {
+    width: 100%;
+    max-width: 100%;
+    overflow: auto;
+}
+
+#salesActualSummaryTable .tabulator {
+    min-width: 0;
+}
+
+#salesActualSummaryTable .tabulator .tabulator-tableholder {
+    overflow: auto !important;
+    scrollbar-gutter: stable;
+}
+
+#salesActualSummaryTable .tabulator .tabulator-header .tabulator-frozen,
+#salesActualSummaryTable .tabulator .tabulator-tableholder .tabulator-row .tabulator-frozen {
+    background: #ffffff;
+}
+
+#salesActualSummaryTable .tabulator .tabulator-header {
+    position: relative;
+    z-index: 5;
+}
+
+#salesActualSummaryTable .tabulator .tabulator-header .tabulator-col,
+#salesActualSummaryTable .tabulator .tabulator-header .tabulator-col-group {
+    overflow: hidden;
+    background: #f8fafc;
+}
+
+#salesActualSummaryTable .tabulator .tabulator-header .tabulator-col .tabulator-col-content,
+#salesActualSummaryTable .tabulator .tabulator-header .tabulator-col-group .tabulator-col-content {
+    overflow: hidden;
+}
+
+#salesActualSummaryTable .tabulator .tabulator-header .tabulator-col .tabulator-col-title,
+#salesActualSummaryTable .tabulator .tabulator-header .tabulator-col-group .tabulator-col-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#salesActualSummaryTable .tabulator .tabulator-header .tabulator-frozen {
+    z-index: 30 !important;
+    box-shadow: 2px 0 0 rgba(15, 23, 42, 0.12);
+    border-right: 1px solid #cbd5e1;
+    background-clip: padding-box;
+}
+
+#salesActualSummaryTable .tabulator .tabulator-tableholder .tabulator-row .tabulator-frozen {
+    z-index: 20 !important;
+    box-shadow: 2px 0 0 rgba(15, 23, 42, 0.06);
+    border-right: 1px solid #e2e8f0;
+}
+
 .report-placeholder {
     border: 1px dashed var(--border-color);
     border-radius: var(--radius-md);
@@ -351,11 +650,58 @@
     .report-builder {
         grid-template-columns: 1fr;
     }
+    .report-filter-panel {
+        grid-template-columns: 1fr;
+    }
+    .report-filter-grid .filter-group-multi {
+        grid-column: span 1;
+    }
 }
 
 @media (max-width: 768px) {
     .panel-header {
         flex-direction: column;
         align-items: flex-start;
+    }
+    .plan-toolbar,
+    .actual-toolbar {
+        flex-wrap: wrap;
+        overflow-x: visible;
+    }
+    .toolbar-left,
+    .toolbar-right {
+        flex-wrap: wrap;
+        white-space: normal;
+    }
+    .report-filter-panel {
+        grid-template-columns: 1fr;
+    }
+    .report-filter-grid .filter-group-multi {
+        grid-column: span 1;
+    }
+    .actual-register-flow {
+        grid-template-columns: 1fr;
+    }
+    .actual-summary-filter-layout {
+        grid-template-columns: 1fr;
+    }
+    .actual-summary-group-controls {
+        flex-direction: column;
+    }
+    .actual-line-meta-grid {
+        grid-template-columns: 1fr;
+    }
+    .actual-line-month-grid {
+        grid-template-columns: 1fr;
+    }
+    .plan-line-meta-grid {
+        grid-template-columns: 1fr;
+    }
+    .plan-line-month-grid {
+        grid-template-columns: 1fr;
+    }
+    .actual-register-actions {
+        white-space: normal;
+        flex-wrap: wrap;
     }
 }

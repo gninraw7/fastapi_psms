@@ -45,7 +45,26 @@ def _actual_profit_sum_expr():
     return " + ".join([f"COALESCE(sal.m{str(i).zfill(2)}_profit,0)" for i in range(1, 13)])
 
 
-def _get_latest_plan_ids(db: Session, year: int, plan_version: Optional[str], status_code: Optional[str]) -> List[int]:
+def _get_latest_plan_ids(
+    db: Session,
+    year: int,
+    plan_version: Optional[str],
+    status_code: Optional[str],
+    plan_id: Optional[int] = None
+) -> List[int]:
+    if plan_id:
+        row = db.execute(
+            text("""
+                SELECT plan_id
+                FROM sales_plan
+                WHERE plan_id = :plan_id
+                  AND plan_year = :year
+                LIMIT 1
+            """),
+            {"plan_id": plan_id, "year": year}
+        ).first()
+        return [row[0]] if row else []
+
     if plan_version:
         rows = db.execute(
             text("""
@@ -350,6 +369,7 @@ async def report_summary(
     metric: str = Query("both", description="order|profit|both"),
     plan_version: Optional[str] = Query(None, description="계획 버전"),
     plan_status: Optional[str] = Query(None, description="계획 상태"),
+    plan_id: Optional[int] = Query(None, description="영업계획 ID"),
     org_ids: Optional[str] = Query(None, description="조직 필터 (comma)"),
     manager_ids: Optional[str] = Query(None, description="담당자 필터 (comma)"),
     db: Session = Depends(get_db)
@@ -362,7 +382,7 @@ async def report_summary(
         if metric not in ("order", "profit", "both"):
             raise HTTPException(status_code=400, detail="invalid metric")
 
-        plan_ids = _get_latest_plan_ids(db, year, plan_version, plan_status)
+        plan_ids = _get_latest_plan_ids(db, year, plan_version, plan_status, plan_id)
         columns = _build_columns(source, metric, period)
         metric_fields = [col["field"] for col in columns if col["field"] != "group_name"]
 

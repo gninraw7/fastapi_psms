@@ -187,46 +187,8 @@ function navigateTo(pageId) {
         // ⭐ Breadcrumb 업데이트 (신규 추가)
         updateBreadcrumb(pageId);
         
-        // 페이지별 초기화 (기존 로직 완전 보존)
-        if (pageId === 'sales') {
-            if (typeof initializeSales === 'function') initializeSales();
-        } else if (pageId === 'project-detail') {
-            if (typeof initializeProjectDetail === 'function') initializeProjectDetail();
-        } else if (pageId === 'mobile-projects') {
-            if (typeof initializeMobileProjects === 'function') initializeMobileProjects();
-        } else if (pageId === 'mobile-project-new') {
-            if (typeof initializeMobileProjectForm === 'function') initializeMobileProjectForm();
-        } else if (pageId === 'mobile-history-new') {
-            // ⭐ 이력 등록 초기화 추가
-            if (typeof initializeMobileHistory === 'function') {
-                console.log('🔧 모바일 이력 초기화 호출');
-                initializeMobileHistory();
-            } else {
-                console.error('❌ initializeMobileHistory 함수를 찾을 수 없음');
-            }
-        } else if (pageId === 'my-info') {
-            if (typeof initializeMyInfoPage === 'function') {
-                initializeMyInfoPage();
-            }
-        }
-        else if (pageId === 'users') {
-            ensureUsersListReady();
-        }
-        else if (pageId === 'common-codes') {
-            ensureCommonCodesReady();
-        }
-        else if (pageId === 'industry-fields') {
-            ensureIndustryFieldsReady();
-        }
-        else if (pageId === 'service-codes') {
-            ensureServiceCodesReady();
-        }
-        else if (pageId === 'org-units') {
-            ensureOrgUnitsReady();
-        }
-        else if (pageId === 'report-hub') {
-            ensureReportReady();
-        }
+        // 페이지별 초기화
+        initializePage(pageId);
         
         console.log('✅ 페이지 전환 완료:', pageId);
     } else {
@@ -356,7 +318,7 @@ function ensureReportReady() {
     }
 
     const script = document.createElement('script');
-    script.src = '/static/js/report.js?v=1.11';
+    script.src = '/static/js/report.js?v=1.15';
     script.dataset.reportHub = '1';
     script.onload = () => {
         if (typeof window.initializeReportHub === 'function') {
@@ -862,16 +824,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // URL에서 페이지 파라미터 읽기
     const urlParams = new URLSearchParams(window.location.search);
     const pageParam = urlParams.get('page');
+    const modeParam = urlParams.get('mode');
     const pipelineIdParam = urlParams.get('pipeline_id');
     const clientIdParam = urlParams.get('client_id');
     
     console.log('📄 URL 파라미터:', {
         page: pageParam, 
+        mode: modeParam,
         pipeline_id: pipelineIdParam,
         client_id: clientIdParam
     });
     
     if (pageParam) {
+        // 새로고침 시 신규 프로젝트 화면(page=projects-new&mode=new)은
+        // 기본 진입 화면(프로젝트 목록)으로 정규화
+        if (pageParam === 'projects-new' && (!modeParam || modeParam === 'new') && !pipelineIdParam) {
+            console.log('↩️ 초기 진입은 프로젝트 목록으로 이동');
+            const listUrl = `${window.location.pathname}?page=projects-list`;
+            history.replaceState({ page: 'projects-list' }, '', listUrl);
+            navigateTo('projects-list');
+            return;
+        }
+
         // URL에 페이지 파라미터가 있으면 해당 페이지로 이동
         if (pageExists(pageParam)) {
             navigateTo(pageParam);

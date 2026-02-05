@@ -21,7 +21,7 @@ router = APIRouter()
 
 class CommonCodeCreateRequest(BaseModel):
     group_code: str
-    code: str
+    code: Optional[str] = None
     code_name: str
     sort_order: Optional[int] = 0
     is_use: Optional[str] = "Y"
@@ -243,17 +243,35 @@ async def create_common_code(
 ):
     try:
         group_code = request.group_code.strip()
-        code = request.code.strip()
+        code = (request.code or "").strip()
         code_name = request.code_name.strip()
-        sort_order = request.sort_order or 0
-        is_use = (request.is_use or "Y").upper()
+        is_use = "Y"
 
         if group_code != "PROJECT_ATTRIBUTE":
             raise HTTPException(status_code=400, detail="PROJECT_ATTRIBUTE만 등록 가능합니다.")
-        if not code or not code_name:
-            raise HTTPException(status_code=400, detail="code와 code_name은 필수입니다.")
-        if is_use not in ("Y", "N"):
-            raise HTTPException(status_code=400, detail="is_use는 Y 또는 N만 허용됩니다.")
+        if not code_name:
+            raise HTTPException(status_code=400, detail="code_name은 필수입니다.")
+        # PROJECT_ATTRIBUTE 신규 코드는 ATTR_00001 형식으로 자동 채번
+        if group_code == "PROJECT_ATTRIBUTE":
+            next_seq_query = text("""
+                SELECT COALESCE(MAX(CAST(SUBSTRING(code, 6) AS UNSIGNED)), 0) AS max_seq
+                FROM comm_code
+                WHERE group_code = :group_code
+                  AND code REGEXP '^ATTR_[0-9]{5}$'
+            """)
+            max_seq = db.execute(next_seq_query, {"group_code": group_code}).fetchone().max_seq or 0
+            code = f"ATTR_{int(max_seq) + 1:05d}"
+
+            # 정렬순서는 PROJECT_ATTRIBUTE 그룹 내 최대값 + 1
+            sort_seq_query = text("""
+                SELECT COALESCE(MAX(sort_order), 0) AS max_sort
+                FROM comm_code
+                WHERE group_code = :group_code
+            """)
+            max_sort = db.execute(sort_seq_query, {"group_code": group_code}).fetchone().max_sort or 0
+            sort_order = int(max_sort) + 1
+        else:
+            sort_order = request.sort_order or 0
 
         # 중복 체크
         exists_query = text("""
@@ -264,6 +282,20 @@ async def create_common_code(
         exists = db.execute(exists_query, {"group_code": group_code, "code": code}).fetchone().cnt
         if exists:
             raise HTTPException(status_code=409, detail="이미 존재하는 코드입니다.")
+
+        # 코드명 중복 체크(대소문자/공백 무시)
+        duplicate_name_query = text("""
+            SELECT COUNT(*) AS cnt
+            FROM comm_code
+            WHERE group_code = :group_code
+              AND UPPER(TRIM(code_name)) = UPPER(TRIM(:code_name))
+        """)
+        duplicate_name_cnt = db.execute(
+            duplicate_name_query,
+            {"group_code": group_code, "code_name": code_name}
+        ).fetchone().cnt
+        if duplicate_name_cnt:
+            raise HTTPException(status_code=409, detail="이미 존재하는 속성명입니다.")
 
         insert_query = text("""
             INSERT INTO comm_code (

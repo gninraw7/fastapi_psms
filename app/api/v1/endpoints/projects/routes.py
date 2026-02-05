@@ -90,6 +90,7 @@ async def get_projects_list(
     field_code: Optional[str] = None,
     current_stage: Optional[str] = None,
     manager_id: Optional[str] = None,          # ⭐ 추가
+    sales_plan_id: Optional[int] = None,
     search_field: Optional[str] = None,        # ⭐ 추가
     search_text: Optional[str] = None,         # ⭐ 추가
     keyword: Optional[str] = None,             # 기존 호환용
@@ -100,7 +101,7 @@ async def get_projects_list(
     """프로젝트 목록 조회 (/list 경로)"""
     return await get_projects(
         page, page_size, field_code, current_stage, 
-        manager_id, search_field, search_text, keyword, sort_field, sort_dir, db
+        manager_id, sales_plan_id, search_field, search_text, keyword, sort_field, sort_dir, db
     )
 
 
@@ -111,6 +112,7 @@ async def get_projects(
     field_code: Optional[str] = None,
     current_stage: Optional[str] = None,
     manager_id: Optional[str] = None,          # ⭐ 추가
+    sales_plan_id: Optional[int] = None,
     search_field: Optional[str] = None,        # ⭐ 추가
     search_text: Optional[str] = None,         # ⭐ 추가
     keyword: Optional[str] = None,             # 기존 호환용
@@ -123,7 +125,7 @@ async def get_projects(
         app_logger.info(
             f"📋 프로젝트 목록 조회 - page: {page}, page_size: {page_size}, "
             f"field_code: {field_code}, current_stage: {current_stage}, "
-            f"manager_id: {manager_id}, search_field: {search_field}, "
+            f"manager_id: {manager_id}, sales_plan_id: {sales_plan_id}, search_field: {search_field}, "
             f"search_text: {search_text}, keyword: {keyword}, "
             f"sort_field: {sort_field}, sort_dir: {sort_dir}"
         )
@@ -134,9 +136,9 @@ async def get_projects(
                 p.pipeline_id,
                 p.project_name,
                 p.field_code,
-                f.code_name as field_name,
+                f.field_name as field_name,
                 p.service_code,
-                sc.service_name as service_name,
+                COALESCE(sc.display_name, sc.service_name) as service_name,
                 p.current_stage,
                 s.code_name as stage_name,
                 p.manager_id,
@@ -156,7 +158,6 @@ async def get_projects(
                 p.created_at,
                 p.updated_at
             FROM projects p
-            LEFT JOIN comm_code f ON f.group_code = 'FIELD' AND f.code = p.field_code
             LEFT JOIN comm_code s ON s.group_code = 'STAGE' AND s.code = p.current_stage
             LEFT JOIN users u ON u.login_id = p.manager_id
             LEFT JOIN org_units o ON o.org_id = p.org_id
@@ -173,6 +174,7 @@ async def get_projects(
             LEFT JOIN project_history lh
                 ON lh.pipeline_id = h.pipeline_id
                AND lh.history_id = h.latest_history_id
+            LEFT JOIN industry_fields f ON f.field_code = p.field_code
             WHERE 1=1
         """
         
@@ -192,6 +194,18 @@ async def get_projects(
         if manager_id:
             base_query += " AND p.manager_id = :manager_id"
             params['manager_id'] = manager_id
+
+        # 영업계획 필터
+        if sales_plan_id:
+            base_query += """
+                AND EXISTS (
+                    SELECT 1
+                    FROM sales_plan_line spl
+                    WHERE spl.plan_id = :sales_plan_id
+                      AND spl.pipeline_id = p.pipeline_id
+                )
+            """
+            params['sales_plan_id'] = sales_plan_id
         
         # ⭐ 검색 조건 처리 (search_field + search_text)
         if search_text and search_text.strip():
@@ -234,8 +248,8 @@ async def get_projects(
         allowed_sort_fields = {
             "pipeline_id": "p.pipeline_id",
             "project_name": "p.project_name",
-            "field_name": "f.code_name",
-            "service_name": "sc.service_name",
+            "field_name": "f.field_name",
+            "service_name": "COALESCE(sc.display_name, sc.service_name)",
             "current_stage": "p.current_stage",
             "manager_name": "u.user_name",
             "org_name": "o.org_name",

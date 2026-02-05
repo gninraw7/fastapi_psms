@@ -23,7 +23,7 @@
 	<link rel="stylesheet" href="/static/css/mobile.css">
     <link rel="stylesheet" href="/static/css/clients.css?v=1.0.0">
     <link rel="stylesheet" href="/static/css/breadcrumb.css">
-    <link rel="stylesheet" href="/static/css/sales-planning.css">
+    <link rel="stylesheet" href="/static/css/sales-planning.css?v=2.4">
 
     <!-- ⭐ 인증 관리 스크립트 추가 -->
     <script src="/static/js/auth.js"></script>    
@@ -212,6 +212,13 @@
                         <div class="filter-group">
                             <label><i class="fas fa-flag"></i> 진행단계</label>
                             <select id="filterStage" class="form-select">
+                                <option value="">전체</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
+                            <label><i class="fas fa-list-check"></i> 영업계획</label>
+                            <select id="filterSalesPlan" class="form-select">
                                 <option value="">전체</option>
                             </select>
                         </div>
@@ -1311,6 +1318,9 @@
                         계획 컨텍스트
                     </div>
                     <div class="panel-actions">
+                        <button class="btn btn-info" id="btnPlanImport">
+                            <i class="fas fa-download"></i> 대상 프로젝트 불러오기
+                        </button>
                         <button class="btn btn-primary" id="btnPlanHeaderSave">
                             <i class="fas fa-save"></i> 계획 저장
                         </button>
@@ -1382,6 +1392,18 @@
                         <label><i class="fas fa-search"></i> 검색어</label>
                         <input type="text" id="planFilterKeyword" class="form-input" placeholder="프로젝트명/고객사 등">
                     </div>
+                    <div class="filter-group" style="min-width: 160px;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-outline-secondary" id="btnPlanShowAll">
+                            <i class="fas fa-list"></i> 전체 라인 보기
+                        </button>
+                    </div>
+                    <div class="filter-group" style="min-width: 140px;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-primary" id="btnPlanSearch">
+                            <i class="fas fa-search"></i> 조회
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1400,14 +1422,8 @@
                         </div>
                     </div>
                     <div class="toolbar-right">
-                        <button class="btn btn-info" id="btnPlanImport">
-                            <i class="fas fa-download"></i> 프로젝트 불러오기
-                        </button>
-                        <button class="btn btn-outline-secondary" id="btnPlanMissing">
-                            <i class="fas fa-folder-open"></i> 미편성 프로젝트
-                        </button>
-                        <button class="btn btn-outline-secondary" id="btnPlanShowAll">
-                            <i class="fas fa-list"></i> 전체 라인 보기
+                        <button class="btn btn-primary" id="btnPlanEditSelected">
+                            <i class="fas fa-pen-to-square"></i> 프로젝트 입력
                         </button>
                         <button class="btn btn-danger" id="btnPlanExclude">
                             <i class="fas fa-ban"></i> 선택 제외
@@ -1443,8 +1459,11 @@
                         실적 컨텍스트
                     </div>
                     <div class="panel-actions">
+                        <button class="btn btn-primary" id="btnActualLoadTargets">
+                            <i class="fas fa-download"></i> 등록 대상 불러오기
+                        </button>
                         <button class="btn btn-primary" id="btnActualHeaderSave">
-                            <i class="fas fa-save"></i> 실적 저장
+                            <i class="fas fa-save"></i> 대상 저장
                         </button>
                     </div>
                 </div>
@@ -1498,6 +1517,12 @@
                         <label><i class="fas fa-search"></i> 검색어</label>
                         <input type="text" id="actualFilterKeyword" class="form-input" placeholder="프로젝트명/고객사 등">
                     </div>
+                    <div class="filter-group" style="min-width: 140px;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-primary" id="btnActualSearch">
+                            <i class="fas fa-search"></i> 조회
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1523,6 +1548,12 @@
                         </div>
                     </div>
                     <div class="toolbar-right">
+                        <button class="btn btn-primary" id="btnActualEditSelected">
+                            <i class="fas fa-pen-to-square"></i> 실적 입력
+                        </button>
+                        <button class="btn btn-danger" id="btnActualExcludeSelected">
+                            <i class="fas fa-ban"></i> 선택 제외
+                        </button>
                         <button class="btn btn-outline-secondary" id="btnActualColumns">
                             <i class="fas fa-columns"></i> 컬럼 설정
                         </button>
@@ -1530,7 +1561,7 @@
                             <i class="fas fa-calculator"></i> 합계 계산
                         </button>
                         <button class="btn btn-success" id="btnActualSave">
-                            <i class="fas fa-save"></i> 라인 저장
+                            <i class="fas fa-save"></i> 대상 저장
                         </button>
                         <button class="btn btn-outline-secondary" id="btnActualExport">
                             <i class="fas fa-file-excel"></i> 엑셀
@@ -1589,29 +1620,68 @@
                 </div>
             </div>
 
-            <div class="filter-panel">
-                <div class="filter-row">
-                    <div class="filter-group">
-                        <label><i class="fas fa-calendar-alt"></i> 연도</label>
-                        <select id="actualSummaryYear" class="form-select"></select>
+            <div class="filter-panel actual-summary-filter-panel">
+                <div class="actual-summary-filter-layout">
+                    <div class="filter-group actual-summary-group-box">
+                        <label><i class="fas fa-layer-group"></i> 집계 기준 (복수/순서)</label>
+                        <div class="actual-summary-group-controls">
+                            <select id="actualSummaryGroups" class="form-select" multiple size="5">
+                                <option value="org" selected>조직</option>
+                                <option value="manager">담당자</option>
+                                <option value="field">분야</option>
+                                <option value="service">서비스</option>
+                                <option value="customer">고객사</option>
+                                <option value="pipeline">파이프라인</option>
+                            </select>
+                            <div class="actual-summary-group-buttons">
+                                <button class="btn btn-outline-secondary btn-sm" type="button" id="btnActualSummaryGroupUp"><i class="fas fa-arrow-up"></i></button>
+                                <button class="btn btn-outline-secondary btn-sm" type="button" id="btnActualSummaryGroupDown"><i class="fas fa-arrow-down"></i></button>
+                                <button class="btn btn-outline-secondary btn-sm" type="button" id="btnActualSummaryGroupAll">전체</button>
+                                <button class="btn btn-outline-secondary btn-sm" type="button" id="btnActualSummaryGroupClear">해제</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="filter-group">
-                        <label><i class="fas fa-layer-group"></i> 집계 기준</label>
-                        <select id="actualSummaryGroup" class="form-select">
-                            <option value="org">조직</option>
-                            <option value="manager">담당자</option>
-                            <option value="field">분야</option>
-                            <option value="service">서비스</option>
-                            <option value="customer">고객사</option>
-                        </select>
+                    <div class="actual-summary-main-controls">
+                        <div class="filter-group">
+                            <label><i class="fas fa-calendar-alt"></i> 연도</label>
+                            <select id="actualSummaryYear" class="form-select"></select>
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-clock"></i> 기간 조건</label>
+                            <select id="actualSummaryPeriod" class="form-select">
+                                <option value="year">년</option>
+                                <option value="quarter">분기</option>
+                                <option value="month">월</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="filter-group">
-                        <label><i class="fas fa-coins"></i> 지표</label>
-                        <select id="actualSummaryMetric" class="form-select">
-                            <option value="order">수주금액</option>
-                            <option value="profit">매출이익</option>
-                            <option value="both">수주+이익</option>
-                        </select>
+                    <div class="actual-summary-period-detail">
+                        <div class="filter-group" id="actualSummaryQuarterWrap" style="display:none;">
+                            <label><i class="fas fa-calendar-week"></i> 분기 선택</label>
+                            <div class="actual-summary-check-grid">
+                                <label><input type="checkbox" class="actual-summary-quarter" value="1" checked> Q1</label>
+                                <label><input type="checkbox" class="actual-summary-quarter" value="2" checked> Q2</label>
+                                <label><input type="checkbox" class="actual-summary-quarter" value="3" checked> Q3</label>
+                                <label><input type="checkbox" class="actual-summary-quarter" value="4" checked> Q4</label>
+                            </div>
+                        </div>
+                        <div class="filter-group" id="actualSummaryMonthWrap" style="display:none;">
+                            <label><i class="fas fa-calendar-day"></i> 월 선택</label>
+                            <div class="actual-summary-check-grid">
+                                <label><input type="checkbox" class="actual-summary-month" value="1" checked> 1월</label>
+                                <label><input type="checkbox" class="actual-summary-month" value="2" checked> 2월</label>
+                                <label><input type="checkbox" class="actual-summary-month" value="3" checked> 3월</label>
+                                <label><input type="checkbox" class="actual-summary-month" value="4" checked> 4월</label>
+                                <label><input type="checkbox" class="actual-summary-month" value="5" checked> 5월</label>
+                                <label><input type="checkbox" class="actual-summary-month" value="6" checked> 6월</label>
+                                <label><input type="checkbox" class="actual-summary-month" value="7" checked> 7월</label>
+                                <label><input type="checkbox" class="actual-summary-month" value="8" checked> 8월</label>
+                                <label><input type="checkbox" class="actual-summary-month" value="9" checked> 9월</label>
+                                <label><input type="checkbox" class="actual-summary-month" value="10" checked> 10월</label>
+                                <label><input type="checkbox" class="actual-summary-month" value="11" checked> 11월</label>
+                                <label><input type="checkbox" class="actual-summary-month" value="12" checked> 12월</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1671,6 +1741,12 @@
                         <label>기준 연도</label>
                         <select id="reportYear" class="form-select"></select>
                     </div>
+                    <div class="form-group" id="reportPlanWrap">
+                        <label>영업계획</label>
+                        <select id="reportPlanId" class="form-select">
+                            <option value="">자동(최신 계획)</option>
+                        </select>
+                    </div>
                     <div class="form-group">
                         <label>집계 기준</label>
                         <select id="reportDimension" class="form-select">
@@ -1700,37 +1776,49 @@
                     </div>
                 </div>
                 <div class="report-result">
-                    <div class="report-filter-panel">
-                        <div class="filter-group">
+                    <div class="report-filter-panel report-filter-grid">
+                        <div class="filter-group filter-group-multi">
                             <label><i class="fas fa-sitemap"></i> 조직 (복수)</label>
                             <select id="reportFilterOrg" class="form-select" multiple size="6"></select>
+                            <div class="multi-select-actions">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnReportOrgAll">전체 선택</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnReportOrgClear">선택 해제</button>
+                            </div>
                         </div>
-                        <div class="filter-group">
+                        <div class="filter-group filter-group-multi">
                             <label><i class="fas fa-user"></i> 담당자 (복수)</label>
                             <select id="reportFilterManager" class="form-select" multiple size="6"></select>
+                            <div class="multi-select-actions">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnReportManagerAll">전체 선택</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnReportManagerClear">선택 해제</button>
+                            </div>
                         </div>
-                        <div class="filter-group">
-                            <label><i class="fas fa-table"></i> 헤더 표시</label>
-                            <select id="reportHeaderMode" class="form-select">
-                                <option value="two" selected>2줄</option>
-                                <option value="one">1줄</option>
-                            </select>
+                        <div class="report-controls-vertical">
+                            <div class="report-control-row">
+                                <label for="reportHeaderMode"><i class="fas fa-table"></i> 헤더 표시</label>
+                                <select id="reportHeaderMode" class="form-select">
+                                    <option value="two" selected>2줄</option>
+                                    <option value="one">1줄</option>
+                                </select>
+                            </div>
+                            <div class="report-control-row">
+                                <label for="reportViewMode"><i class="fas fa-arrows-left-right"></i> 표시 방식</label>
+                                <select id="reportViewMode" class="form-select">
+                                    <option value="row" selected>세로(행)</option>
+                                    <option value="pivot">가로(피벗)</option>
+                                </select>
+                            </div>
+                            <div class="report-control-row">
+                                <label for="reportFreezeTargetCount"><i class="fas fa-thumbtack"></i> 고정 대상 수</label>
+                                <input type="number" id="reportFreezeTargetCount" class="form-input" min="0" value="0" placeholder="0">
+                            </div>
+                            <div class="report-control-row">
+                                <span class="helper-text">0=기본, 1=첫번째 대상까지 고정</span>
+                                <button class="btn btn-outline-secondary" id="btnReportFilterReset">
+                                    <i class="fas fa-undo"></i> 필터 초기화
+                                </button>
+                            </div>
                         </div>
-                        <div class="filter-group">
-                            <label><i class="fas fa-arrows-left-right"></i> 표시 방식</label>
-                            <select id="reportViewMode" class="form-select">
-                                <option value="row" selected>세로(행)</option>
-                                <option value="pivot">가로(피벗)</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label><i class="fas fa-thumbtack"></i> 고정 대상 수</label>
-                            <input type="number" id="reportFreezeTargetCount" class="form-input" min="0" value="0" placeholder="0">
-                            <div class="helper-text">0=기본, 1=첫번째 대상까지 고정</div>
-                        </div>
-                        <button class="btn btn-outline-secondary" id="btnReportFilterReset">
-                            <i class="fas fa-undo"></i> 필터 초기화
-                        </button>
                     </div>
                     <div class="report-title" id="reportTitle">보고서 조건을 선택하세요.</div>
                     <div class="table-panel report-table-panel">
@@ -1745,12 +1833,12 @@
     </div>
 
     <!-- ===================================
-         미편성 프로젝트 모달
+         대상 프로젝트 불러오기 모달
          =================================== -->
     <div id="missingProjectsModal" class="modal">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h2><i class="fas fa-folder-open"></i> 미편성 프로젝트</h2>
+                <h2><i class="fas fa-download"></i> 대상 프로젝트 불러오기</h2>
                 <button class="modal-close" type="button" onclick="closeMissingProjectsModal()">
                     <i class="fas fa-times"></i>
                 </button>
@@ -1786,6 +1874,13 @@
                             <label><i class="fas fa-search"></i> 검색어</label>
                             <input type="text" id="missingFilterKeyword" class="form-input" placeholder="프로젝트명/고객사 등">
                         </div>
+                        <div class="filter-group" style="min-width: 160px;">
+                            <label><i class="fas fa-filter"></i> 조회 옵션</label>
+                            <label style="display:flex;align-items:center;gap:0.4rem;height:42px;">
+                                <input type="checkbox" id="missingOnlyUnplanned" checked>
+                                <span>미편성 프로젝트만</span>
+                            </label>
+                        </div>
                     </div>
                     <div class="filter-actions">
                         <button class="btn btn-primary" type="button" id="btnMissingApply">
@@ -1797,8 +1892,11 @@
                     </div>
                 </div>
                 <div class="panel-card" style="padding: 1rem; margin-bottom: 1rem;">
+                    <div class="helper-text" id="missingProjectsCurrentLineSummary" style="margin-bottom: 0.35rem;">
+                        현재 계획 라인 정보: -
+                    </div>
                     <div class="helper-text" id="missingProjectsFilterSummary">
-                        현재 필터 조건을 적용하여 미편성 프로젝트를 조회합니다.
+                        현재 필터 조건을 적용하여 대상 프로젝트를 조회합니다.
                     </div>
                 </div>
                 <div id="missingProjectsTable"></div>
@@ -1808,7 +1906,7 @@
                     <i class="fas fa-sync-alt"></i> 조회
                 </button>
                 <button class="btn btn-primary" type="button" onclick="addSelectedMissingProjects()">
-                    <i class="fas fa-plus-circle"></i> 선택 가져오기
+                    <i class="fas fa-plus-circle"></i> 선택 반영
                 </button>
                 <button class="btn btn-outline-secondary" type="button" onclick="closeMissingProjectsModal()">
                     <i class="fas fa-times"></i> 닫기
@@ -1863,6 +1961,65 @@
     </div>
 
     <!-- ===================================
+         영업계획 단건 입력 모달
+         =================================== -->
+    <div id="planLineEditModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2><i class="fas fa-pen-to-square"></i> 프로젝트 계획 입력</h2>
+                <button class="modal-close" type="button" onclick="closePlanLineEditModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="plan-line-meta-grid">
+                    <div class="plan-meta-item">
+                        <label>파이프라인ID</label>
+                        <input type="text" id="planEditPipelineId" class="form-input" readonly>
+                    </div>
+                    <div class="plan-meta-item">
+                        <label>프로젝트명</label>
+                        <input type="text" id="planEditProjectName" class="form-input" readonly>
+                    </div>
+                    <div class="plan-meta-item">
+                        <label>고객사</label>
+                        <input type="text" id="planEditCustomerName" class="form-input" readonly>
+                    </div>
+                    <div class="plan-meta-item">
+                        <label>담당조직</label>
+                        <input type="text" id="planEditOrgName" class="form-input" readonly>
+                    </div>
+                    <div class="plan-meta-item">
+                        <label>담당자</label>
+                        <input type="text" id="planEditManagerName" class="form-input" readonly>
+                    </div>
+                    <div class="plan-meta-item">
+                        <label>계약(예정)일자</label>
+                        <input type="date" id="planEditContractDate" class="form-input">
+                    </div>
+                    <div class="plan-meta-item">
+                        <label>계약 시작일</label>
+                        <input type="date" id="planEditStartDate" class="form-input">
+                    </div>
+                    <div class="plan-meta-item">
+                        <label>계약 종료일</label>
+                        <input type="date" id="planEditEndDate" class="form-input">
+                    </div>
+                </div>
+                <div class="plan-line-month-grid" id="planLineMonthGrid"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" type="button" id="btnPlanLineApply">
+                    <i class="fas fa-check"></i> 반영
+                </button>
+                <button class="btn btn-outline-secondary" type="button" onclick="closePlanLineEditModal()">
+                    <i class="fas fa-times"></i> 닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================
          실적 컬럼 설정 모달
          =================================== -->
     <div id="actualColumnsModal" class="modal">
@@ -1901,6 +2058,119 @@
                     <i class="fas fa-eye-slash"></i> 모두 숨김
                 </button>
                 <button class="btn btn-outline-secondary" type="button" onclick="closeActualColumnsModal()">
+                    <i class="fas fa-times"></i> 닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================
+         실적 단건 입력 모달
+         =================================== -->
+    <div id="actualLineEditModal" class="modal">
+        <div class="modal-content modal-large actual-line-edit-modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-pen-to-square"></i> 프로젝트 실적 입력</h2>
+                <button class="modal-close" type="button" onclick="closeActualLineEditModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="actual-line-meta-grid">
+                    <div class="actual-meta-item">
+                        <label>파이프라인ID</label>
+                        <input type="text" id="actualEditPipelineId" class="form-input" readonly>
+                    </div>
+                    <div class="actual-meta-item">
+                        <label>프로젝트명</label>
+                        <input type="text" id="actualEditProjectName" class="form-input" readonly>
+                    </div>
+                    <div class="actual-meta-item">
+                        <label>고객사</label>
+                        <input type="text" id="actualEditCustomerName" class="form-input" readonly>
+                    </div>
+                    <div class="actual-meta-item">
+                        <label>담당조직</label>
+                        <input type="text" id="actualEditOrgName" class="form-input" readonly>
+                    </div>
+                    <div class="actual-meta-item">
+                        <label>담당자</label>
+                        <input type="text" id="actualEditManagerName" class="form-input" readonly>
+                    </div>
+                </div>
+                <div class="actual-line-month-grid" id="actualLineMonthGrid"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" type="button" id="btnActualLineApply">
+                    <i class="fas fa-check"></i> 반영
+                </button>
+                <button class="btn btn-outline-secondary" type="button" onclick="closeActualLineEditModal()">
+                    <i class="fas fa-times"></i> 닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================
+         실적 대상 미리보기 모달
+         =================================== -->
+    <div id="actualTargetPreviewModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2><i class="fas fa-list-check"></i> 실적 등록 대상 미리보기</h2>
+                <button class="modal-close" type="button" onclick="closeActualTargetPreviewModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="actual-register-flow" style="margin-bottom: 0.75rem;">
+                    <div class="actual-register-item">
+                        <label><i class="fas fa-route"></i> 등록 방식</label>
+                        <select id="actualTargetMode" class="form-select">
+                            <option value="plan">영업계획 등록 프로젝트</option>
+                            <option value="unplanned">영업계획 미등록 프로젝트</option>
+                            <option value="project">프로젝트 직접 선택</option>
+                            <option value="manual">수기 추가</option>
+                        </select>
+                    </div>
+                    <div class="actual-register-item" id="actualPlanSelectWrap">
+                        <label><i class="fas fa-list-check"></i> 기준 계획</label>
+                        <select id="actualPlanSelect" class="form-select">
+                            <option value="">자동(최신 계획)</option>
+                        </select>
+                    </div>
+                    <div class="actual-register-item">
+                        <label><i class="fas fa-layer-group"></i> 로드 방식</label>
+                        <select id="actualMergeMode" class="form-select">
+                            <option value="append">기존 유지 + 신규 추가</option>
+                            <option value="replace">현재 화면 행 교체</option>
+                        </select>
+                    </div>
+                    <div class="actual-register-actions">
+                        <button class="btn btn-primary" type="button" id="btnActualTargetSearch">
+                            <i class="fas fa-search"></i> 조회
+                        </button>
+                    </div>
+                </div>
+                <div class="actual-preview-toolbar">
+                    <input type="text" id="actualTargetPreviewSearch" class="form-input" placeholder="파이프라인ID/프로젝트명/고객사 검색">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="btnActualPreviewSearchClear">
+                        <i class="fas fa-eraser"></i> 검색 초기화
+                    </button>
+                </div>
+                <div class="helper-text" style="margin-bottom: 0.5rem;" id="actualTargetPreviewSummary">
+                    요약 정보가 여기에 표시됩니다.
+                </div>
+                <div class="helper-text" style="margin-bottom: 0.75rem;">
+                    대상 건수: <strong id="actualTargetPreviewCount">0</strong>건 (행 선택 후 반영하거나, 선택이 없으면 전체 반영)
+                </div>
+                <div id="actualTargetPreviewTable"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" type="button" id="btnActualPreviewApply">
+                    <i class="fas fa-check"></i> 선택 반영
+                </button>
+                <button class="btn btn-outline-secondary" type="button" id="btnActualPreviewClose">
                     <i class="fas fa-times"></i> 닫기
                 </button>
             </div>
@@ -2681,23 +2951,16 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label><i class="fas fa-code"></i> 코드<span class="required">*</span></label>
-                    <input type="text" id="attr_code_input" class="form-input" placeholder="예: ATTR01">
-                </div>
-                <div class="form-group">
                     <label><i class="fas fa-font"></i> 코드명<span class="required">*</span></label>
                     <input type="text" id="attr_name_input" class="form-input" placeholder="예: 기술유형">
                 </div>
                 <div class="form-group">
-                    <label><i class="fas fa-sort-numeric-up"></i> 정렬순서</label>
-                    <input type="number" id="attr_sort_input" class="form-input" value="0" min="0">
-                </div>
-                <div class="form-group">
-                    <label><i class="fas fa-toggle-on"></i> 사용여부</label>
-                    <select id="attr_use_input" class="form-select">
-                        <option value="Y">사용</option>
-                        <option value="N">미사용</option>
-                    </select>
+                    <button type="button" class="btn btn-outline-secondary" onclick="checkAttributeCodeNameDup()">
+                        <i class="fas fa-search"></i> 중복여부 확인
+                    </button>
+                    <div class="helper-text" id="attr_name_dup_result" style="margin-top: 0.5rem;">
+                        등록 전 속성명 중복 여부를 확인하세요.
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -2713,14 +2976,14 @@
     <script src="/static/js/config.js?v=3.4"></script>
     <script src="/static/js/auth.js?v=2.5"></script>
     <script src="/static/js/utils.js?v=2.5"></script>
-    <script src="/static/js/navigation.js?v=4.3"></script>  <!-- ⭐ 버전 업 -->
+    <script src="/static/js/navigation.js?v=4.4"></script>  <!-- ⭐ 버전 업 -->
     <script src="/static/js/stage-icons.js"></script>
-    <script src="/static/js/project-form.js?v=3.6"></script>
+    <script src="/static/js/project-form.js?v=3.8"></script>
     <script src="/static/js/clients-list.js?v=3.5"></script>  <!-- ⭐ 버전 추가 -->
     <script src="/static/js/clients-form.js?v=3.0"></script>  <!-- ⭐ 신규 추가 -->
-    <script src="/static/js/sales-plan.js?v=2.0"></script>
-    <script src="/static/js/sales-actual.js?v=1.3"></script>
-    <script src="/static/js/report.js?v=1.11"></script>
+    <script src="/static/js/sales-plan.js?v=2.6"></script>
+    <script src="/static/js/sales-actual.js?v=3.1"></script>
+    <script src="/static/js/report.js?v=1.16"></script>
     <script src="/static/js/users-list.js?v=2.2"></script>
     <script src="/static/js/users-form.js?v=1.4"></script>
     <script src="/static/js/common-codes.js?v=1.5"></script>
@@ -2728,7 +2991,7 @@
     <script src="/static/js/service-codes.js?v=1.0"></script>
     <script src="/static/js/org-units.js?v=1.0"></script>
     <script src="/static/js/my-info.js?v=1.1"></script>
-    <script src="/static/js/app.js?v=3.0"></script>
+    <script src="/static/js/app.js?v=3.1"></script>
     <script src="/static/js/mobile.js?v=2.5"></script>
     <script src="/static/js/markdown-formatter.js"></script>
 

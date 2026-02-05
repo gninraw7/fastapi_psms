@@ -64,6 +64,12 @@ class SalesActualLineSaveRequest(BaseModel):
     lines: List[SalesActualLineItem]
 
 
+class SalesActualLineDeleteRequest(BaseModel):
+    actual_year: int
+    pipeline_ids: List[str]
+    updated_by: Optional[str] = "system"
+
+
 # ============================================
 # Helper Functions
 # ============================================
@@ -378,6 +384,30 @@ async def save_sales_actual_lines(request: SalesActualLineSaveRequest, db: Sessi
     except Exception as e:
         db.rollback()
         app_logger.exception("❌ 실적 라인 저장 실패")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/lines/delete")
+async def delete_sales_actual_lines(request: SalesActualLineDeleteRequest, db: Session = Depends(get_db)):
+    """실적 라인 제외(삭제)"""
+    try:
+        pipeline_ids = [pid for pid in request.pipeline_ids if pid]
+        if not pipeline_ids:
+            return {"deleted": 0}
+
+        clause, params = _build_in_clause(pipeline_ids, "pid")
+        sql = text(f"""
+            DELETE FROM sales_actual_line
+            WHERE actual_year = :actual_year
+              AND pipeline_id IN ({clause})
+        """)
+        params["actual_year"] = request.actual_year
+        result = db.execute(sql, params)
+        db.commit()
+        return {"deleted": result.rowcount or 0}
+    except Exception as e:
+        db.rollback()
+        app_logger.exception("❌ 실적 라인 삭제 실패")
         raise HTTPException(status_code=500, detail=str(e))
 
 
