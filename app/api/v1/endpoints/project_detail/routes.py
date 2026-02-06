@@ -75,8 +75,8 @@ async def delete_project(
     db: Session = Depends(get_db)
 ):
     """
-    프로젝트 삭제
-    - CASCADE로 관련 데이터(속성, 이력, 매출실적) 자동 삭제
+    프로젝트 종료(소프트 삭제)
+    - status를 CLOSED로 변경
     """
     try:
         success = project_detail_service.delete_project(db, pipeline_id, user_id)

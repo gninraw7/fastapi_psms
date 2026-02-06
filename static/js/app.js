@@ -27,6 +27,7 @@ let currentFilters = {
     field_code: '',
     service_code: '',
     current_stage: '',
+    status: 'ACTIVE',
     sales_plan_id: '',
     page: 1,
     page_size: 25
@@ -280,6 +281,9 @@ function initializeTable() {
             }
             if (currentFilters.current_stage) {
                 queryParams.current_stage = currentFilters.current_stage;
+            }
+            if (currentFilters.status) {
+                queryParams.status = currentFilters.status;
             }
             if (currentFilters.sales_plan_id) {
                 queryParams.sales_plan_id = currentFilters.sales_plan_id;
@@ -688,6 +692,19 @@ function initializeEventListeners() {
         console.warn('  ✗ filterStage 요소 없음');
     }
 
+    // 상태 필터
+    const filterStatus = document.getElementById('filterStatus');
+    if (filterStatus) {
+        filterStatus.addEventListener('change', function(e) {
+            currentFilters.status = e.target.value;
+            console.log('🔍 상태 필터:', currentFilters.status);
+            if (projectTable) projectTable.setData();
+        });
+        console.log('  ✓ filterStatus 이벤트 등록');
+    } else {
+        console.warn('  ✗ filterStatus 요소 없음');
+    }
+
     // 영업계획 필터
     const filterSalesPlan = document.getElementById('filterSalesPlan');
     if (filterSalesPlan) {
@@ -1038,6 +1055,7 @@ function buildProjectListQueryParams(page = 1, pageSize = 25) {
     if (currentFilters.field_code) params.field_code = currentFilters.field_code;
     if (currentFilters.service_code) params.service_code = currentFilters.service_code;
     if (currentFilters.current_stage) params.current_stage = currentFilters.current_stage;
+    if (currentFilters.status) params.status = currentFilters.status;
     if (currentFilters.sales_plan_id) params.sales_plan_id = currentFilters.sales_plan_id;
 
     const sort = getCurrentProjectSort();

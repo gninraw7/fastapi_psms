@@ -101,6 +101,18 @@ const PAGE_INFO = {
         path: ['관리자', '조직 관리'],
         theme: 'breadcrumb-admin'
     },
+    'login-history': {
+        title: '접속 이력',
+        icon: 'fas fa-clock',
+        path: ['관리자', '접속 이력'],
+        theme: 'breadcrumb-admin'
+    },
+    'permissions': {
+        title: '권한 관리',
+        icon: 'fas fa-shield-halved',
+        path: ['관리자', '권한 관리'],
+        theme: 'breadcrumb-admin'
+    },
     'my-info': {
         title: '내정보',
         icon: 'fas fa-user-cog',
@@ -503,6 +515,20 @@ function initializePage(pageId) {
             console.log('🏢 조직 관리 초기화');
             if (typeof bootstrapOrgUnits === 'function') {
                 bootstrapOrgUnits();
+            }
+            break;
+
+        case 'login-history':
+            console.log('🕒 접속 이력 초기화');
+            if (typeof initializeLoginHistory === 'function') {
+                initializeLoginHistory();
+            }
+            break;
+
+        case 'permissions':
+            console.log('🛡️ 권한 관리 초기화');
+            if (typeof initializePermissions === 'function') {
+                initializePermissions();
             }
             break;
             

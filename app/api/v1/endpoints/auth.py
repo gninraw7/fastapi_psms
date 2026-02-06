@@ -3,7 +3,7 @@
 인증 API 엔드포인트
 JWT 토큰 기반 인증
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -30,9 +30,25 @@ from app.schemas.auth import (
 
 router = APIRouter(prefix="/auth", tags=["인증"])
 
+
+def _get_client_ip(request: Request) -> str:
+    """
+    클라이언트 IP 추출 (Proxy 고려)
+    """
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    x_real = request.headers.get("x-real-ip")
+    if x_real:
+        return x_real.strip()
+    if request.client:
+        return request.client.host
+    return ""
+
 @router.post("/login", response_model=TokenResponse, summary="로그인")
 async def login(
     login_data: LoginRequest,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """
@@ -91,10 +107,14 @@ async def login(
     # 로그인 이력 기록
     try:
         log_query = text("""
-            INSERT INTO login_history (login_id, action_type, created_by)
-            VALUES (:login_id, 'LOGIN', :created_by)
+            INSERT INTO login_history (login_id, action_type, ip_address, created_by)
+            VALUES (:login_id, 'LOGIN', :ip_address, :created_by)
         """)
-        db.execute(log_query, {"login_id": login_id, "created_by": login_id})
+        db.execute(log_query, {
+            "login_id": login_id,
+            "ip_address": _get_client_ip(request),
+            "created_by": login_id
+        })
         db.commit()
     except Exception as e:
         # 로그 기록 실패해도 로그인은 성공
@@ -269,6 +289,7 @@ async def update_me_post(
 
 @router.post("/logout", summary="로그아웃")
 async def logout(
+    request: Request,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -279,11 +300,12 @@ async def logout(
     """
     try:
         log_query = text("""
-            INSERT INTO login_history (login_id, action_type, created_by)
-            VALUES (:login_id, 'LOGOUT', :created_by)
+            INSERT INTO login_history (login_id, action_type, ip_address, created_by)
+            VALUES (:login_id, 'LOGOUT', :ip_address, :created_by)
         """)
         db.execute(log_query, {
             "login_id": current_user["login_id"],
+            "ip_address": _get_client_ip(request),
             "created_by": current_user["login_id"]
         })
         db.commit()

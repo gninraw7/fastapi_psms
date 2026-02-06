@@ -43,6 +43,12 @@ const API_CONFIG = {
         SERVICE_CODES: '/service-codes',
         ORG_UNITS_ADMIN: '/org-units',
 
+        // 접속 이력 / 권한
+        LOGIN_HISTORY: '/login-history',
+        PERMISSIONS_FORMS: '/permissions/forms',
+        PERMISSIONS_ROLES: '/permissions/roles',
+        PERMISSIONS_USERS: '/permissions/users',
+
         // 영업계획/실적/리포트
         SALES_PLANS: '/sales-plans',
         SALES_PLAN_LINES: '/sales-plans/lines',
@@ -70,6 +76,19 @@ window.TABULATOR_COMMON_OPTIONS = {
     },
     sortMode: "remote",
     ajaxSorting: true,
+    ajaxConfig: {
+        headers: (() => {
+            try {
+                if (typeof AUTH !== 'undefined' && typeof AUTH.getAccessToken === 'function') {
+                    const token = AUTH.getAccessToken();
+                    return token ? { Authorization: `Bearer ${token}` } : {};
+                }
+            } catch (e) {
+                console.warn('⚠️ AUTH 토큰 헤더 구성 실패:', e);
+            }
+            return {};
+        })()
+    },
     columnDefaults: {
         headerSort: true
     }
@@ -82,20 +101,42 @@ const API = {
     async request(endpoint, options = {}) {
         const url = `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${endpoint}`;
         console.log('🌐 API 요청:', url);
-        
+
+        const headers = {
+            'Content-Type': 'application/json',
+            ...options.headers
+        };
+
+        const hasAuth = (typeof AUTH !== 'undefined' && typeof AUTH.getAccessToken === 'function');
+        const token = hasAuth ? AUTH.getAccessToken() : null;
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
         try {
-            const response = await fetch(url, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                },
+            let response = await fetch(url, {
+                headers,
                 ...options
             });
-            
+
+            if (response.status === 401 && token && hasAuth && typeof AUTH.refreshToken === 'function') {
+                const refreshed = await AUTH.refreshToken();
+                if (refreshed) {
+                    const newToken = AUTH.getAccessToken();
+                    if (newToken) {
+                        headers['Authorization'] = `Bearer ${newToken}`;
+                    }
+                    response = await fetch(url, {
+                        headers,
+                        ...options
+                    });
+                }
+            }
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
-            
+
             return await response.json();
         } catch (error) {
             console.error('❌ API 에러:', url, error);

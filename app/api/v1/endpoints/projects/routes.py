@@ -92,6 +92,7 @@ async def get_projects_list(
     current_stage: Optional[str] = None,
     manager_id: Optional[str] = None,          # ⭐ 추가
     sales_plan_id: Optional[int] = None,
+    status: Optional[str] = None,
     search_field: Optional[str] = None,        # ⭐ 추가
     search_text: Optional[str] = None,         # ⭐ 추가
     keyword: Optional[str] = None,             # 기존 호환용
@@ -108,6 +109,7 @@ async def get_projects_list(
         current_stage=current_stage,
         manager_id=manager_id,
         sales_plan_id=sales_plan_id,
+        status=status,
         search_field=search_field,
         search_text=search_text,
         keyword=keyword,
@@ -126,6 +128,7 @@ async def get_projects(
     current_stage: Optional[str] = None,
     manager_id: Optional[str] = None,          # ⭐ 추가
     sales_plan_id: Optional[int] = None,
+    status: Optional[str] = None,
     search_field: Optional[str] = None,        # ⭐ 추가
     search_text: Optional[str] = None,         # ⭐ 추가
     keyword: Optional[str] = None,             # 기존 호환용
@@ -138,7 +141,7 @@ async def get_projects(
         app_logger.info(
             f"📋 프로젝트 목록 조회 - page: {page}, page_size: {page_size}, "
             f"field_code: {field_code}, service_code: {service_code}, current_stage: {current_stage}, "
-            f"manager_id: {manager_id}, sales_plan_id: {sales_plan_id}, search_field: {search_field}, "
+            f"manager_id: {manager_id}, sales_plan_id: {sales_plan_id}, status: {status}, search_field: {search_field}, "
             f"search_text: {search_text}, keyword: {keyword}, "
             f"sort_field: {sort_field}, sort_dir: {sort_dir}"
         )
@@ -168,6 +171,7 @@ async def get_projects(
                 h.history_count,
                 p.win_probability,
                 p.notes,
+                p.status,
                 p.created_at,
                 p.updated_at
             FROM projects p
@@ -207,6 +211,13 @@ async def get_projects(
         if current_stage:
             base_query += " AND p.current_stage = :current_stage"
             params['current_stage'] = current_stage
+
+        # 상태 필터 (기본: CLOSED 제외)
+        if status:
+            base_query += " AND p.status = :status"
+            params['status'] = status
+        else:
+            base_query += " AND (p.status IS NULL OR p.status <> 'CLOSED')"
         
         # ⭐ 담당자 필터 추가
         if manager_id:
@@ -337,11 +348,11 @@ async def create_project(
             INSERT INTO projects (
                 pipeline_id, project_name, field_code, service_code, manager_id, org_id,
                 customer_id, ordering_party_id, current_stage,
-                quoted_amount, win_probability, notes, created_by
+                quoted_amount, win_probability, notes, status, created_by
             ) VALUES (
                 :pipeline_id, :project_name, :field_code, :service_code, :manager_id, :org_id,
                 :customer_id, :ordering_party_id, :current_stage,
-                :quoted_amount, :win_probability, :notes, :created_by
+                :quoted_amount, :win_probability, :notes, :status, :created_by
             )
         """)
         
@@ -358,6 +369,7 @@ async def create_project(
             "quoted_amount": request.quoted_amount or 0,
             "win_probability": request.win_probability or 0,
             "notes": request.notes or "",
+            "status": "ACTIVE",
             "created_by": request.created_by or "system"
         }
         

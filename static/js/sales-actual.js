@@ -142,6 +142,41 @@ function formatIntegerLike(value) {
     return n.toLocaleString('ko-KR');
 }
 
+function amountEditor(cell, onRendered, success, cancel) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.style.width = '100%';
+    input.style.boxSizing = 'border-box';
+    input.style.textAlign = 'right';
+    input.value = formatNumber(cell.getValue() || 0);
+
+    const commit = () => {
+        const value = parseNumberInput(input.value);
+        success(value);
+    };
+
+    input.addEventListener('focus', () => {
+        input.value = String(parseNumberInput(input.value) || '');
+        input.select();
+    });
+    input.addEventListener('input', () => {
+        const cleaned = input.value.replace(/[^\d.-]/g, '');
+        if (cleaned !== input.value) input.value = cleaned;
+    });
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') commit();
+        if (e.key === 'Escape') cancel();
+    });
+
+    onRendered(() => {
+        input.focus();
+        input.select();
+    });
+
+    return input;
+}
+
 function createManualActualLine() {
     const row = {
         _is_manual: true,
@@ -436,11 +471,11 @@ function buildActualLineMonthEditors() {
                 <div class="actual-line-month-item-title">${i}월</div>
                 <div>
                     <label for="actualEditM${month}Order">${i}월 수주</label>
-                    <input type="text" id="actualEditM${month}Order" class="form-input actual-amount-input" inputmode="numeric" autocomplete="off">
+                    <input type="text" id="actualEditM${month}Order" class="form-input actual-amount-input align-right" inputmode="numeric" autocomplete="off">
                 </div>
                 <div>
                     <label for="actualEditM${month}Profit">${i}월 이익</label>
-                    <input type="text" id="actualEditM${month}Profit" class="form-input actual-amount-input" inputmode="numeric" autocomplete="off">
+                    <input type="text" id="actualEditM${month}Profit" class="form-input actual-amount-input align-right" inputmode="numeric" autocomplete="off">
                 </div>
             </div>
         `);
@@ -672,7 +707,7 @@ function buildActualLineColumns(settings = null, viewMode = 'group') {
                 title: col.title,
                 field: col.field,
                 hozAlign: 'right',
-                editor: 'number',
+                editor: amountEditor,
                 formatter: (cell) => formatNumber(cell.getValue()),
                 cellEdited: (cell) => recalcActualRowTotal(cell.getRow())
             };
@@ -692,7 +727,7 @@ function buildActualLineColumns(settings = null, viewMode = 'group') {
             title: '수주',
             field: orderField,
             hozAlign: 'right',
-            editor: 'number',
+            editor: amountEditor,
             formatter: (cell) => formatNumber(cell.getValue()),
             cellEdited: (cell) => recalcActualRowTotal(cell.getRow())
         };
@@ -700,7 +735,7 @@ function buildActualLineColumns(settings = null, viewMode = 'group') {
             title: '이익',
             field: profitField,
             hozAlign: 'right',
-            editor: 'number',
+            editor: amountEditor,
             formatter: (cell) => formatNumber(cell.getValue()),
             cellEdited: (cell) => recalcActualRowTotal(cell.getRow())
         };

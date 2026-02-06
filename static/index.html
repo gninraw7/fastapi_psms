@@ -27,7 +27,7 @@
     <link rel="stylesheet" href="/static/css/sales-dashboard.css?v=1.1">
 
     <!-- ⭐ 인증 관리 스크립트 추가 -->
-    <script src="/static/js/auth.js"></script>    
+    <script src="/static/js/auth.js?v=2.5"></script>
 </head>
 <body>
     <!-- 인증 확인 스크립트 -->
@@ -99,6 +99,8 @@
                         <li><a href="#" data-page="industry-fields"><i class="fas fa-tags"></i> 분야코드 관리</a></li>
                         <li><a href="#" data-page="service-codes"><i class="fas fa-layer-group"></i> 서비스코드 관리</a></li>
                         <li><a href="#" data-page="org-units"><i class="fas fa-sitemap"></i> 조직 관리</a></li>
+                        <li><a href="#" data-page="login-history"><i class="fas fa-clock"></i> 접속 이력</a></li>
+                        <li><a href="#" data-page="permissions"><i class="fas fa-shield-halved"></i> 권한 관리</a></li>
                         <li class="dropdown-divider"></li>
                         <li><a href="#" data-page="settings"><i class="fas fa-sliders-h"></i> 시스템 설정</a></li>
                     </ul>
@@ -225,6 +227,15 @@
                         </div>
 
                         <div class="filter-group">
+                            <label><i class="fas fa-circle"></i> 상태</label>
+                            <select id="filterStatus" class="form-select">
+                                <option value="">전체</option>
+                                <option value="ACTIVE" selected>ACTIVE</option>
+                                <option value="CLOSED">CLOSED</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group">
                             <label><i class="fas fa-list-check"></i> 영업계획</label>
                             <select id="filterSalesPlan" class="form-select">
                                 <option value="">전체</option>
@@ -274,6 +285,9 @@
                         <button class="btn btn-outline-secondary" onclick="closeProjectForm()" title="목록으로">
                             <i class="fas fa-list"></i> 목록
                         </button>
+                        <button class="btn btn-danger" id="btnCloseProject" onclick="closeProject()" title="삭제/종료" style="display: none;">
+                            <i class="fas fa-ban"></i> 삭제/종료
+                        </button>
                         <button class="btn btn-close-icon" onclick="closeProjectForm()" title="닫기">
                             <i class="fas fa-times"></i>
                         </button>
@@ -290,6 +304,9 @@
                     </button>
                     <button class="tab-btn" data-tab="history">
                         <i class="fas fa-history"></i> 변경이력
+                    </button>
+                    <button class="tab-btn" data-tab="contract">
+                        <i class="fas fa-file-signature"></i> 계약/기간
                     </button>
                 </div>
 
@@ -388,13 +405,13 @@
                             <!-- 견적금액 -->
                             <div class="form-group">
                                 <label>견적금액</label>
-                                <input type="number" id="quoted_amount" class="form-input" placeholder="0" min="0">
+                                <input type="text" id="quoted_amount" class="form-input amount-input align-right" placeholder="0" inputmode="numeric" pattern="[0-9,]*">
                             </div>
 
                             <!-- 1.3 수주확률 (신규 컬럼) -->
                             <div class="form-group">
                                 <label>수주확률 (%)</label>
-                                <input type="number" id="win_probability" class="form-input" placeholder="0" min="0" max="100">
+                                <input type="number" id="win_probability" class="form-input align-right" placeholder="0" min="0" max="100" inputmode="numeric">
                                 <small class="form-help">0 ~ 100 사이 값 입력</small>
                             </div>
 
@@ -520,6 +537,42 @@
                         
                         <div id="historiesList">
                             <!-- renderHistories()에서 동적 생성 -->
+                        </div>
+                    </div>
+
+                    <!-- ============================================ -->
+                    <!-- 계약/기간 탭 -->
+                    <!-- ============================================ -->
+                    <div id="tab-contract" class="tab-pane">
+                        <div class="tab-description">
+                            <i class="fas fa-info-circle"></i>
+                            계약 체결일과 수행 기간, 금액 정보를 관리합니다.
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>계약 체결일</label>
+                                <input type="date" id="contract_date" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label>수행 시작일</label>
+                                <input type="date" id="start_date" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label>수행 종료일</label>
+                                <input type="date" id="end_date" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label>수주 금액</label>
+                                <input type="text" id="order_amount" class="form-input amount-input align-right" placeholder="0" inputmode="numeric" pattern="[0-9,]*">
+                            </div>
+                            <div class="form-group">
+                                <label>최종 계약 금액</label>
+                                <input type="text" id="contract_amount" class="form-input amount-input align-right" placeholder="0" inputmode="numeric" pattern="[0-9,]*">
+                            </div>
+                            <div class="form-group full-width">
+                                <label>계약 비고</label>
+                                <textarea id="contract_remarks" class="form-textarea" rows="3" placeholder="계약 관련 비고를 입력하세요"></textarea>
+                            </div>
                         </div>
                     </div>
 
@@ -1353,6 +1406,7 @@
                             <option value="DRAFT">작성중</option>
                             <option value="REVIEW">검토중</option>
                             <option value="FINAL">확정</option>
+                            <option value="CANCELLED">폐기</option>
                         </select>
                     </div>
                     <div class="filter-group" style="flex: 2;">
@@ -1370,6 +1424,9 @@
                     </button>
                     <button class="btn btn-secondary" id="btnCopyPlan">
                         <i class="fas fa-copy"></i> 버전 복사
+                    </button>
+                    <button class="btn btn-danger" id="btnCancelPlan">
+                        <i class="fas fa-ban"></i> 폐기
                     </button>
                     <button class="btn btn-success" id="btnRefreshPlan">
                         <i class="fas fa-sync-alt"></i> 새로고침
@@ -1438,6 +1495,7 @@
                             <option value="DRAFT">작성중</option>
                             <option value="REVIEW">검토중</option>
                             <option value="FINAL">확정</option>
+                            <option value="CANCELLED">폐기</option>
                         </select>
                     </div>
                     <div class="plan-meta-item">
@@ -2576,6 +2634,184 @@
     </div>
 
     <!-- ===================================
+         접속 이력 페이지
+         =================================== -->
+    <div id="page-login-history" class="page-content">
+        <main class="app-main">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="fas fa-clock"></i>
+                        접속 이력
+                    </div>
+                </div>
+                <div class="helper-text">
+                    로그인/로그아웃 기록을 조회합니다. 보안 감사용으로 사용되며, 필터 조건을 적용해 검색할 수 있습니다.
+                </div>
+            </div>
+
+            <div class="filter-panel">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label><i class="fas fa-user"></i> 로그인 ID</label>
+                        <input type="text" id="loginHistoryLoginId" class="form-input" placeholder="로그인 ID">
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-flag"></i> 구분</label>
+                        <select id="loginHistoryActionType" class="form-select">
+                            <option value="">전체</option>
+                            <option value="LOGIN">LOGIN</option>
+                            <option value="LOGOUT">LOGOUT</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-calendar"></i> 시작일</label>
+                        <input type="date" id="loginHistoryFrom" class="form-input">
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-calendar"></i> 종료일</label>
+                        <input type="date" id="loginHistoryTo" class="form-input">
+                    </div>
+                    <div class="filter-group" style="flex: 0 0 auto;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-secondary" id="btnLoginHistorySearch">
+                            <i class="fas fa-search"></i> 검색
+                        </button>
+                    </div>
+                </div>
+
+                <div class="filter-actions">
+                    <button class="btn btn-info" id="btnLoginHistoryReset">
+                        <i class="fas fa-sync-alt"></i> 새로고침
+                    </button>
+                    <button class="btn btn-success" id="btnLoginHistoryExport">
+                        <i class="fas fa-file-excel"></i> 엑셀
+                    </button>
+                </div>
+            </div>
+
+            <div class="helper-text" id="loginHistorySummary">
+                조회 결과가 여기에 표시됩니다.
+            </div>
+
+            <div class="table-panel">
+                <div id="loginHistoryTable"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         권한 관리 페이지
+         =================================== -->
+    <div id="page-permissions" class="page-content">
+        <main class="app-main">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="fas fa-shield-halved"></i>
+                        권한 관리
+                    </div>
+                </div>
+                <div class="helper-text">
+                    화면별 C/R/U/D 권한을 역할 또는 사용자 단위로 설정합니다. 권한 테이블이 비어있으면 기본 허용 정책이 적용됩니다.
+                </div>
+            </div>
+
+            <div id="permissionsTabs" class="detail-tabs">
+                <button class="detail-tab active" data-tab="forms">화면 목록</button>
+                <button class="detail-tab" data-tab="roles">역할 권한</button>
+                <button class="detail-tab" data-tab="users">사용자 권한</button>
+            </div>
+
+            <div id="permissionsPanes">
+                <div id="permissions-pane-forms" class="detail-pane active">
+                    <section class="common-code-panel">
+                        <div class="panel-header">
+                            <h3><i class="fas fa-window-restore"></i> 화면 목록</h3>
+                            <div class="panel-actions">
+                                <button class="btn btn-primary" id="btnPermFormsNew" type="button">
+                                    <i class="fas fa-plus-circle"></i> 신규
+                                </button>
+                                <button class="btn btn-danger" id="btnPermFormsDelete" type="button">
+                                    <i class="fas fa-trash"></i> 삭제
+                                </button>
+                                <button class="btn btn-success" id="btnPermFormsSave" type="button">
+                                    <i class="fas fa-save"></i> 저장
+                                </button>
+                                <button class="btn btn-info" id="btnPermFormsRefresh" type="button">
+                                    <i class="fas fa-sync-alt"></i> 새로고침
+                                </button>
+                                <button class="btn btn-success" id="btnPermFormsExcel" type="button">
+                                    <i class="fas fa-file-excel"></i> 엑셀
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-panel">
+                            <div id="permissionsFormsTable"></div>
+                        </div>
+                    </section>
+                </div>
+
+                <div id="permissions-pane-roles" class="detail-pane">
+                    <section class="common-code-panel">
+                        <div class="panel-header">
+                            <h3><i class="fas fa-user-shield"></i> 역할 권한</h3>
+                            <div class="panel-actions">
+                                <button class="btn btn-primary" id="btnPermRolesNew" type="button">
+                                    <i class="fas fa-plus-circle"></i> 신규
+                                </button>
+                                <button class="btn btn-danger" id="btnPermRolesDelete" type="button">
+                                    <i class="fas fa-trash"></i> 삭제
+                                </button>
+                                <button class="btn btn-success" id="btnPermRolesSave" type="button">
+                                    <i class="fas fa-save"></i> 저장
+                                </button>
+                                <button class="btn btn-info" id="btnPermRolesRefresh" type="button">
+                                    <i class="fas fa-sync-alt"></i> 새로고침
+                                </button>
+                                <button class="btn btn-success" id="btnPermRolesExcel" type="button">
+                                    <i class="fas fa-file-excel"></i> 엑셀
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-panel">
+                            <div id="permissionsRolesTable"></div>
+                        </div>
+                    </section>
+                </div>
+
+                <div id="permissions-pane-users" class="detail-pane">
+                    <section class="common-code-panel">
+                        <div class="panel-header">
+                            <h3><i class="fas fa-user-lock"></i> 사용자 권한</h3>
+                            <div class="panel-actions">
+                                <button class="btn btn-primary" id="btnPermUsersNew" type="button">
+                                    <i class="fas fa-plus-circle"></i> 신규
+                                </button>
+                                <button class="btn btn-danger" id="btnPermUsersDelete" type="button">
+                                    <i class="fas fa-trash"></i> 삭제
+                                </button>
+                                <button class="btn btn-success" id="btnPermUsersSave" type="button">
+                                    <i class="fas fa-save"></i> 저장
+                                </button>
+                                <button class="btn btn-info" id="btnPermUsersRefresh" type="button">
+                                    <i class="fas fa-sync-alt"></i> 새로고침
+                                </button>
+                                <button class="btn btn-success" id="btnPermUsersExcel" type="button">
+                                    <i class="fas fa-file-excel"></i> 엑셀
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-panel">
+                            <div id="permissionsUsersTable"></div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
          공통코드 관리 페이지
          =================================== -->
     <div id="page-common-codes" class="page-content">
@@ -3124,20 +3360,20 @@
     <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="/static/js/config.js?v=3.4"></script>
-    <script src="/static/js/auth.js?v=2.5"></script>
-    <script src="/static/js/utils.js?v=2.5"></script>
+    <script src="/static/js/config.js?v=3.5"></script>
     <script src="/static/js/navigation.js?v=4.5"></script>  <!-- ⭐ 버전 업 -->
     <script src="/static/js/stage-icons.js"></script>
     <script src="/static/js/project-form.js?v=3.8"></script>
     <script src="/static/js/clients-list.js?v=3.5"></script>  <!-- ⭐ 버전 추가 -->
     <script src="/static/js/clients-form.js?v=3.0"></script>  <!-- ⭐ 신규 추가 -->
-    <script src="/static/js/sales-plan.js?v=2.6"></script>
-    <script src="/static/js/sales-actual.js?v=3.1"></script>
+    <script src="/static/js/sales-plan.js?v=2.7"></script>
+    <script src="/static/js/sales-actual.js?v=3.2"></script>
     <script src="/static/js/sales-dashboard.js?v=1.1"></script>
     <script src="/static/js/report.js?v=1.16"></script>
     <script src="/static/js/users-list.js?v=2.2"></script>
     <script src="/static/js/users-form.js?v=1.4"></script>
+    <script src="/static/js/login-history.js?v=1.0"></script>
+    <script src="/static/js/permissions.js?v=1.1"></script>
     <script src="/static/js/common-codes.js?v=1.5"></script>
     <script src="/static/js/industry-fields.js?v=1.0"></script>
     <script src="/static/js/service-codes.js?v=1.0"></script>

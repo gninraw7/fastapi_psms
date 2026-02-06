@@ -134,6 +134,7 @@ CREATE TABLE `projects` (
   `quoted_amount` decimal(18,2) DEFAULT '0.00' COMMENT '제안/견적 금액',
   `win_probability` int DEFAULT 0 COMMENT '수주확률 (0-100%)',
   `notes` text COMMENT '비고',
+  `status` varchar(20) DEFAULT 'ACTIVE' COMMENT '프로젝트 상태 (ACTIVE, CLOSED)',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 일시',
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 일시',
   `created_by` varchar(50) DEFAULT NULL COMMENT '생성자 ID',
@@ -152,6 +153,18 @@ CREATE TABLE `projects` (
   CONSTRAINT `projects_ibfk_org` FOREIGN KEY (`org_id`) REFERENCES `org_units` (`org_id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='프로젝트 파이프라인 기본 정보';
 
+CREATE TABLE `project_attributes` (
+  `pipeline_id` varchar(20) NOT NULL COMMENT '파이프라인 관리번호',
+  `attr_code` varchar(20) NOT NULL COMMENT '속성 코드',
+  `attr_value` text COMMENT '속성 값',
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정일시',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성일시',
+  `created_by` varchar(50) DEFAULT NULL COMMENT '생성자ID',
+  `updated_by` varchar(50) DEFAULT NULL COMMENT '수정자ID',
+  PRIMARY KEY (`pipeline_id`,`attr_code`),
+  CONSTRAINT `project_attributes_ibfk_1` FOREIGN KEY (`pipeline_id`) REFERENCES `projects` (`pipeline_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci comment='프로젝트 추가 속성 정보';
+
 -- 8. 프로젝트 계약 상세 (project_contracts)
 CREATE TABLE `project_contracts` (
   `pipeline_id` varchar(20) NOT NULL COMMENT '파이프라인 관리번호',
@@ -168,21 +181,6 @@ CREATE TABLE `project_contracts` (
   PRIMARY KEY (`pipeline_id`),
   CONSTRAINT `project_contracts_ibfk_1` FOREIGN KEY (`pipeline_id`) REFERENCES `projects` (`pipeline_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='프로젝트 계약 및 기간 상세 정보';
-
--- 9. 매출 실적 (sales_performance)
-CREATE TABLE `sales_performance` (
-  `sales_id` int NOT NULL AUTO_INCREMENT COMMENT '매출 실적 일련번호',
-  `pipeline_id` varchar(20) NOT NULL COMMENT '파이프라인 관리번호',
-  `sales_date` date NOT NULL COMMENT '매출 발생/인식 일자',
-  `sales_amount` decimal(18,2) DEFAULT '0.00' COMMENT '매출 금액',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 일시',
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 일시',
-  `created_by` varchar(50) DEFAULT NULL COMMENT '생성자 ID',
-  `updated_by` varchar(50) DEFAULT NULL COMMENT '수정자 ID',
-  PRIMARY KEY (`sales_id`),
-  UNIQUE KEY `uk_pipeline_date` (`pipeline_id`,`sales_date`),
-  CONSTRAINT `sales_performance_ibfk_1` FOREIGN KEY (`pipeline_id`) REFERENCES `projects` (`pipeline_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='월별/분기별 매출 실적 기록';
 
 -- 10. 프로젝트 변경 이력 (project_history)
 CREATE TABLE `project_history` (
@@ -209,6 +207,7 @@ CREATE TABLE `login_history` (
   `action_type` varchar(20) DEFAULT NULL COMMENT '수행 작업 (LOGIN/LOGOUT)',
   `action_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '수행 시각',
   `pc_name` varchar(100) DEFAULT NULL COMMENT '접속 PC/단말기 명칭',
+  `ip_address` varchar(45) DEFAULT NULL COMMENT '접속 IP',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 일시',
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 일시',
   `created_by` varchar(50) DEFAULT NULL COMMENT '생성자 ID',

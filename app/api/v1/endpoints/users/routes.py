@@ -74,8 +74,7 @@ def _check_login_id_in_use(db: Session, login_id: str) -> int:
             (SELECT COUNT(*) FROM login_history WHERE login_id = :login_id) +
             (SELECT COUNT(*) FROM clients WHERE created_by = :login_id OR updated_by = :login_id) +
             (SELECT COUNT(*) FROM projects WHERE created_by = :login_id OR updated_by = :login_id) +
-            (SELECT COUNT(*) FROM project_contracts WHERE created_by = :login_id OR updated_by = :login_id) +
-            (SELECT COUNT(*) FROM sales_performance WHERE created_by = :login_id OR updated_by = :login_id) AS total_refs
+            (SELECT COUNT(*) FROM project_contracts WHERE created_by = :login_id OR updated_by = :login_id) AS total_refs
     """)
     result = db.execute(usage_query, {"login_id": login_id}).fetchone()
     return int(result[0] or 0)

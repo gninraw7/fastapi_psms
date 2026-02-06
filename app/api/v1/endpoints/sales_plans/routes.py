@@ -141,8 +141,8 @@ def _ensure_plan_editable(db: Session, plan_id: int):
     ).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Plan not found")
-    if row["status_code"] == "FINAL":
-        raise HTTPException(status_code=403, detail="Plan is FINAL")
+    if row["status_code"] in ("FINAL", "CANCELLED"):
+        raise HTTPException(status_code=403, detail="Plan is not editable")
 
 
 # ============================================

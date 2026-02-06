@@ -68,6 +68,12 @@ async function initializeProjectForm(mode = 'new', pipelineId = null) {
         titleElement.textContent = '프로젝트 수정';  // 텍스트만 변경
         if (titleIcon) titleIcon.className = 'fas fa-edit';
     }
+
+    // 삭제/종료 버튼 표시 제어
+    const closeBtn = document.getElementById('btnCloseProject');
+    if (closeBtn) {
+        closeBtn.style.display = mode === 'edit' ? 'inline-flex' : 'none';
+    }
     
     // 콤보박스 초기화 (수정됨)
     await loadFormComboBoxes();
@@ -80,6 +86,9 @@ async function initializeProjectForm(mode = 'new', pipelineId = null) {
     
     // 고객사 선택 이벤트 바인딩
     initializeClientSearch();
+
+    // 금액 입력 서식/정렬 처리
+    initializeAmountInputs();
     
     // 수정 모드면 데이터 로드
     if (mode === 'edit' && pipelineId) {
@@ -112,6 +121,49 @@ function updateProjectNameDisplay(name) {
     const histEl = document.getElementById('tabProjectNameHistory');
     if (attrEl) attrEl.textContent = value;
     if (histEl) histEl.textContent = value;
+}
+
+// ===================================
+// Amount Input Formatting
+// ===================================
+function formatAmountValue(value) {
+    if (value === null || value === undefined) return '';
+    const raw = String(value).replace(/,/g, '').trim();
+    if (!raw) return '';
+    const num = Number(raw);
+    if (Number.isNaN(num)) return '';
+    return Math.round(num).toLocaleString('ko-KR', { maximumFractionDigits: 0 });
+}
+
+function setAmountInputValue(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = formatAmountValue(value);
+}
+
+function bindAmountInput(id) {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.amountBound) return;
+    el.dataset.amountBound = 'true';
+
+    el.addEventListener('focus', () => {
+        const raw = (el.value || '').replace(/,/g, '');
+        el.value = raw;
+        el.select();
+    });
+
+    el.addEventListener('input', () => {
+        const cleaned = (el.value || '').replace(/[^\d.-]/g, '');
+        if (cleaned !== el.value) el.value = cleaned;
+    });
+
+    el.addEventListener('blur', () => {
+        el.value = formatAmountValue(el.value);
+    });
+}
+
+function initializeAmountInputs() {
+    ['quoted_amount', 'order_amount', 'contract_amount'].forEach(bindAmountInput);
 }
 
 function bindProjectNameDisplay() {
@@ -398,7 +450,7 @@ async function loadProjectData(pipelineId) {
                 console.log('ℹ️ 발주처가 설정되지 않았습니다.');
             }
             
-            document.getElementById('quoted_amount').value = project.quoted_amount || '';
+            setAmountInputValue('quoted_amount', project.quoted_amount);
             
             // 1.3 수주확률, 비고 (신규 필드)
             const winProbEl = document.getElementById('win_probability');
@@ -406,6 +458,32 @@ async function loadProjectData(pipelineId) {
             
             const notesEl = document.getElementById('notes');
             if (notesEl) notesEl.value = project.notes || '';
+
+            // 계약/기간 정보 로드
+            const contract = response.contract || null;
+            if (contract) {
+                const contractDateEl = document.getElementById('contract_date');
+                if (contractDateEl) contractDateEl.value = contract.contract_date || '';
+                const startDateEl = document.getElementById('start_date');
+                if (startDateEl) startDateEl.value = contract.start_date || '';
+                const endDateEl = document.getElementById('end_date');
+                if (endDateEl) endDateEl.value = contract.end_date || '';
+                setAmountInputValue('order_amount', contract.order_amount);
+                setAmountInputValue('contract_amount', contract.contract_amount);
+                const contractRemarksEl = document.getElementById('contract_remarks');
+                if (contractRemarksEl) contractRemarksEl.value = contract.remarks || '';
+            } else {
+                const contractDateEl = document.getElementById('contract_date');
+                if (contractDateEl) contractDateEl.value = '';
+                const startDateEl = document.getElementById('start_date');
+                if (startDateEl) startDateEl.value = '';
+                const endDateEl = document.getElementById('end_date');
+                if (endDateEl) endDateEl.value = '';
+                setAmountInputValue('order_amount', '');
+                setAmountInputValue('contract_amount', '');
+                const contractRemarksEl = document.getElementById('contract_remarks');
+                if (contractRemarksEl) contractRemarksEl.value = '';
+            }
             
             // ✅ 속성 로드 - 기존 데이터는 row_stat을 빈값으로 (수정 시 'U'로 변경)
             attributes = (response.attributes || []).map(attr => ({
@@ -467,13 +545,25 @@ function resetForm() {
     selectedCustomerId = null;
     selectedOrderingPartyId = null;
     
-    document.getElementById('quoted_amount').value = '';
+    setAmountInputValue('quoted_amount', '');
     
     const winProbEl = document.getElementById('win_probability');
     if (winProbEl) winProbEl.value = '';
     
     const notesEl = document.getElementById('notes');
     if (notesEl) notesEl.value = '';
+
+    // 계약/기간 초기화
+    const contractDateEl = document.getElementById('contract_date');
+    if (contractDateEl) contractDateEl.value = '';
+    const startDateEl = document.getElementById('start_date');
+    if (startDateEl) startDateEl.value = '';
+    const endDateEl = document.getElementById('end_date');
+    if (endDateEl) endDateEl.value = '';
+    setAmountInputValue('order_amount', '');
+    setAmountInputValue('contract_amount', '');
+    const contractRemarksEl = document.getElementById('contract_remarks');
+    if (contractRemarksEl) contractRemarksEl.value = '';
     
     attributes = [];
     histories = [];
@@ -1577,6 +1667,15 @@ async function saveProject() {
                 row_stat: h.row_stat
             }));
         
+        const parseAmount = (id) => {
+            const el = document.getElementById(id);
+            if (!el) return null;
+            const raw = (el.value || '').trim();
+            if (!raw) return null;
+            const num = Number(raw.replace(/,/g, ''));
+            return Number.isNaN(num) ? null : num;
+        };
+
         // ⭐ 데이터 수집 (pipeline_id 포함)
         const projectData = {
             pipeline_id: formMode === 'edit' ? currentPipelineId : null,  // ⭐ 핵심: 수정 모드일 때 pipeline_id 전송
@@ -1588,10 +1687,20 @@ async function saveProject() {
             org_id: parseInt(document.getElementById('org_id')?.value, 10) || null,
             customer_id: selectedCustomerId || parseInt(document.getElementById('customer_id')?.value) || null,
             ordering_party_id: selectedOrderingPartyId || parseInt(document.getElementById('ordering_party_id')?.value) || null,
-            quoted_amount: parseInt(document.getElementById('quoted_amount').value) || 0,
+            quoted_amount: parseAmount('quoted_amount') || 0,
             win_probability: parseInt(document.getElementById('win_probability')?.value) || 0,
             notes: document.getElementById('notes')?.value?.trim() || '',
             user_id: window.currentUser?.login_id || 'system'
+        };
+
+        // 계약/기간 정보
+        projectData.contract = {
+            contract_date: document.getElementById('contract_date')?.value || null,
+            start_date: document.getElementById('start_date')?.value || null,
+            end_date: document.getElementById('end_date')?.value || null,
+            order_amount: parseAmount('order_amount'),
+            contract_amount: parseAmount('contract_amount'),
+            remarks: document.getElementById('contract_remarks')?.value?.trim() || null
         };
         
         // ⭐ 핵심 수정: 변경사항이 있을 때만 키를 추가
@@ -1674,6 +1783,34 @@ function closeProjectForm() {
     // 목록 데이터 새로고침
     if (typeof projectTable !== 'undefined' && projectTable) {
         projectTable.setData();
+    }
+}
+
+// ===================================
+// Close Project (Soft Delete)
+// ===================================
+async function closeProject() {
+    if (!currentPipelineId) {
+        alert('프로젝트 ID를 확인할 수 없습니다.');
+        return;
+    }
+
+    if (!confirm('해당 프로젝트를 종료(소프트 삭제) 처리하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        Utils.showLoading(true);
+        const userId = window.currentUser?.login_id || 'system';
+        const url = `${API_CONFIG.ENDPOINTS.PROJECT_DETAIL}/${currentPipelineId}?user_id=${encodeURIComponent(userId)}`;
+        await API.delete(url);
+        Utils.showLoading(false);
+        alert('프로젝트가 종료 처리되었습니다.');
+        closeProjectForm();
+    } catch (error) {
+        console.error('❌ 프로젝트 종료 실패:', error);
+        Utils.showLoading(false);
+        alert('프로젝트 종료 처리에 실패했습니다.\n' + (error.message || ''));
     }
 }
 

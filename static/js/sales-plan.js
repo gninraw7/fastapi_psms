@@ -149,9 +149,16 @@ function normalizePlanStatus(code) {
             return '확정';
         case 'REVIEW':
             return '검토중';
+        case 'CANCELLED':
+            return '폐기';
         default:
             return '작성중';
     }
+}
+
+function isPlanLocked(plan) {
+    if (!plan) return false;
+    return plan.status_code === 'FINAL' || plan.status_code === 'CANCELLED';
 }
 
 function formatNumber(value) {
@@ -159,6 +166,41 @@ function formatNumber(value) {
         return Utils.formatNumber(value || 0);
     }
     return Number(value || 0).toLocaleString('ko-KR');
+}
+
+function amountEditor(cell, onRendered, success, cancel) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.style.width = '100%';
+    input.style.boxSizing = 'border-box';
+    input.style.textAlign = 'right';
+    input.value = formatNumber(cell.getValue() || 0);
+
+    const commit = () => {
+        const value = parsePlanAmountInput(input.value);
+        success(value);
+    };
+
+    input.addEventListener('focus', () => {
+        input.value = String(parsePlanAmountInput(input.value) || '');
+        input.select();
+    });
+    input.addEventListener('input', () => {
+        const cleaned = input.value.replace(/[^\d.-]/g, '');
+        if (cleaned !== input.value) input.value = cleaned;
+    });
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') commit();
+        if (e.key === 'Escape') cancel();
+    });
+
+    onRendered(() => {
+        input.focus();
+        input.select();
+    });
+
+    return input;
 }
 
 function parsePlanAmountInput(value) {
@@ -291,6 +333,13 @@ async function initializeSalesPlanList() {
         layout: 'fitDataStretch',
         selectable: 1,
         placeholder: '영업계획 데이터가 없습니다.',
+        rowFormatter: function(row) {
+            const data = row.getData();
+            if (data.status_code === 'CANCELLED') {
+                row.getElement().style.opacity = '0.6';
+                row.getElement().style.background = '#fafafa';
+            }
+        },
         columns: [
             {
                 formatter: "rowSelection",
@@ -347,6 +396,7 @@ function bindSalesPlanListEvents() {
     const refreshBtn = document.getElementById('btnRefreshPlan');
     const copyBtn = document.getElementById('btnCopyPlan');
     const exportBtn = document.getElementById('btnExportPlan');
+    const cancelBtn = document.getElementById('btnCancelPlan');
 
     if (newBtn) {
         newBtn.addEventListener('click', () => {
@@ -388,11 +438,51 @@ function bindSalesPlanListEvents() {
         });
     }
 
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', async () => {
+            const selectedPlan = resolveSelectedPlanFromTable();
+            if (!selectedPlan) {
+                alert('폐기할 계획을 선택하세요.');
+                return;
+            }
+            if (selectedPlan.status_code === 'CANCELLED') {
+                alert('이미 폐기된 계획입니다.');
+                return;
+            }
+            if (!confirm('선택한 계획을 폐기 처리하시겠습니까?')) {
+                return;
+            }
+            await updateSalesPlanStatus(selectedPlan, 'CANCELLED');
+        });
+    }
+
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
             if (!salesPlanTable) return;
             salesPlanTable.download('xlsx', 'sales_plan_list.xlsx', {sheetName: 'Plans'});
         });
+    }
+}
+
+async function updateSalesPlanStatus(plan, statusCode) {
+    if (!plan?.plan_id) return;
+    try {
+        const payload = {
+            status_code: statusCode,
+            updated_by: getCurrentLoginId()
+        };
+        await API.put(`${API_CONFIG.ENDPOINTS.SALES_PLANS}/${plan.plan_id}`, payload);
+        if (currentSalesPlan && currentSalesPlan.plan_id === plan.plan_id) {
+            currentSalesPlan = { ...currentSalesPlan, status_code: statusCode };
+            setPlanToStorage(currentSalesPlan);
+        }
+        const { items, stats } = await fetchSalesPlans(getPlanListFilters());
+        cachedSalesPlans = items;
+        if (salesPlanTable) salesPlanTable.setData(items);
+        updatePlanStats(items, stats);
+        alert('계획 상태가 변경되었습니다.');
+    } catch (error) {
+        alert('상태 변경 실패: ' + (error.message || error));
     }
 }
 
@@ -432,7 +522,7 @@ function buildPlanLineColumns(settings = null) {
             title: `${i}월`,
             field: key,
             hozAlign: 'right',
-            editor: 'number',
+            editor: amountEditor,
             formatter: (cell) => formatNumber(cell.getValue()),
             cellEdited: (cell) => recalcPlanRowTotal(cell.getRow())
         });
@@ -486,7 +576,7 @@ function buildPlanLineMonthEditors() {
                 <div class="plan-line-month-item-title">${i}월</div>
                 <div>
                     <label for="planEditM${month}">${i}월 금액</label>
-                    <input type="text" id="planEditM${month}" class="form-input" inputmode="numeric" autocomplete="off">
+                    <input type="text" id="planEditM${month}" class="form-input align-right" inputmode="numeric" autocomplete="off">
                 </div>
             </div>
         `);
@@ -1130,6 +1220,10 @@ function bindSalesPlanEditEvents() {
                 alert('먼저 계획 헤더를 저장하세요.');
                 return;
             }
+            if (isPlanLocked(currentSalesPlan)) {
+                alert('확정 또는 폐기된 계획은 수정할 수 없습니다.');
+                return;
+            }
             const payload = {
                 plan_id: currentSalesPlan.plan_id,
                 updated_by: getCurrentLoginId(),
@@ -1152,6 +1246,10 @@ function bindSalesPlanEditEvents() {
                 alert('먼저 계획을 선택/저장하세요.');
                 return;
             }
+            if (isPlanLocked(currentSalesPlan)) {
+                alert('확정 또는 폐기된 계획은 수정할 수 없습니다.');
+                return;
+            }
             openMissingProjectsModal();
             await loadMissingFilters();
             syncMissingFiltersFromMain();
@@ -1167,8 +1265,8 @@ function bindSalesPlanEditEvents() {
                 alert('먼저 계획을 선택하세요.');
                 return;
             }
-            if (currentSalesPlan?.status_code === 'FINAL') {
-                alert('계획 상태가 확정인 경우 제외할 수 없습니다.');
+            if (isPlanLocked(currentSalesPlan)) {
+                alert('확정 또는 폐기된 계획은 제외할 수 없습니다.');
                 return;
             }
             if (!salesPlanLineTable) return;
@@ -1262,6 +1360,10 @@ function bindSalesPlanEditEvents() {
     if (headerSaveBtn && !headerSaveBtn.dataset.bound) {
         headerSaveBtn.dataset.bound = 'true';
         headerSaveBtn.addEventListener('click', async () => {
+            if (currentSalesPlan && isPlanLocked(currentSalesPlan)) {
+                alert('확정 또는 폐기된 계획은 수정할 수 없습니다.');
+                return;
+            }
             const payload = {
                 plan_year: Number(document.getElementById('salesPlanYear')?.value || new Date().getFullYear()),
                 plan_version: document.getElementById('salesPlanVersion')?.value || 'v1',

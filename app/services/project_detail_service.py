@@ -12,7 +12,7 @@ from decimal import Decimal
 import logging
 
 from app.schemas.project_detail import (
-    ProjectDetail, ProjectAttribute, ProjectHistory,
+    ProjectDetail, ProjectAttribute, ProjectHistory, ProjectContract,
     ProjectFullDetail, ProjectSaveRequest, ProjectSaveResponse
 )
 
@@ -45,6 +45,7 @@ def get_project_detail(db: Session, pipeline_id: str) -> Optional[ProjectDetail]
             p.quoted_amount,
             p.win_probability,
             p.notes,
+            p.status,
             p.created_at,
             p.updated_at
         FROM projects p
@@ -81,6 +82,7 @@ def get_project_detail(db: Session, pipeline_id: str) -> Optional[ProjectDetail]
             quoted_amount=result.quoted_amount,
             win_probability=result.win_probability,  # ✅ 추가
             notes=result.notes,  # ✅ 추가
+            status=result.status,
             created_at=result.created_at,
             updated_at=result.updated_at
         )
@@ -164,6 +166,34 @@ def get_project_histories(db: Session, pipeline_id: str) -> List[ProjectHistory]
     ]
 
 
+def get_project_contract(db: Session, pipeline_id: str) -> Optional[ProjectContract]:
+    """
+    프로젝트 계약/기간 정보 조회
+    """
+    query = text("""
+        SELECT
+            contract_date,
+            start_date,
+            end_date,
+            order_amount,
+            contract_amount,
+            remarks
+        FROM project_contracts
+        WHERE pipeline_id = :pipeline_id
+    """)
+    row = db.execute(query, {"pipeline_id": pipeline_id}).fetchone()
+    if not row:
+        return None
+    return ProjectContract(
+        contract_date=row.contract_date,
+        start_date=row.start_date,
+        end_date=row.end_date,
+        order_amount=row.order_amount,
+        contract_amount=row.contract_amount,
+        remarks=row.remarks
+    )
+
+
 def get_project_full_detail(db: Session, pipeline_id: str) -> Optional[ProjectFullDetail]:
     """
     프로젝트 전체 상세 정보 조회 (기본+속성+이력)
@@ -174,11 +204,13 @@ def get_project_full_detail(db: Session, pipeline_id: str) -> Optional[ProjectFu
     
     attributes = get_project_attributes(db, pipeline_id)
     histories = get_project_histories(db, pipeline_id)
+    contract = get_project_contract(db, pipeline_id)
     
     return ProjectFullDetail(
         project=project,
         attributes=attributes,
-        histories=histories
+        histories=histories,
+        contract=contract
     )
 
 
@@ -214,11 +246,11 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                 INSERT INTO projects (
                     pipeline_id, project_name, field_code, service_code, manager_id, org_id,
                     customer_id, ordering_party_id, current_stage, 
-                    quoted_amount, win_probability, notes, created_by
+                    quoted_amount, win_probability, notes, status, created_by
                 ) VALUES (
                     :pipeline_id, :project_name, :field_code, :service_code, :manager_id, :org_id,
                     :customer_id, :ordering_party_id, :current_stage,
-                    :quoted_amount, :win_probability, :notes, :user_id
+                    :quoted_amount, :win_probability, :notes, :status, :user_id
                 )
             """)
             
@@ -235,6 +267,7 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                 "quoted_amount": data.quoted_amount or 0,
                 "win_probability": getattr(data, 'win_probability', 0) or 0,
                 "notes": getattr(data, 'notes', '') or '',
+                "status": "ACTIVE",
                 "user_id": data.user_id
             })
             
@@ -272,6 +305,72 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                 "notes": getattr(data, 'notes', '') or '',
                 "user_id": data.user_id
             })
+
+        # 프로젝트 계약/기간 저장 (있으면 upsert, 비어있으면 삭제)
+        contract_data = getattr(data, 'contract', None)
+        if contract_data is not None:
+            if hasattr(contract_data, "dict"):
+                contract_data = contract_data.dict()
+
+            def _normalize(v):
+                if v == "" or v is None:
+                    return None
+                return v
+
+            contract_payload = {
+                "contract_date": _normalize(contract_data.get("contract_date")),
+                "start_date": _normalize(contract_data.get("start_date")),
+                "end_date": _normalize(contract_data.get("end_date")),
+                "order_amount": contract_data.get("order_amount"),
+                "contract_amount": contract_data.get("contract_amount"),
+                "remarks": _normalize(contract_data.get("remarks")),
+            }
+
+            has_value = any(
+                v is not None and v != "" for v in [
+                    contract_payload["contract_date"],
+                    contract_payload["start_date"],
+                    contract_payload["end_date"],
+                    contract_payload["order_amount"],
+                    contract_payload["contract_amount"],
+                    contract_payload["remarks"],
+                ]
+            )
+
+            if not has_value:
+                db.execute(
+                    text("DELETE FROM project_contracts WHERE pipeline_id = :pipeline_id"),
+                    {"pipeline_id": pipeline_id}
+                )
+            else:
+                db.execute(text("""
+                    INSERT INTO project_contracts (
+                        pipeline_id, contract_date, start_date, end_date,
+                        order_amount, contract_amount, remarks,
+                        created_by, updated_by
+                    ) VALUES (
+                        :pipeline_id, :contract_date, :start_date, :end_date,
+                        :order_amount, :contract_amount, :remarks,
+                        :user_id, :user_id
+                    )
+                    ON DUPLICATE KEY UPDATE
+                        contract_date = VALUES(contract_date),
+                        start_date = VALUES(start_date),
+                        end_date = VALUES(end_date),
+                        order_amount = VALUES(order_amount),
+                        contract_amount = VALUES(contract_amount),
+                        remarks = VALUES(remarks),
+                        updated_by = :user_id
+                """), {
+                    "pipeline_id": pipeline_id,
+                    "contract_date": contract_payload["contract_date"],
+                    "start_date": contract_payload["start_date"],
+                    "end_date": contract_payload["end_date"],
+                    "order_amount": contract_payload["order_amount"],
+                    "contract_amount": contract_payload["contract_amount"],
+                    "remarks": contract_payload["remarks"],
+                    "user_id": data.user_id
+                })
         
         # 프로젝트 속성 저장
         if hasattr(data, 'attributes') and data.attributes is not None and len(data.attributes) > 0:
@@ -391,7 +490,7 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
 
 def delete_project(db: Session, pipeline_id: str, user_id: str) -> bool:
     """
-    프로젝트 삭제
+    프로젝트 종료(소프트 삭제)
     """
     try:
         # 존재 확인
@@ -401,19 +500,19 @@ def delete_project(db: Session, pipeline_id: str, user_id: str) -> bool:
         if not result:
             return False
         
-        # 관련 데이터 삭제 (CASCADE가 없는 경우 수동 삭제)
-        db.execute(text("DELETE FROM project_attributes WHERE pipeline_id = :pipeline_id"), 
-                   {"pipeline_id": pipeline_id})
-        db.execute(text("DELETE FROM project_history WHERE pipeline_id = :pipeline_id"), 
-                   {"pipeline_id": pipeline_id})
-        
-        # 프로젝트 삭제
-        db.execute(text("DELETE FROM projects WHERE pipeline_id = :pipeline_id"), 
-                   {"pipeline_id": pipeline_id})
+        # 상태 변경 (소프트 삭제)
+        db.execute(text("""
+            UPDATE projects
+            SET status = 'CLOSED', updated_by = :user_id
+            WHERE pipeline_id = :pipeline_id
+        """), {
+            "pipeline_id": pipeline_id,
+            "user_id": user_id
+        })
         
         db.commit()
         
-        logger.info(f"프로젝트 삭제 완료: {pipeline_id} by {user_id}")
+        logger.info(f"프로젝트 종료 처리 완료: {pipeline_id} by {user_id}")
         return True
         
     except Exception as e:

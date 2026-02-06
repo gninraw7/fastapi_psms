@@ -43,6 +43,7 @@ class ProjectUpdate(ProjectBase):
 class ProjectDetail(ProjectBase):
     """프로젝트 상세 응답 (JOIN 포함)"""
     pipeline_id: str = Field(..., description="파이프라인 ID")
+    status: Optional[str] = Field(None, description="프로젝트 상태")
     field_name: Optional[str] = Field(None, description="사업분야명")
     service_name: Optional[str] = Field(None, description="서비스명")
     manager_name: Optional[str] = Field(None, description="담당자명")
@@ -126,6 +127,19 @@ class ProjectHistory(ProjectHistoryBase):
 
 
 # ============================================
+# 프로젝트 계약 스키마
+# ============================================
+class ProjectContract(BaseModel):
+    """프로젝트 계약/기간 정보"""
+    contract_date: Optional[date] = Field(None, description="계약 체결일")
+    start_date: Optional[date] = Field(None, description="수행 시작일")
+    end_date: Optional[date] = Field(None, description="수행 종료일")
+    order_amount: Optional[Decimal] = Field(default=Decimal('0.00'), description="수주 금액")
+    contract_amount: Optional[Decimal] = Field(default=Decimal('0.00'), description="최종 계약 금액")
+    remarks: Optional[str] = Field(None, description="계약 비고")
+
+
+# ============================================
 # 통합 응답 스키마
 # ============================================
 class ProjectFullDetail(BaseModel):
@@ -133,6 +147,7 @@ class ProjectFullDetail(BaseModel):
     project: ProjectDetail
     attributes: List[ProjectAttribute] = []
     histories: List[ProjectHistory] = []
+    contract: Optional[ProjectContract] = None
 
 
 # ============================================
@@ -152,6 +167,9 @@ class ProjectSaveRequest(BaseModel):
     quoted_amount: Optional[Decimal] = Decimal('0.00')
     win_probability: Optional[int] = Field(None, description="수주확률")  # ✅ 추가
     notes: Optional[str] = Field(None, description="비고")  # ✅ 추가
+
+    # 계약 정보
+    contract: Optional[ProjectContract] = None
     
     # 속성 목록 (row_stat: N=신규, U=수정, D=삭제, ""=변경없음)
     attributes: List[dict] = Field(default_factory=list, description="속성 목록")
