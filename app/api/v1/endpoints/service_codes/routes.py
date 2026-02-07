@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.tenant import get_company_cd
 from app.core.logger import app_logger
 
 router = APIRouter()
@@ -30,14 +31,15 @@ class ServiceCodeBulkRequest(BaseModel):
 
 
 def _is_service_in_use(db: Session, service_code: str) -> bool:
+    company_cd = get_company_cd()
     queries = [
-        "SELECT COUNT(*) AS cnt FROM projects WHERE service_code = :code",
-        "SELECT COUNT(*) AS cnt FROM sales_plan_line WHERE service_code = :code",
-        "SELECT COUNT(*) AS cnt FROM sales_actual_line WHERE service_code = :code",
+        "SELECT COUNT(*) AS cnt FROM projects WHERE company_cd = :company_cd AND service_code = :code",
+        "SELECT COUNT(*) AS cnt FROM sales_plan_line WHERE company_cd = :company_cd AND service_code = :code",
+        "SELECT COUNT(*) AS cnt FROM sales_actual_line WHERE company_cd = :company_cd AND service_code = :code",
     ]
     for q in queries:
         try:
-            cnt = db.execute(text(q), {"code": service_code}).fetchone().cnt
+            cnt = db.execute(text(q), {"code": service_code, "company_cd": company_cd}).fetchone().cnt
             if cnt and cnt > 0:
                 return True
         except Exception:
@@ -51,15 +53,18 @@ async def list_service_codes(
     db: Session = Depends(get_db)
 ):
     try:
+        company_cd = get_company_cd()
         query = """
             SELECT s.service_code, s.parent_code, p.service_name AS parent_name,
                    s.service_name, s.display_name,
                    s.sort_order, s.is_use, s.created_at, s.updated_at, s.created_by, s.updated_by
             FROM service_codes s
-            LEFT JOIN service_codes p ON p.service_code = s.parent_code
-            WHERE 1=1
+            LEFT JOIN service_codes p 
+              ON p.service_code = s.parent_code
+             AND p.company_cd = s.company_cd
+            WHERE s.company_cd = :company_cd
         """
-        params = {}
+        params = {"company_cd": company_cd}
         if is_use:
             query += " AND s.is_use = :is_use"
             params["is_use"] = is_use
@@ -78,6 +83,7 @@ async def bulk_save_service_codes(
     db: Session = Depends(get_db)
 ):
     try:
+        company_cd = get_company_cd()
         items = request.items or []
         for item in items:
             row_stat = (item.row_stat or "").upper()
@@ -97,18 +103,19 @@ async def bulk_save_service_codes(
                 if not name:
                     raise HTTPException(status_code=400, detail="서비스명은 필수입니다.")
                 exists = db.execute(
-                    text("SELECT 1 FROM service_codes WHERE service_code = :code"),
-                    {"code": code}
+                    text("SELECT 1 FROM service_codes WHERE company_cd = :company_cd AND service_code = :code"),
+                    {"code": code, "company_cd": company_cd}
                 ).fetchone()
                 if exists:
                     raise HTTPException(status_code=409, detail="이미 존재하는 서비스코드입니다.")
                 db.execute(
                     text("""
                         INSERT INTO service_codes
-                        (service_code, parent_code, service_name, display_name, sort_order, is_use)
-                        VALUES (:code, :parent, :name, :display_name, :sort_order, :is_use)
+                        (company_cd, service_code, parent_code, service_name, display_name, sort_order, is_use)
+                        VALUES (:company_cd, :code, :parent, :name, :display_name, :sort_order, :is_use)
                     """),
                     {
+                        "company_cd": company_cd,
                         "code": code,
                         "parent": parent,
                         "name": name,
@@ -126,9 +133,11 @@ async def bulk_save_service_codes(
                             display_name = :display_name,
                             sort_order = :sort_order,
                             is_use = :is_use
-                        WHERE service_code = :code
+                        WHERE company_cd = :company_cd
+                          AND service_code = :code
                     """),
                     {
+                        "company_cd": company_cd,
                         "code": code,
                         "parent": parent,
                         "name": name,
@@ -141,8 +150,8 @@ async def bulk_save_service_codes(
                 if _is_service_in_use(db, code):
                     raise HTTPException(status_code=400, detail="다른 테이블에서 사용 중인 서비스코드입니다.")
                 db.execute(
-                    text("DELETE FROM service_codes WHERE service_code = :code"),
-                    {"code": code},
+                    text("DELETE FROM service_codes WHERE company_cd = :company_cd AND service_code = :code"),
+                    {"code": code, "company_cd": company_cd},
                 )
 
         db.commit()

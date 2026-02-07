@@ -9,6 +9,7 @@ from typing import List, Optional
 import math
 
 from app.schemas.project import ProjectListRequest, ProjectListResponse, ProjectItem
+from app.core.tenant import get_company_cd
 
 class ProjectService:
     """프로젝트 서비스 클래스"""
@@ -21,9 +22,11 @@ class ProjectService:
         VBA의 LoadGridData 기능을 대체
         실제 스키마: projects, clients, users, comm_code 테이블 JOIN
         """
+        company_cd = get_company_cd()
+
         # WHERE 조건 생성
-        where_clauses = []
-        params = {}
+        where_clauses = ["p.company_cd = :company_cd"]
+        params = {"company_cd": company_cd}
         
         # 검색어 조건 (프로젝트명 또는 고객사명)
         if request.search_text:
@@ -60,8 +63,12 @@ class ProjectService:
         count_query = f"""
             SELECT COUNT(*) as total
             FROM projects p
-            LEFT JOIN clients c1 ON p.customer_id = c1.client_id
-            LEFT JOIN clients c2 ON p.ordering_party_id = c2.client_id
+            LEFT JOIN clients c1 
+              ON p.customer_id = c1.client_id 
+             AND c1.company_cd = p.company_cd
+            LEFT JOIN clients c2 
+              ON p.ordering_party_id = c2.client_id 
+             AND c2.company_cd = p.company_cd
             WHERE {where_sql}
         """
         count_result = db.execute(text(count_query), params).fetchone()
@@ -81,7 +88,7 @@ class ProjectService:
                 p.pipeline_id,
                 p.project_name,
                 p.field_code,
-                cc_field.code_name as field_name,
+                ifield.field_name as field_name,
                 p.service_code,
                 sc.service_name as service_name,
                 p.current_stage,
@@ -101,14 +108,31 @@ class ProjectService:
                 p.created_at,
                 p.updated_at
             FROM projects p
-            LEFT JOIN users u ON p.manager_id = u.login_id
-            LEFT JOIN org_units o ON p.org_id = o.org_id
-            LEFT JOIN clients c1 ON p.customer_id = c1.client_id
-            LEFT JOIN clients c2 ON p.ordering_party_id = c2.client_id
-            LEFT JOIN project_contracts pc ON p.pipeline_id = pc.pipeline_id
-            LEFT JOIN service_codes sc ON p.service_code = sc.service_code
-            LEFT JOIN comm_code cc_field ON p.field_code = cc_field.code AND cc_field.group_code = 'FIELD'
-            LEFT JOIN comm_code cc_stage ON p.current_stage = cc_stage.code AND cc_stage.group_code = 'STAGE'
+            LEFT JOIN users u 
+              ON p.manager_id = u.login_id
+             AND u.company_cd = p.company_cd
+            LEFT JOIN org_units o 
+              ON p.org_id = o.org_id
+             AND o.company_cd = p.company_cd
+            LEFT JOIN clients c1 
+              ON p.customer_id = c1.client_id
+             AND c1.company_cd = p.company_cd
+            LEFT JOIN clients c2 
+              ON p.ordering_party_id = c2.client_id
+             AND c2.company_cd = p.company_cd
+            LEFT JOIN project_contracts pc 
+              ON p.pipeline_id = pc.pipeline_id
+             AND pc.company_cd = p.company_cd
+            LEFT JOIN service_codes sc 
+              ON p.service_code = sc.service_code
+             AND sc.company_cd = p.company_cd
+            LEFT JOIN industry_fields ifield
+              ON p.field_code = ifield.field_code
+             AND ifield.company_cd = p.company_cd
+            LEFT JOIN comm_code cc_stage 
+              ON p.current_stage = cc_stage.code 
+             AND cc_stage.group_code = 'STAGE'
+             AND cc_stage.company_cd = p.company_cd
             WHERE {where_sql}
             ORDER BY p.created_at DESC
             LIMIT :limit OFFSET :offset
@@ -140,14 +164,16 @@ class ProjectService:
         
         VBA의 SetMyComboBox 기능을 대체
         """
+        company_cd = get_company_cd()
         query = """
             SELECT code, code_name, sort_order
             FROM comm_code
-            WHERE group_code = :group_code 
+            WHERE company_cd = :company_cd
+              AND group_code = :group_code 
               AND is_use = 'Y'
             ORDER BY sort_order
         """
-        result = db.execute(text(query), {"group_code": group_code})
+        result = db.execute(text(query), {"group_code": group_code, "company_cd": company_cd})
         rows = result.fetchall()
         
         if rows:
@@ -162,6 +188,7 @@ class ProjectService:
         
         VBA의 SetCmbManager 기능을 대체
         """
+        company_cd = get_company_cd()
         query = """
             SELECT 
                 u.login_id, 
@@ -169,13 +196,16 @@ class ProjectService:
                 u.org_id,
                 o.org_name
             FROM users u
-            LEFT JOIN org_units o ON o.org_id = u.org_id
-            WHERE is_sales_rep = 1
+            LEFT JOIN org_units o 
+              ON o.org_id = u.org_id
+             AND o.company_cd = u.company_cd
+            WHERE u.company_cd = :company_cd
+              AND is_sales_rep = 1
               AND status = 'ACTIVE'
               AND (end_date IS NULL OR end_date >= CURDATE())
             ORDER BY user_name
         """
-        result = db.execute(text(query))
+        result = db.execute(text(query), {"company_cd": company_cd})
         rows = result.fetchall()
         
         if rows:

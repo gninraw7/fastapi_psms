@@ -11,6 +11,10 @@ function bootstrapServiceCodes() {
         console.log('⚠️ 서비스코드 테이블 요소 없음, 초기화 스킵');
         return;
     }
+    if (typeof window.isElementInActivePage === 'function' && !window.isElementInActivePage(tableEl)) {
+        console.log('ℹ️ 서비스코드 비활성 페이지, 초기화 스킵');
+        return;
+    }
 
     try {
         initializeServiceCodesTable();

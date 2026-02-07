@@ -7,6 +7,7 @@ from sqlalchemy import text
 from typing import Optional
 
 from app.core.database import get_db
+from app.core.tenant import get_company_cd
 from app.core.logger import app_logger
 
 router = APIRouter()
@@ -26,6 +27,7 @@ async def list_login_history(
 ):
     """접속 이력 목록 조회"""
     try:
+        company_cd = get_company_cd()
         base_query = """
             SELECT
                 history_id,
@@ -36,9 +38,9 @@ async def list_login_history(
                 ip_address,
                 created_at
             FROM login_history
-            WHERE 1=1
+            WHERE company_cd = :company_cd
         """
-        params = {}
+        params = {"company_cd": company_cd}
 
         if login_id:
             base_query += " AND login_id LIKE :login_id"

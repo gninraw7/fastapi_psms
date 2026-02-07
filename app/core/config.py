@@ -38,6 +38,9 @@ class Settings:
     DB_SSL_DISABLED: bool = os.getenv("DB_SSL_DISABLED", "False").lower() in ("true", "1", "yes")
     DB_SSL_CA: str = os.getenv("DB_SSL_CA", "")
 
+    # 멀티테넌트 기본 회사 코드 (UI 개발 전까지 기본값 사용)
+    DEFAULT_COMPANY_CD: str = os.getenv("DEFAULT_COMPANY_CD", "TESTCOMP")
+
     # JWT 보안 설정
     SECRET_KEY: str = "your-secret-key-change-this"
     ALGORITHM: str = "HS256"

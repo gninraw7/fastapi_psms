@@ -6,8 +6,97 @@
 let ceoDashboardInitialized = false;
 let ceoDashboardLoading = false;
 let ceoDashboardCharts = {};
+let ceoDashboardSnapshot = null;
+let ceoDashboardDarkMode = false;
 
 const CEO_COLOR_SET = ['#0f766e', '#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#f97316', '#06b6d4', '#14b8a6'];
+const CEO_DARK_COLOR_SET = ['#38bdf8', '#60a5fa', '#22d3ee', '#34d399', '#fbbf24', '#f97316', '#a78bfa', '#f472b6'];
+
+const CEO_CHART_COLORS = {
+    light: {
+        actual: '#0f766e',
+        actualFill: 'rgba(15,118,110,0.14)',
+        previous: '#64748b',
+        plan: '#f59e0b',
+        planBar: '#bcd5d1',
+        actualBar: '#0f766e',
+        rate: '#f59e0b',
+        probability: '#0ea5e9',
+        manager: '#22c55e'
+    },
+    dark: {
+        actual: '#38bdf8',
+        actualFill: 'rgba(56,189,248,0.2)',
+        previous: '#94a3b8',
+        plan: '#fbbf24',
+        planBar: '#1e293b',
+        actualBar: '#38bdf8',
+        rate: '#f59e0b',
+        probability: '#60a5fa',
+        manager: '#34d399'
+    }
+};
+
+const CEO_DASHBOARD_THEME = {
+    light: {
+        text: '#1b4250',
+        axis: '#6b7b86',
+        grid: 'rgba(15,23,42,0.08)',
+        tooltipBg: 'rgba(15,23,42,0.85)',
+        tooltipText: '#f8fafc'
+    },
+    dark: {
+        text: '#e2e8f0',
+        axis: '#cbd5f5',
+        grid: 'rgba(148,163,184,0.25)',
+        tooltipBg: 'rgba(2,6,23,0.92)',
+        tooltipText: '#f8fafc'
+    }
+};
+
+function getDashboardTheme() {
+    return ceoDashboardDarkMode ? CEO_DASHBOARD_THEME.dark : CEO_DASHBOARD_THEME.light;
+}
+
+function getDashboardPalette() {
+    return ceoDashboardDarkMode ? CEO_DARK_COLOR_SET : CEO_COLOR_SET;
+}
+
+function getDashboardChartColors() {
+    return ceoDashboardDarkMode ? CEO_CHART_COLORS.dark : CEO_CHART_COLORS.light;
+}
+
+function applyDashboardThemeClass() {
+    const shell = document.querySelector('#page-sales-dashboard .ceo-dashboard-shell');
+    if (shell) shell.classList.toggle('dark-mode', ceoDashboardDarkMode);
+    const toggle = document.getElementById('ceoDashboardDarkToggle');
+    if (toggle) toggle.checked = ceoDashboardDarkMode;
+}
+
+function applyDashboardTheme(refreshCharts = false) {
+    applyDashboardThemeClass();
+    if (refreshCharts && ceoDashboardSnapshot) {
+        renderDashboard(ceoDashboardSnapshot);
+    }
+}
+
+function loadDashboardThemePreference() {
+    try {
+        const raw = localStorage.getItem('psms.ceoDashboard.darkMode');
+        ceoDashboardDarkMode = raw ? JSON.parse(raw) : false;
+    } catch (error) {
+        ceoDashboardDarkMode = false;
+    }
+    applyDashboardThemeClass();
+}
+
+function setDashboardDarkMode(enabled, persist = true) {
+    ceoDashboardDarkMode = !!enabled;
+    if (persist) {
+        localStorage.setItem('psms.ceoDashboard.darkMode', JSON.stringify(ceoDashboardDarkMode));
+    }
+    applyDashboardTheme(true);
+}
 
 function formatKrwCompact(value) {
     const n = Number(value || 0);
@@ -73,6 +162,7 @@ function setDashboardLoadingState(isLoading) {
 function bindDashboardEvents() {
     const yearSelect = document.getElementById('ceoYearSelect');
     const refreshBtn = document.getElementById('btnCeoRefresh');
+    const darkToggle = document.getElementById('ceoDashboardDarkToggle');
 
     if (yearSelect && yearSelect.dataset.bound !== '1') {
         yearSelect.addEventListener('change', () => {
@@ -88,6 +178,13 @@ function bindDashboardEvents() {
             loadCeoDashboard(year);
         });
         refreshBtn.dataset.bound = '1';
+    }
+
+    if (darkToggle && darkToggle.dataset.bound !== '1') {
+        darkToggle.addEventListener('change', () => {
+            setDashboardDarkMode(darkToggle.checked);
+        });
+        darkToggle.dataset.bound = '1';
     }
 }
 
@@ -132,6 +229,8 @@ function renderKpiCards(data) {
 }
 
 function renderMonthlyTrendChart(rows) {
+    const theme = getDashboardTheme();
+    const colors = getDashboardChartColors();
     const labels = (rows || []).map(r => `${r.month}월`);
     const actual = (rows || []).map(r => Number(r.actual_order || 0));
     const previous = (rows || []).map(r => Number(r.previous_order || 0));
@@ -145,8 +244,8 @@ function renderMonthlyTrendChart(rows) {
                 {
                     label: '실적',
                     data: actual,
-                    borderColor: '#0f766e',
-                    backgroundColor: 'rgba(15,118,110,0.14)',
+                    borderColor: colors.actual,
+                    backgroundColor: colors.actualFill,
                     tension: 0.3,
                     fill: true,
                     pointRadius: 2
@@ -154,7 +253,7 @@ function renderMonthlyTrendChart(rows) {
                 {
                     label: '전년',
                     data: previous,
-                    borderColor: '#64748b',
+                    borderColor: colors.previous,
                     borderDash: [6, 5],
                     tension: 0.3,
                     fill: false,
@@ -163,7 +262,7 @@ function renderMonthlyTrendChart(rows) {
                 {
                     label: '계획',
                     data: plan,
-                    borderColor: '#f59e0b',
+                    borderColor: colors.plan,
                     borderDash: [3, 3],
                     tension: 0.25,
                     fill: false,
@@ -175,18 +274,29 @@ function renderMonthlyTrendChart(rows) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom' },
+                legend: { position: 'bottom', labels: { color: theme.text } },
                 tooltip: {
+                    backgroundColor: theme.tooltipBg,
+                    titleColor: theme.tooltipText,
+                    bodyColor: theme.tooltipText,
+                    borderColor: theme.grid,
+                    borderWidth: 1,
                     callbacks: {
                         label: (ctx) => `${ctx.dataset.label}: ${formatKrwCompact(ctx.parsed.y)}`
                     }
                 }
             },
             scales: {
+                x: {
+                    ticks: { color: theme.axis },
+                    grid: { color: theme.grid }
+                },
                 y: {
                     ticks: {
-                        callback: (v) => formatKrwCompact(v)
-                    }
+                        callback: (v) => formatKrwCompact(v),
+                        color: theme.axis
+                    },
+                    grid: { color: theme.grid }
                 }
             }
         }
@@ -194,6 +304,8 @@ function renderMonthlyTrendChart(rows) {
 }
 
 function renderQuarterCompareChart(rows) {
+    const theme = getDashboardTheme();
+    const colors = getDashboardChartColors();
     const labels = (rows || []).map(r => r.quarter);
     const actual = (rows || []).map(r => Number(r.actual_order || 0));
     const plan = (rows || []).map(r => Number(r.plan_order || 0));
@@ -207,14 +319,14 @@ function renderQuarterCompareChart(rows) {
                     type: 'bar',
                     label: '계획',
                     data: plan,
-                    backgroundColor: '#bcd5d1',
+                    backgroundColor: colors.planBar,
                     borderRadius: 6
                 },
                 {
                     type: 'bar',
                     label: '실적',
                     data: actual,
-                    backgroundColor: '#0f766e',
+                    backgroundColor: colors.actualBar,
                     borderRadius: 6
                 },
                 {
@@ -222,8 +334,8 @@ function renderQuarterCompareChart(rows) {
                     label: '달성률(%)',
                     data: rate,
                     yAxisID: 'y1',
-                    borderColor: '#f59e0b',
-                    backgroundColor: '#f59e0b',
+                    borderColor: colors.rate,
+                    backgroundColor: colors.rate,
                     tension: 0.25,
                     pointRadius: 3
                 }
@@ -233,8 +345,13 @@ function renderQuarterCompareChart(rows) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom' },
+                legend: { position: 'bottom', labels: { color: theme.text } },
                 tooltip: {
+                    backgroundColor: theme.tooltipBg,
+                    titleColor: theme.tooltipText,
+                    bodyColor: theme.tooltipText,
+                    borderColor: theme.grid,
+                    borderWidth: 1,
                     callbacks: {
                         label: (ctx) => ctx.dataset.yAxisID === 'y1'
                             ? `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`
@@ -244,14 +361,19 @@ function renderQuarterCompareChart(rows) {
             },
             scales: {
                 y: {
-                    ticks: { callback: (v) => formatKrwCompact(v) }
+                    ticks: { callback: (v) => formatKrwCompact(v), color: theme.axis },
+                    grid: { color: theme.grid }
                 },
                 y1: {
                     position: 'right',
                     min: 0,
                     max: 200,
-                    grid: { drawOnChartArea: false },
-                    ticks: { callback: (v) => `${v}%` }
+                    grid: { drawOnChartArea: false, color: theme.grid },
+                    ticks: { callback: (v) => `${v}%`, color: theme.axis }
+                },
+                x: {
+                    ticks: { color: theme.axis },
+                    grid: { color: theme.grid }
                 }
             }
         }
@@ -259,6 +381,8 @@ function renderQuarterCompareChart(rows) {
 }
 
 function renderStageFunnelChart(rows) {
+    const theme = getDashboardTheme();
+    const palette = getDashboardPalette();
     const labels = (rows || []).map(r => r.stage_name || r.stage_code || '-');
     const amounts = (rows || []).map(r => Number(r.total_amount || 0));
 
@@ -269,7 +393,7 @@ function renderStageFunnelChart(rows) {
             datasets: [{
                 label: '파이프라인 금액',
                 data: amounts,
-                backgroundColor: labels.map((_, idx) => CEO_COLOR_SET[idx % CEO_COLOR_SET.length]),
+                backgroundColor: labels.map((_, idx) => palette[idx % palette.length]),
                 borderRadius: 8
             }]
         },
@@ -278,21 +402,35 @@ function renderStageFunnelChart(rows) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false },
+                legend: { display: false, labels: { color: theme.text } },
                 tooltip: {
+                    backgroundColor: theme.tooltipBg,
+                    titleColor: theme.tooltipText,
+                    bodyColor: theme.tooltipText,
+                    borderColor: theme.grid,
+                    borderWidth: 1,
                     callbacks: {
                         label: (ctx) => formatKrwCompact(ctx.parsed.x)
                     }
                 }
             },
             scales: {
-                x: { ticks: { callback: (v) => formatKrwCompact(v) } }
+                x: {
+                    ticks: { callback: (v) => formatKrwCompact(v), color: theme.axis },
+                    grid: { color: theme.grid }
+                },
+                y: {
+                    ticks: { color: theme.axis },
+                    grid: { color: theme.grid }
+                }
             }
         }
     });
 }
 
 function renderProbabilityChart(rows) {
+    const theme = getDashboardTheme();
+    const colors = getDashboardChartColors();
     const labels = (rows || []).map(r => r.probability_band);
     const counts = (rows || []).map(r => Number(r.project_count || 0));
 
@@ -303,7 +441,7 @@ function renderProbabilityChart(rows) {
             datasets: [{
                 label: '프로젝트 수',
                 data: counts,
-                backgroundColor: '#0ea5e9',
+                backgroundColor: colors.probability,
                 borderRadius: 8
             }]
         },
@@ -311,11 +449,26 @@ function renderProbabilityChart(rows) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false },
+                legend: { display: false, labels: { color: theme.text } },
                 tooltip: {
+                    backgroundColor: theme.tooltipBg,
+                    titleColor: theme.tooltipText,
+                    bodyColor: theme.tooltipText,
+                    borderColor: theme.grid,
+                    borderWidth: 1,
                     callbacks: {
                         label: (ctx) => `${ctx.parsed.y.toLocaleString('ko-KR')}건`
                     }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: theme.axis },
+                    grid: { color: theme.grid }
+                },
+                y: {
+                    ticks: { color: theme.axis },
+                    grid: { color: theme.grid }
                 }
             }
         }
@@ -323,6 +476,8 @@ function renderProbabilityChart(rows) {
 }
 
 function renderManagerTopChart(rows) {
+    const theme = getDashboardTheme();
+    const colors = getDashboardChartColors();
     const labels = (rows || []).map(r => r.manager_name || '-');
     const expected = (rows || []).map(r => Number(r.expected_amount || 0));
 
@@ -333,7 +488,7 @@ function renderManagerTopChart(rows) {
             datasets: [{
                 label: '예상매출',
                 data: expected,
-                backgroundColor: '#22c55e',
+                backgroundColor: colors.manager,
                 borderRadius: 7
             }]
         },
@@ -342,21 +497,35 @@ function renderManagerTopChart(rows) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false },
+                legend: { display: false, labels: { color: theme.text } },
                 tooltip: {
+                    backgroundColor: theme.tooltipBg,
+                    titleColor: theme.tooltipText,
+                    bodyColor: theme.tooltipText,
+                    borderColor: theme.grid,
+                    borderWidth: 1,
                     callbacks: {
                         label: (ctx) => formatKrwCompact(ctx.parsed.x)
                     }
                 }
             },
             scales: {
-                x: { ticks: { callback: (v) => formatKrwCompact(v) } }
+                x: {
+                    ticks: { callback: (v) => formatKrwCompact(v), color: theme.axis },
+                    grid: { color: theme.grid }
+                },
+                y: {
+                    ticks: { color: theme.axis },
+                    grid: { color: theme.grid }
+                }
             }
         }
     });
 }
 
 function renderFieldMixChart(rows) {
+    const theme = getDashboardTheme();
+    const palette = getDashboardPalette();
     const labels = (rows || []).map(r => r.field_name || '-');
     const amounts = (rows || []).map(r => Number(r.total_amount || 0));
 
@@ -366,7 +535,7 @@ function renderFieldMixChart(rows) {
             labels,
             datasets: [{
                 data: amounts,
-                backgroundColor: labels.map((_, idx) => CEO_COLOR_SET[idx % CEO_COLOR_SET.length]),
+                backgroundColor: labels.map((_, idx) => palette[idx % palette.length]),
                 borderWidth: 1
             }]
         },
@@ -374,8 +543,13 @@ function renderFieldMixChart(rows) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom' },
+                legend: { position: 'bottom', labels: { color: theme.text } },
                 tooltip: {
+                    backgroundColor: theme.tooltipBg,
+                    titleColor: theme.tooltipText,
+                    bodyColor: theme.tooltipText,
+                    borderColor: theme.grid,
+                    borderWidth: 1,
                     callbacks: {
                         label: (ctx) => `${ctx.label}: ${formatKrwCompact(ctx.parsed)}`
                     }
@@ -463,8 +637,9 @@ async function loadCeoDashboard(year) {
 
     try {
         const response = await API.get(`${API_CONFIG.ENDPOINTS.REPORTS}/ceo-dashboard?year=${year}`);
+        ceoDashboardSnapshot = response || {};
         renderYearOptions(response?.available_years || [year], response?.year || year);
-        renderDashboard(response || {});
+        renderDashboard(ceoDashboardSnapshot);
     } catch (error) {
         console.error('❌ CEO 대시보드 로드 실패:', error);
         destroyDashboardCharts();
@@ -484,6 +659,8 @@ async function initializeSalesDashboard() {
         console.warn('⚠️ Chart.js 로드 필요');
         return;
     }
+
+    loadDashboardThemePreference();
 
     if (!ceoDashboardInitialized) {
         bindDashboardEvents();

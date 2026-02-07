@@ -8,6 +8,7 @@ from datetime import date
 
 class LoginRequest(BaseModel):
     """로그인 요청"""
+    company_cd: Optional[str] = Field(None, description="회사 코드 (미입력 시 기본값 사용)")
     login_id: str = Field(..., min_length=3, max_length=50, description="로그인 ID")
     password: str = Field(..., min_length=4, description="비밀번호")
 
@@ -17,10 +18,15 @@ class TokenResponse(BaseModel):
     refresh_token: str = Field(..., description="리프레시 토큰")
     token_type: str = Field(default="bearer", description="토큰 타입")
     expires_in: int = Field(..., description="만료 시간(초)")
+    company_cd: str = Field(..., description="회사 코드")
     
 class RefreshTokenRequest(BaseModel):
     """리프레시 토큰 요청"""
     refresh_token: str = Field(..., description="리프레시 토큰")
+
+class SwitchCompanyRequest(BaseModel):
+    """회사 전환 요청"""
+    company_cd: str = Field(..., min_length=1, max_length=20, description="회사 코드")
 
 class UserInfo(BaseModel):
     """사용자 정보"""

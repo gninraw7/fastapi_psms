@@ -11,7 +11,8 @@ const AUTH = {
         SERVER_URL: 'psms_server_url',
         ACCESS_TOKEN: 'psms_access_token',
         REFRESH_TOKEN: 'psms_refresh_token',
-        USER_INFO: 'psms_user_info'
+        USER_INFO: 'psms_user_info',
+        COMPANY_CD: 'psms_company_cd'
     },
 
     /**
@@ -63,6 +64,22 @@ const AUTH = {
     getUserInfo() {
         const userInfoStr = sessionStorage.getItem(this.STORAGE_KEYS.USER_INFO);
         return userInfoStr ? JSON.parse(userInfoStr) : null;
+    },
+
+    /**
+     * 회사 코드 저장
+     */
+    setCompanyCd(companyCd) {
+        if (companyCd) {
+            sessionStorage.setItem(this.STORAGE_KEYS.COMPANY_CD, companyCd);
+        }
+    },
+
+    /**
+     * 회사 코드 가져오기
+     */
+    getCompanyCd() {
+        return sessionStorage.getItem(this.STORAGE_KEYS.COMPANY_CD);
     },
 
     /**
@@ -185,11 +202,16 @@ const AUTH = {
      */
     async login(loginId, password) {
         try {
+            const companyCd =
+                this.getCompanyCd() ||
+                (window.COMPANY_CONFIG && window.COMPANY_CONFIG.DEFAULT_COMPANY_CD) ||
+                'TESTCOMP';
             const data = await this.apiRequest('/api/v1/auth/login', {
                 method: 'POST',
                 body: JSON.stringify({
                     login_id: loginId,
-                    password: password
+                    password: password,
+                    company_cd: companyCd
                 })
             });
 
@@ -199,6 +221,9 @@ const AUTH = {
             // 사용자 정보 가져오기
             const userInfo = await this.getMe();
             this.setUserInfo(userInfo);
+            if (userInfo && userInfo.company_cd) {
+                this.setCompanyCd(userInfo.company_cd);
+            }
 
             return { success: true, user: userInfo };
         } catch (error) {
@@ -244,6 +269,28 @@ const AUTH = {
             console.error('토큰 갱신 실패:', error);
             return false;
         }
+    },
+
+    /**
+     * 회사 전환 (새 토큰 발급)
+     */
+    async switchCompany(companyCd) {
+        if (!companyCd) {
+            throw new Error('회사 코드가 필요합니다.');
+        }
+
+        const data = await this.apiRequest('/api/v1/auth/switch-company', {
+            method: 'POST',
+            body: JSON.stringify({ company_cd: companyCd })
+        });
+
+        this.setTokens(data.access_token, data.refresh_token);
+        const userInfo = await this.getMe();
+        this.setUserInfo(userInfo);
+        if (userInfo && userInfo.company_cd) {
+            this.setCompanyCd(userInfo.company_cd);
+        }
+        return userInfo;
     },
 
     /**

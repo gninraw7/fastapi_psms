@@ -6,12 +6,21 @@
 let permissionsFormsTable = null;
 let permissionsRolesTable = null;
 let permissionsUsersTable = null;
+let permissionsRolesListTable = null;
+let permissionsUsersListTable = null;
+let permissionsRoleFormsTable = null;
+let permissionsUserFormsTable = null;
 
 let permissionFormMap = {};
 let permissionFormOptions = {};
 let permissionRoleOptions = {};
 let permissionUserMap = {};
 let permissionUserOptions = {};
+let permissionRoleList = [];
+let permissionUserList = [];
+
+let activeRole = '';
+let activeUser = '';
 
 function initializePermissions() {
     const formsEl = document.getElementById('permissionsFormsTable');
@@ -19,6 +28,11 @@ function initializePermissions() {
     const usersEl = document.getElementById('permissionsUsersTable');
     if (!formsEl && !rolesEl && !usersEl) {
         console.log('⚠️ 권한 관리 요소 없음, 초기화 스킵');
+        return;
+    }
+    const anchorEl = formsEl || rolesEl || usersEl;
+    if (typeof window.isElementInActivePage === 'function' && !window.isElementInActivePage(anchorEl)) {
+        console.log('ℹ️ 권한 관리 비활성 페이지, 초기화 스킵');
         return;
     }
 
@@ -68,8 +82,12 @@ function switchPermissionTab(tabId) {
         permissionsFormsTable.redraw(true);
     } else if (tabId === 'roles' && permissionsRolesTable) {
         permissionsRolesTable.redraw(true);
+        if (permissionsRolesListTable) permissionsRolesListTable.redraw(true);
+        if (permissionsRoleFormsTable) permissionsRoleFormsTable.redraw(true);
     } else if (tabId === 'users' && permissionsUsersTable) {
         permissionsUsersTable.redraw(true);
+        if (permissionsUsersListTable) permissionsUsersListTable.redraw(true);
+        if (permissionsUserFormsTable) permissionsUserFormsTable.redraw(true);
     }
 }
 
@@ -99,6 +117,51 @@ function initializePermissionTables() {
             ]
         });
         permissionsFormsTable.on("cellEdited", markPermissionRowUpdated);
+    }
+
+    if (!permissionsRolesListTable) {
+        permissionsRolesListTable = new Tabulator('#permissionsRolesListTable', {
+            ...commonOptions,
+            index: "role",
+            sortMode: "local",
+            ajaxSorting: false,
+            height: "240px",
+            layout: "fitDataStretch",
+            placeholder: "데이터가 없습니다",
+            selectable: 1,
+            selectableRangeMode: "click",
+            columns: [
+                { formatter: "rowSelection", titleFormatter: "rowSelection", width: 36, headerSort: false, hozAlign: "center" },
+                { title: "역할", field: "role", width: 120 },
+                { title: "역할명", field: "role_name", minWidth: 160 }
+            ]
+        });
+        permissionsRolesListTable.on("rowClick", (e, row) => {
+            const data = row.getData();
+            setActiveRole(data.role);
+        });
+    }
+
+    if (!permissionsRoleFormsTable) {
+        permissionsRoleFormsTable = new Tabulator('#permissionsRoleFormsTable', {
+            ...commonOptions,
+            sortMode: "local",
+            ajaxSorting: false,
+            height: "260px",
+            layout: "fitDataStretch",
+            placeholder: "데이터가 없습니다",
+            selectable: true,
+            selectableRangeMode: "click",
+            columns: [
+                { formatter: "rowSelection", titleFormatter: "rowSelection", width: 36, headerSort: false, hozAlign: "center" },
+                { title: "화면 ID", field: "form_id", width: 180 },
+                { title: "화면명", field: "form_name", minWidth: 180 }
+            ]
+        });
+        permissionsRoleFormsTable.on("rowDblClick", (e, row) => {
+            const data = row.getData();
+            addRolePermissionRow(data.form_id, 'view');
+        });
     }
 
     if (!permissionsRolesTable) {
@@ -144,6 +207,52 @@ function initializePermissionTables() {
         });
         permissionsRolesTable.on("cellEdited", (cell) => {
             handlePermissionCellEdited(cell, 'roles');
+        });
+    }
+
+    if (!permissionsUsersListTable) {
+        permissionsUsersListTable = new Tabulator('#permissionsUsersListTable', {
+            ...commonOptions,
+            index: "login_id",
+            sortMode: "local",
+            ajaxSorting: false,
+            height: "240px",
+            layout: "fitDataStretch",
+            placeholder: "데이터가 없습니다",
+            selectable: 1,
+            selectableRangeMode: "click",
+            columns: [
+                { formatter: "rowSelection", titleFormatter: "rowSelection", width: 36, headerSort: false, hozAlign: "center" },
+                { title: "로그인 ID", field: "login_id", width: 140 },
+                { title: "사용자명", field: "user_name", width: 160 },
+                { title: "역할", field: "role", width: 100 }
+            ]
+        });
+        permissionsUsersListTable.on("rowClick", (e, row) => {
+            const data = row.getData();
+            setActiveUser(data.login_id);
+        });
+    }
+
+    if (!permissionsUserFormsTable) {
+        permissionsUserFormsTable = new Tabulator('#permissionsUserFormsTable', {
+            ...commonOptions,
+            sortMode: "local",
+            ajaxSorting: false,
+            height: "260px",
+            layout: "fitDataStretch",
+            placeholder: "데이터가 없습니다",
+            selectable: true,
+            selectableRangeMode: "click",
+            columns: [
+                { formatter: "rowSelection", titleFormatter: "rowSelection", width: 36, headerSort: false, hozAlign: "center" },
+                { title: "화면 ID", field: "form_id", width: 180 },
+                { title: "화면명", field: "form_name", minWidth: 180 }
+            ]
+        });
+        permissionsUserFormsTable.on("rowDblClick", (e, row) => {
+            const data = row.getData();
+            addUserPermissionRow(data.form_id, 'view');
         });
     }
 
@@ -276,6 +385,8 @@ function bindPermissionActions() {
     bindPermissionFormActions();
     bindPermissionRoleActions();
     bindPermissionUserActions();
+    bindPermissionRoleListActions();
+    bindPermissionUserListActions();
 }
 
 function bindPermissionFormActions() {
@@ -324,7 +435,7 @@ function bindPermissionRoleActions() {
         newBtn.addEventListener('click', () => {
             if (!permissionsRolesTable) return;
             permissionsRolesTable.addRow({
-                role: '',
+                role: activeRole || '',
                 form_id: '',
                 form_name: '',
                 can_view: 'N',
@@ -355,6 +466,25 @@ function bindPermissionRoleActions() {
     }
 }
 
+function bindPermissionRoleListActions() {
+    const refreshBtn = document.getElementById('btnPermRolesListRefresh');
+    const viewOnlyBtn = document.getElementById('btnPermRoleViewOnly');
+    const grantAllBtn = document.getElementById('btnPermRoleGrantAll');
+
+    if (refreshBtn && !refreshBtn.dataset.bound) {
+        refreshBtn.dataset.bound = 'true';
+        refreshBtn.addEventListener('click', () => refreshPermissionRoles());
+    }
+    if (viewOnlyBtn && !viewOnlyBtn.dataset.bound) {
+        viewOnlyBtn.dataset.bound = 'true';
+        viewOnlyBtn.addEventListener('click', () => addRolePermissionsFromSelectedForms('view'));
+    }
+    if (grantAllBtn && !grantAllBtn.dataset.bound) {
+        grantAllBtn.dataset.bound = 'true';
+        grantAllBtn.addEventListener('click', () => addRolePermissionsFromSelectedForms('all'));
+    }
+}
+
 function bindPermissionUserActions() {
     const newBtn = document.getElementById('btnPermUsersNew');
     const deleteBtn = document.getElementById('btnPermUsersDelete');
@@ -367,7 +497,7 @@ function bindPermissionUserActions() {
         newBtn.addEventListener('click', () => {
             if (!permissionsUsersTable) return;
             permissionsUsersTable.addRow({
-                login_id: '',
+                login_id: activeUser || '',
                 user_name: '',
                 form_id: '',
                 form_name: '',
@@ -396,6 +526,25 @@ function bindPermissionUserActions() {
         excelBtn.addEventListener('click', () => {
             if (permissionsUsersTable) permissionsUsersTable.download('xlsx', 'permission_users.xlsx', { sheetName: 'Users' });
         });
+    }
+}
+
+function bindPermissionUserListActions() {
+    const refreshBtn = document.getElementById('btnPermUsersListRefresh');
+    const viewOnlyBtn = document.getElementById('btnPermUserViewOnly');
+    const grantAllBtn = document.getElementById('btnPermUserGrantAll');
+
+    if (refreshBtn && !refreshBtn.dataset.bound) {
+        refreshBtn.dataset.bound = 'true';
+        refreshBtn.addEventListener('click', () => refreshPermissionUsers());
+    }
+    if (viewOnlyBtn && !viewOnlyBtn.dataset.bound) {
+        viewOnlyBtn.dataset.bound = 'true';
+        viewOnlyBtn.addEventListener('click', () => addUserPermissionsFromSelectedForms('view'));
+    }
+    if (grantAllBtn && !grantAllBtn.dataset.bound) {
+        grantAllBtn.dataset.bound = 'true';
+        grantAllBtn.addEventListener('click', () => addUserPermissionsFromSelectedForms('all'));
     }
 }
 
@@ -428,6 +577,146 @@ function getPermissionTable(tableKey) {
     return null;
 }
 
+function setActiveRole(role) {
+    activeRole = role || '';
+    const label = document.getElementById('permActiveRoleLabel');
+    if (label) label.textContent = activeRole || '-';
+    if (permissionsRolesTable) {
+        if (activeRole) {
+            permissionsRolesTable.setFilter('role', '=', activeRole);
+        } else {
+            permissionsRolesTable.clearFilter();
+        }
+    }
+}
+
+function setActiveUser(loginId) {
+    activeUser = loginId || '';
+    const label = document.getElementById('permActiveUserLabel');
+    if (label) label.textContent = activeUser || '-';
+    if (permissionsUsersTable) {
+        if (activeUser) {
+            permissionsUsersTable.setFilter('login_id', '=', activeUser);
+        } else {
+            permissionsUsersTable.clearFilter();
+        }
+    }
+}
+
+function syncRoleListSelection() {
+    if (!permissionsRolesListTable) return;
+    if (activeRole) {
+        permissionsRolesListTable.deselectRow();
+        permissionsRolesListTable.selectRow(activeRole);
+        return;
+    }
+    const data = permissionsRolesListTable.getData() || [];
+    if (data.length > 0) {
+        const firstRole = data[0].role;
+        permissionsRolesListTable.selectRow(firstRole);
+        setActiveRole(firstRole);
+    }
+}
+
+function syncUserListSelection() {
+    if (!permissionsUsersListTable) return;
+    if (activeUser) {
+        permissionsUsersListTable.deselectRow();
+        permissionsUsersListTable.selectRow(activeUser);
+        return;
+    }
+    const data = permissionsUsersListTable.getData() || [];
+    if (data.length > 0) {
+        const firstUser = data[0].login_id;
+        permissionsUsersListTable.selectRow(firstUser);
+        setActiveUser(firstUser);
+    }
+}
+
+function getPermissionDefaults(mode) {
+    if (mode === 'all') {
+        return { can_view: 'Y', can_create: 'Y', can_update: 'Y', can_delete: 'Y' };
+    }
+    return { can_view: 'Y', can_create: 'N', can_update: 'N', can_delete: 'N' };
+}
+
+function hasPermissionRow(table, fields) {
+    if (!table) return false;
+    return table.getData().some(row => {
+        if (row.row_stat === 'D') return false;
+        return fields.every(([key, value]) => (row[key] || '') === (value || ''));
+    });
+}
+
+function addRolePermissionRow(formId, mode) {
+    if (!permissionsRolesTable) return;
+    if (!activeRole) {
+        alert('역할을 선택하세요.');
+        return;
+    }
+    if (!formId) return;
+    if (hasPermissionRow(permissionsRolesTable, [['role', activeRole], ['form_id', formId]])) {
+        return;
+    }
+    const defaults = getPermissionDefaults(mode);
+    permissionsRolesTable.addRow({
+        role: activeRole,
+        form_id: formId,
+        form_name: permissionFormMap[formId] || '',
+        ...defaults,
+        row_stat: 'N'
+    }, true);
+}
+
+function addUserPermissionRow(formId, mode) {
+    if (!permissionsUsersTable) return;
+    if (!activeUser) {
+        alert('사용자를 선택하세요.');
+        return;
+    }
+    if (!formId) return;
+    if (hasPermissionRow(permissionsUsersTable, [['login_id', activeUser], ['form_id', formId]])) {
+        return;
+    }
+    const defaults = getPermissionDefaults(mode);
+    permissionsUsersTable.addRow({
+        login_id: activeUser,
+        user_name: permissionUserMap[activeUser] || '',
+        form_id: formId,
+        form_name: permissionFormMap[formId] || '',
+        ...defaults,
+        row_stat: 'N'
+    }, true);
+}
+
+function addRolePermissionsFromSelectedForms(mode) {
+    if (!permissionsRoleFormsTable) return;
+    if (!activeRole) {
+        alert('역할을 선택하세요.');
+        return;
+    }
+    const selected = permissionsRoleFormsTable.getSelectedData() || [];
+    if (!selected.length) {
+        alert('화면을 선택하세요.');
+        return;
+    }
+    selected.forEach(item => addRolePermissionRow(item.form_id, mode));
+}
+
+function addUserPermissionsFromSelectedForms(mode) {
+    if (!permissionsUserFormsTable) return;
+    if (!activeUser) {
+        alert('사용자를 선택하세요.');
+        return;
+    }
+    const selected = permissionsUserFormsTable.getSelectedData() || [];
+    if (!selected.length) {
+        alert('화면을 선택하세요.');
+        return;
+    }
+    selected.forEach(item => addUserPermissionRow(item.form_id, mode));
+}
+
 async function refreshAllPermissions() {
     await refreshPermissionForms();
     await refreshPermissionRoles();
@@ -439,13 +728,37 @@ async function refreshPermissionForms() {
     if (permissionsFormsTable) {
         permissionsFormsTable.setData(items.map(item => ({ ...item, row_stat: '' })));
     }
+    if (permissionsRoleFormsTable) {
+        permissionsRoleFormsTable.setData(items);
+    }
+    if (permissionsUserFormsTable) {
+        permissionsUserFormsTable.setData(items);
+    }
 }
 
 async function refreshPermissionRoles() {
     await loadPermissionLookups();
+    if (permissionsRolesListTable) {
+        permissionsRolesListTable.setData(permissionRoleList);
+        syncRoleListSelection();
+    }
     try {
         const response = await API.get(API_CONFIG.ENDPOINTS.PERMISSIONS_ROLES);
         const items = response?.items || [];
+        if ((!permissionRoleList || permissionRoleList.length === 0) && items.length > 0) {
+            const roleMap = {};
+            items.forEach(item => {
+                if (!item.role) return;
+                if (!roleMap[item.role]) {
+                    roleMap[item.role] = item.role;
+                }
+            });
+            permissionRoleList = Object.keys(roleMap).map(role => ({ role, role_name: role }));
+            if (permissionsRolesListTable) {
+                permissionsRolesListTable.setData(permissionRoleList);
+                syncRoleListSelection();
+            }
+        }
         const normalized = items.map(item => ({
             ...item,
             form_name: item.form_name || permissionFormMap[item.form_id] || '',
@@ -456,6 +769,9 @@ async function refreshPermissionRoles() {
             row_stat: ''
         }));
         if (permissionsRolesTable) permissionsRolesTable.setData(normalized);
+        if (activeRole && permissionsRolesTable) {
+            permissionsRolesTable.setFilter('role', '=', activeRole);
+        }
     } catch (error) {
         console.error('❌ 역할 권한 로드 실패:', error);
         if (permissionsRolesTable) permissionsRolesTable.setData([]);
@@ -464,9 +780,29 @@ async function refreshPermissionRoles() {
 
 async function refreshPermissionUsers() {
     await loadPermissionLookups();
+    if (permissionsUsersListTable) {
+        permissionsUsersListTable.setData(permissionUserList);
+        syncUserListSelection();
+    }
     try {
         const response = await API.get(API_CONFIG.ENDPOINTS.PERMISSIONS_USERS);
         const items = response?.items || [];
+        if ((!permissionUserList || permissionUserList.length === 0) && items.length > 0) {
+            const userMap = {};
+            items.forEach(item => {
+                if (!item.login_id) return;
+                userMap[item.login_id] = item.user_name || '';
+            });
+            permissionUserList = Object.keys(userMap).map(login_id => ({
+                login_id,
+                user_name: userMap[login_id],
+                role: ''
+            }));
+            if (permissionsUsersListTable) {
+                permissionsUsersListTable.setData(permissionUserList);
+                syncUserListSelection();
+            }
+        }
         const normalized = items.map(item => ({
             ...item,
             user_name: item.user_name || permissionUserMap[item.login_id] || '',
@@ -478,6 +814,9 @@ async function refreshPermissionUsers() {
             row_stat: ''
         }));
         if (permissionsUsersTable) permissionsUsersTable.setData(normalized);
+        if (activeUser && permissionsUsersTable) {
+            permissionsUsersTable.setFilter('login_id', '=', activeUser);
+        }
     } catch (error) {
         console.error('❌ 사용자 권한 로드 실패:', error);
         if (permissionsUsersTable) permissionsUsersTable.setData([]);
@@ -517,15 +856,18 @@ async function fetchPermissionRoles() {
         const response = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/ROLE`);
         const items = response?.items || [];
         permissionRoleOptions = {};
+        permissionRoleList = [];
         items.forEach(item => {
             const code = item.code || item.role || item.value;
             const name = item.code_name || item.name || item.label || code;
             if (!code) return;
             permissionRoleOptions[code] = name ? `${code} (${name})` : code;
+            permissionRoleList.push({ role: code, role_name: name || code });
         });
     } catch (error) {
         console.error('❌ ROLE 코드 로드 실패:', error);
         permissionRoleOptions = {};
+        permissionRoleList = [];
     }
 }
 
@@ -535,15 +877,22 @@ async function fetchPermissionUsers() {
         const items = response?.items || [];
         permissionUserMap = {};
         permissionUserOptions = {};
+        permissionUserList = [];
         items.forEach(item => {
             if (!item.login_id) return;
             permissionUserMap[item.login_id] = item.user_name || '';
             permissionUserOptions[item.login_id] = item.user_name ? `${item.login_id} (${item.user_name})` : item.login_id;
+            permissionUserList.push({
+                login_id: item.login_id,
+                user_name: item.user_name || '',
+                role: item.role || ''
+            });
         });
     } catch (error) {
         console.error('❌ 사용자 목록 로드 실패:', error);
         permissionUserMap = {};
         permissionUserOptions = {};
+        permissionUserList = [];
     }
 }
 

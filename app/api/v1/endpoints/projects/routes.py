@@ -18,6 +18,7 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.core.logger import app_logger
+from app.core.tenant import get_company_cd
 
 router = APIRouter()
 
@@ -145,6 +146,7 @@ async def get_projects(
             f"search_text: {search_text}, keyword: {keyword}, "
             f"sort_field: {sort_field}, sort_dir: {sort_dir}"
         )
+        company_cd = get_company_cd()
         
         # 기본 쿼리
         base_query = """
@@ -175,27 +177,47 @@ async def get_projects(
                 p.created_at,
                 p.updated_at
             FROM projects p
-            LEFT JOIN comm_code s ON s.group_code = 'STAGE' AND s.code = p.current_stage
-            LEFT JOIN users u ON u.login_id = p.manager_id
-            LEFT JOIN org_units o ON o.org_id = p.org_id
-            LEFT JOIN clients c1 ON c1.client_id = p.customer_id
-            LEFT JOIN clients c2 ON c2.client_id = p.ordering_party_id
-            LEFT JOIN service_codes sc ON sc.service_code = p.service_code
+            LEFT JOIN comm_code s 
+              ON s.group_code = 'STAGE' 
+             AND s.code = p.current_stage
+             AND s.company_cd = p.company_cd
+            LEFT JOIN users u 
+              ON u.login_id = p.manager_id
+             AND u.company_cd = p.company_cd
+            LEFT JOIN org_units o 
+              ON o.org_id = p.org_id
+             AND o.company_cd = p.company_cd
+            LEFT JOIN clients c1 
+              ON c1.client_id = p.customer_id
+             AND c1.company_cd = p.company_cd
+            LEFT JOIN clients c2 
+              ON c2.client_id = p.ordering_party_id
+             AND c2.company_cd = p.company_cd
+            LEFT JOIN service_codes sc 
+              ON sc.service_code = p.service_code
+             AND sc.company_cd = p.company_cd
             LEFT JOIN (
-                SELECT pipeline_id,
+                SELECT company_cd,
+                       pipeline_id,
                        COUNT(*) AS history_count,
                        MAX(history_id) AS latest_history_id
                 FROM project_history
-                GROUP BY pipeline_id
-            ) h ON h.pipeline_id = p.pipeline_id
+                WHERE company_cd = :company_cd
+                GROUP BY company_cd, pipeline_id
+            ) h 
+              ON h.pipeline_id = p.pipeline_id
+             AND h.company_cd = p.company_cd
             LEFT JOIN project_history lh
                 ON lh.pipeline_id = h.pipeline_id
                AND lh.history_id = h.latest_history_id
-            LEFT JOIN industry_fields f ON f.field_code = p.field_code
-            WHERE 1=1
+               AND lh.company_cd = p.company_cd
+            LEFT JOIN industry_fields f 
+              ON f.field_code = p.field_code
+             AND f.company_cd = p.company_cd
+            WHERE p.company_cd = :company_cd
         """
         
-        params = {}
+        params = {"company_cd": company_cd}
         
         # 사업분야 필터
         if field_code:
@@ -230,7 +252,8 @@ async def get_projects(
                 AND EXISTS (
                     SELECT 1
                     FROM sales_plan_line spl
-                    WHERE spl.plan_id = :sales_plan_id
+                    WHERE spl.company_cd = p.company_cd
+                      AND spl.plan_id = :sales_plan_id
                       AND spl.pipeline_id = p.pipeline_id
                 )
             """
@@ -328,6 +351,7 @@ async def create_project(
     """프로젝트 등록"""
     try:
         app_logger.info(f"📝 프로젝트 등록 시작: {request.project_name}")
+        company_cd = get_company_cd()
         
         # 새 pipeline_id 생성
         year = datetime.now().year
@@ -336,9 +360,10 @@ async def create_project(
         max_query = text("""
             SELECT MAX(CAST(SUBSTRING(pipeline_id, 6) AS UNSIGNED)) as max_seq
             FROM projects
-            WHERE pipeline_id LIKE :year_pattern
+            WHERE company_cd = :company_cd
+              AND pipeline_id LIKE :year_pattern
         """)
-        result = db.execute(max_query, {"year_pattern": year_pattern})
+        result = db.execute(max_query, {"year_pattern": year_pattern, "company_cd": company_cd})
         max_seq = result.fetchone().max_seq or 0
         
         pipeline_id = f"{year}_{str(max_seq + 1).zfill(3)}"
@@ -346,17 +371,18 @@ async def create_project(
         # 프로젝트 등록
         insert_query = text("""
             INSERT INTO projects (
-                pipeline_id, project_name, field_code, service_code, manager_id, org_id,
+                company_cd, pipeline_id, project_name, field_code, service_code, manager_id, org_id,
                 customer_id, ordering_party_id, current_stage,
                 quoted_amount, win_probability, notes, status, created_by
             ) VALUES (
-                :pipeline_id, :project_name, :field_code, :service_code, :manager_id, :org_id,
+                :company_cd, :pipeline_id, :project_name, :field_code, :service_code, :manager_id, :org_id,
                 :customer_id, :ordering_party_id, :current_stage,
                 :quoted_amount, :win_probability, :notes, :status, :created_by
             )
         """)
         
         params = {
+            "company_cd": company_cd,
             "pipeline_id": pipeline_id,
             "project_name": request.project_name,
             "field_code": request.field_code,
@@ -403,16 +429,17 @@ async def update_project(
     """프로젝트 수정 (기본정보 + 속성 + 이력)"""
     try:
         app_logger.info(f"✏️ 프로젝트 수정 - pipeline_id: {pipeline_id}")
+        company_cd = get_company_cd()
         
         # 존재 여부 확인
-        check_query = text("SELECT pipeline_id FROM projects WHERE pipeline_id = :pipeline_id")
-        result = db.execute(check_query, {'pipeline_id': pipeline_id})
+        check_query = text("SELECT pipeline_id FROM projects WHERE company_cd = :company_cd AND pipeline_id = :pipeline_id")
+        result = db.execute(check_query, {'pipeline_id': pipeline_id, "company_cd": company_cd})
         if not result.fetchone():
             raise HTTPException(status_code=404, detail="프로젝트를 찾을 수 없습니다")
         
         # ===== 1. 기본정보 수정 =====
         update_fields = []
-        params = {'pipeline_id': pipeline_id}
+        params = {'pipeline_id': pipeline_id, "company_cd": company_cd}
         
         if request.project_name is not None:
             update_fields.append("project_name = :project_name")
@@ -469,7 +496,8 @@ async def update_project(
             query_str = f"""
                 UPDATE projects
                 SET {', '.join(update_fields)}, updated_at = NOW()
-                WHERE pipeline_id = :pipeline_id
+                WHERE company_cd = :company_cd
+                  AND pipeline_id = :pipeline_id
             """
             db.execute(text(query_str), params)
         
@@ -477,16 +505,17 @@ async def update_project(
         if request.attributes is not None:
             # 기존 속성 삭제
             db.execute(text(
-                "DELETE FROM project_attributes WHERE pipeline_id = :pipeline_id"
-            ), {'pipeline_id': pipeline_id})
+                "DELETE FROM project_attributes WHERE company_cd = :company_cd AND pipeline_id = :pipeline_id"
+            ), {'pipeline_id': pipeline_id, "company_cd": company_cd})
             
             # 새 속성 추가
             for attr in request.attributes:
                 if attr.get('attr_code') and attr.get('attr_value'):
                     db.execute(text("""
-                        INSERT INTO project_attributes (pipeline_id, attr_code, attr_value, created_by)
-                        VALUES (:pipeline_id, :attr_code, :attr_value, :created_by)
+                        INSERT INTO project_attributes (company_cd, pipeline_id, attr_code, attr_value, created_by)
+                        VALUES (:company_cd, :pipeline_id, :attr_code, :attr_value, :created_by)
                     """), {
+                        'company_cd': company_cd,
                         'pipeline_id': pipeline_id,
                         'attr_code': attr['attr_code'],
                         'attr_value': attr['attr_value'],
@@ -497,18 +526,19 @@ async def update_project(
         if request.histories is not None:
             # 기존 이력 삭제
             db.execute(text(
-                "DELETE FROM project_history WHERE pipeline_id = :pipeline_id"
-            ), {'pipeline_id': pipeline_id})
+                "DELETE FROM project_history WHERE company_cd = :company_cd AND pipeline_id = :pipeline_id"
+            ), {'pipeline_id': pipeline_id, "company_cd": company_cd})
             
             # 새 이력 추가
             for hist in request.histories:
                 if hist.get('base_date'):
                     db.execute(text("""
                         INSERT INTO project_history 
-                        (pipeline_id, base_date, progress_stage, strategy_content, creator_id, record_date)
+                        (company_cd, pipeline_id, base_date, progress_stage, strategy_content, creator_id, record_date)
                         VALUES 
-                        (:pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, NOW())
+                        (:company_cd, :pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, NOW())
                     """), {
+                        'company_cd': company_cd,
                         'pipeline_id': pipeline_id,
                         'base_date': hist['base_date'],
                         'progress_stage': hist.get('progress_stage'),
@@ -545,22 +575,24 @@ async def create_project_history(
     """프로젝트 이력 등록"""
     try:
         app_logger.info(f"📝 프로젝트 이력 등록: {request.pipeline_id}")
+        company_cd = get_company_cd()
         
         # 프로젝트 존재 확인
-        check_query = text("SELECT pipeline_id FROM projects WHERE pipeline_id = :pipeline_id")
-        result = db.execute(check_query, {'pipeline_id': request.pipeline_id})
+        check_query = text("SELECT pipeline_id FROM projects WHERE company_cd = :company_cd AND pipeline_id = :pipeline_id")
+        result = db.execute(check_query, {'pipeline_id': request.pipeline_id, "company_cd": company_cd})
         if not result.fetchone():
             raise HTTPException(status_code=404, detail="프로젝트를 찾을 수 없습니다")
         
         # 이력 등록
         insert_query = text("""
             INSERT INTO project_history 
-            (pipeline_id, base_date, progress_stage, strategy_content, creator_id, record_date)
+            (company_cd, pipeline_id, base_date, progress_stage, strategy_content, creator_id, record_date)
             VALUES 
-            (:pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, NOW())
+            (:company_cd, :pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, NOW())
         """)
         
         db.execute(insert_query, {
+            'company_cd': company_cd,
             'pipeline_id': request.pipeline_id,
             'base_date': request.base_date,
             'progress_stage': request.progress_stage,
@@ -573,9 +605,11 @@ async def create_project_history(
             db.execute(text("""
                 UPDATE projects 
                 SET current_stage = :stage, updated_at = NOW()
-                WHERE pipeline_id = :pipeline_id
+                WHERE company_cd = :company_cd
+                  AND pipeline_id = :pipeline_id
             """), {
                 'pipeline_id': request.pipeline_id,
+                'company_cd': company_cd,
                 'stage': request.progress_stage
             })
         
@@ -609,16 +643,17 @@ async def update_project_history(
     """프로젝트 이력 수정"""
     try:
         app_logger.info(f"✏️ 프로젝트 이력 수정: history_id={history_id}")
+        company_cd = get_company_cd()
         
         # 존재 확인
-        check_query = text("SELECT history_id FROM project_history WHERE history_id = :history_id")
-        result = db.execute(check_query, {'history_id': history_id})
+        check_query = text("SELECT history_id FROM project_history WHERE company_cd = :company_cd AND history_id = :history_id")
+        result = db.execute(check_query, {'history_id': history_id, "company_cd": company_cd})
         if not result.fetchone():
             raise HTTPException(status_code=404, detail="이력을 찾을 수 없습니다")
         
         # 수정
         update_fields = []
-        params = {'history_id': history_id}
+        params = {'history_id': history_id, "company_cd": company_cd}
         
         if request.base_date is not None:
             update_fields.append("base_date = :base_date")
@@ -636,7 +671,8 @@ async def update_project_history(
             query_str = f"""
                 UPDATE project_history
                 SET {', '.join(update_fields)}, updated_at = NOW()
-                WHERE history_id = :history_id
+                WHERE company_cd = :company_cd
+                  AND history_id = :history_id
             """
             db.execute(text(query_str), params)
             db.commit()
@@ -668,16 +704,19 @@ async def delete_project_history(
     """프로젝트 이력 삭제"""
     try:
         app_logger.info(f"🗑️ 프로젝트 이력 삭제: history_id={history_id}")
+        company_cd = get_company_cd()
         
         # 존재 확인
-        check_query = text("SELECT history_id FROM project_history WHERE history_id = :history_id")
-        result = db.execute(check_query, {'history_id': history_id})
+        check_query = text("SELECT history_id FROM project_history WHERE company_cd = :company_cd AND history_id = :history_id")
+        result = db.execute(check_query, {'history_id': history_id, "company_cd": company_cd})
         if not result.fetchone():
             raise HTTPException(status_code=404, detail="이력을 찾을 수 없습니다")
         
         # 삭제
-        db.execute(text("DELETE FROM project_history WHERE history_id = :history_id"), 
-                  {'history_id': history_id})
+        db.execute(
+            text("DELETE FROM project_history WHERE company_cd = :company_cd AND history_id = :history_id"),
+            {'history_id': history_id, "company_cd": company_cd}
+        )
         db.commit()
         
         app_logger.info(f"✅ 프로젝트 이력 삭제 완료: history_id={history_id}")

@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.tenant import get_company_cd
 from app.core.logger import app_logger
 
 router = APIRouter()
@@ -30,15 +31,16 @@ class OrgUnitBulkRequest(BaseModel):
 
 
 def _is_org_in_use(db: Session, org_id: int) -> bool:
+    company_cd = get_company_cd()
     queries = [
-        "SELECT COUNT(*) AS cnt FROM users WHERE org_id = :org_id",
-        "SELECT COUNT(*) AS cnt FROM projects WHERE org_id = :org_id",
-        "SELECT COUNT(*) AS cnt FROM sales_plan_line WHERE org_id = :org_id",
-        "SELECT COUNT(*) AS cnt FROM sales_actual_line WHERE org_id = :org_id",
+        "SELECT COUNT(*) AS cnt FROM users WHERE company_cd = :company_cd AND org_id = :org_id",
+        "SELECT COUNT(*) AS cnt FROM projects WHERE company_cd = :company_cd AND org_id = :org_id",
+        "SELECT COUNT(*) AS cnt FROM sales_plan_line WHERE company_cd = :company_cd AND org_id = :org_id",
+        "SELECT COUNT(*) AS cnt FROM sales_actual_line WHERE company_cd = :company_cd AND org_id = :org_id",
     ]
     for q in queries:
         try:
-            cnt = db.execute(text(q), {"org_id": org_id}).fetchone().cnt
+            cnt = db.execute(text(q), {"org_id": org_id, "company_cd": company_cd}).fetchone().cnt
             if cnt and cnt > 0:
                 return True
         except Exception:
@@ -52,15 +54,18 @@ async def list_org_units(
     db: Session = Depends(get_db),
 ):
     try:
+        company_cd = get_company_cd()
         query = """
             SELECT u.org_id, u.org_name, u.parent_id, p.org_name AS parent_name,
                    u.org_type, u.sort_order, u.is_use,
                    u.created_at, u.updated_at, u.created_by, u.updated_by
             FROM org_units u
-            LEFT JOIN org_units p ON p.org_id = u.parent_id
-            WHERE 1=1
+            LEFT JOIN org_units p 
+              ON p.org_id = u.parent_id
+             AND p.company_cd = u.company_cd
+            WHERE u.company_cd = :company_cd
         """
-        params = {}
+        params = {"company_cd": company_cd}
         if is_use:
             query += " AND u.is_use = :is_use"
             params["is_use"] = is_use
@@ -79,6 +84,7 @@ async def bulk_save_org_units(
     db: Session = Depends(get_db),
 ):
     try:
+        company_cd = get_company_cd()
         items = request.items or []
         for item in items:
             row_stat = (item.row_stat or "").upper()
@@ -95,10 +101,11 @@ async def bulk_save_org_units(
                 db.execute(
                     text("""
                         INSERT INTO org_units
-                        (org_name, parent_id, org_type, sort_order, is_use)
-                        VALUES (:org_name, :parent_id, :org_type, :sort_order, :is_use)
+                        (company_cd, org_name, parent_id, org_type, sort_order, is_use)
+                        VALUES (:company_cd, :org_name, :parent_id, :org_type, :sort_order, :is_use)
                     """),
                     {
+                        "company_cd": company_cd,
                         "org_name": org_name,
                         "parent_id": parent_id,
                         "org_type": org_type,
@@ -119,9 +126,11 @@ async def bulk_save_org_units(
                             org_type = :org_type,
                             sort_order = :sort_order,
                             is_use = :is_use
-                        WHERE org_id = :org_id
+                        WHERE company_cd = :company_cd
+                          AND org_id = :org_id
                     """),
                     {
+                        "company_cd": company_cd,
                         "org_id": org_id,
                         "org_name": org_name,
                         "parent_id": parent_id,
@@ -136,8 +145,8 @@ async def bulk_save_org_units(
                 if _is_org_in_use(db, org_id):
                     raise HTTPException(status_code=400, detail="다른 테이블에서 사용 중인 조직입니다.")
                 db.execute(
-                    text("DELETE FROM org_units WHERE org_id = :org_id"),
-                    {"org_id": org_id},
+                    text("DELETE FROM org_units WHERE company_cd = :company_cd AND org_id = :org_id"),
+                    {"org_id": org_id, "company_cd": company_cd},
                 )
 
         db.commit()

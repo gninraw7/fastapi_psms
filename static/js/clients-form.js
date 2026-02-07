@@ -136,18 +136,8 @@ async function loadClientData(clientId) {
     try {
         showLoading();
         
-        const response = await fetch(`/api/v1/clients/${clientId}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`거래처 조회 실패: ${response.status}`);
-        }
-        
-        const data = await response.json();
+        const endpoint = `${API_CONFIG?.ENDPOINTS?.CLIENTS || '/clients'}/${clientId}`;
+        const data = await API.get(endpoint);
         
         // ⭐ 수정: API 응답 형태 호환성 개선
         // {client: {...}} 형태 또는 {...} 직접 반환 모두 지원
@@ -193,7 +183,7 @@ async function loadClientData(clientId) {
     } catch (error) {
         console.error('❌ 거래처 데이터 로드 실패:', error);
         hideLoading();
-        alert('거래처 정보를 불러오는데 실패했습니다: ' + error.message);
+        alert('거래처 정보를 불러오는데 실패했습니다: ' + (error.message || error));
     }
 }
 

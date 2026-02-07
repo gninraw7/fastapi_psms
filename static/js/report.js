@@ -1174,7 +1174,8 @@ async function initializeReportHub() {
 // DOMContentLoaded Hook
 
 document.addEventListener('DOMContentLoaded', () => {
-    if (document.getElementById('reportTable')) {
+    const tableEl = document.getElementById('reportTable');
+    if (tableEl && (typeof window.isElementInActivePage !== 'function' || window.isElementInActivePage(tableEl))) {
         initializeReportHub();
     }
 });

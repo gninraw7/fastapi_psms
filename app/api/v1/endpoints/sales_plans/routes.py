@@ -12,6 +12,7 @@ from typing import Optional, List, Dict
 
 from app.core.database import get_db
 from app.core.logger import app_logger
+from app.core.tenant import get_company_cd
 
 router = APIRouter()
 
@@ -105,6 +106,8 @@ def _load_project_snapshots(db: Session, pipeline_ids: List[str]) -> Dict[str, d
     if not clause:
         return {}
 
+    company_cd = get_company_cd()
+    params["company_cd"] = company_cd
     sql = f"""
         SELECT
             p.pipeline_id,
@@ -122,13 +125,26 @@ def _load_project_snapshots(db: Session, pipeline_ids: List[str]) -> Dict[str, d
             u.login_id AS manager_id,
             u.user_name AS manager_name
         FROM projects p
-        LEFT JOIN industry_fields f ON f.field_code = p.field_code
-        LEFT JOIN service_codes sc ON sc.service_code = p.service_code
-        LEFT JOIN clients c1 ON c1.client_id = p.customer_id
-        LEFT JOIN clients c2 ON c2.client_id = p.ordering_party_id
-        LEFT JOIN org_units o ON o.org_id = p.org_id
-        LEFT JOIN users u ON u.login_id = p.manager_id
-        WHERE p.pipeline_id IN ({clause})
+        LEFT JOIN industry_fields f 
+          ON f.field_code = p.field_code
+         AND f.company_cd = p.company_cd
+        LEFT JOIN service_codes sc 
+          ON sc.service_code = p.service_code
+         AND sc.company_cd = p.company_cd
+        LEFT JOIN clients c1 
+          ON c1.client_id = p.customer_id
+         AND c1.company_cd = p.company_cd
+        LEFT JOIN clients c2 
+          ON c2.client_id = p.ordering_party_id
+         AND c2.company_cd = p.company_cd
+        LEFT JOIN org_units o 
+          ON o.org_id = p.org_id
+         AND o.company_cd = p.company_cd
+        LEFT JOIN users u 
+          ON u.login_id = p.manager_id
+         AND u.company_cd = p.company_cd
+        WHERE p.company_cd = :company_cd
+          AND p.pipeline_id IN ({clause})
     """
     rows = db.execute(text(sql), params).mappings().all()
     return {row["pipeline_id"]: dict(row) for row in rows}
@@ -136,8 +152,8 @@ def _load_project_snapshots(db: Session, pipeline_ids: List[str]) -> Dict[str, d
 
 def _ensure_plan_editable(db: Session, plan_id: int):
     row = db.execute(
-        text("SELECT status_code FROM sales_plan WHERE plan_id = :plan_id"),
-        {"plan_id": plan_id}
+        text("SELECT status_code FROM sales_plan WHERE company_cd = :company_cd AND plan_id = :plan_id"),
+        {"plan_id": plan_id, "company_cd": get_company_cd()}
     ).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -160,11 +176,12 @@ async def list_sales_plans(
 ):
     """영업계획 헤더 목록"""
     try:
+        company_cd = get_company_cd()
         base_query = """
             FROM sales_plan sp
-            WHERE 1=1
+            WHERE sp.company_cd = :company_cd
         """
-        params = {}
+        params = {"company_cd": company_cd}
 
         if plan_year:
             base_query += " AND sp.plan_year = :plan_year"
@@ -227,13 +244,15 @@ async def list_sales_plans(
 @router.get("/{plan_id}")
 async def get_sales_plan(plan_id: int, db: Session = Depends(get_db)):
     """영업계획 헤더 단건 조회"""
+    company_cd = get_company_cd()
     row = db.execute(
         text("""
             SELECT plan_id, plan_year, plan_version, status_code, base_date, remarks, created_at, updated_at
             FROM sales_plan
-            WHERE plan_id = :plan_id
+            WHERE company_cd = :company_cd
+              AND plan_id = :plan_id
         """),
-        {"plan_id": plan_id}
+        {"plan_id": plan_id, "company_cd": company_cd}
     ).mappings().first()
 
     if not row:
@@ -246,12 +265,14 @@ async def get_sales_plan(plan_id: int, db: Session = Depends(get_db)):
 async def create_sales_plan(request: SalesPlanCreateRequest, db: Session = Depends(get_db)):
     """영업계획 헤더 생성"""
     try:
+        company_cd = get_company_cd()
         exists = db.execute(
             text("""
                 SELECT plan_id FROM sales_plan
-                WHERE plan_year = :plan_year AND plan_version = :plan_version
+                WHERE company_cd = :company_cd
+                  AND plan_year = :plan_year AND plan_version = :plan_version
             """),
-            {"plan_year": request.plan_year, "plan_version": request.plan_version}
+            {"plan_year": request.plan_year, "plan_version": request.plan_version, "company_cd": company_cd}
         ).first()
 
         if exists:
@@ -260,12 +281,13 @@ async def create_sales_plan(request: SalesPlanCreateRequest, db: Session = Depen
         result = db.execute(
             text("""
                 INSERT INTO sales_plan (
-                    plan_year, plan_version, status_code, base_date, remarks, created_by, updated_by
+                    company_cd, plan_year, plan_version, status_code, base_date, remarks, created_by, updated_by
                 ) VALUES (
-                    :plan_year, :plan_version, :status_code, :base_date, :remarks, :created_by, :updated_by
+                    :company_cd, :plan_year, :plan_version, :status_code, :base_date, :remarks, :created_by, :updated_by
                 )
             """),
             {
+                "company_cd": company_cd,
                 "plan_year": request.plan_year,
                 "plan_version": request.plan_version,
                 "status_code": request.status_code,
@@ -291,8 +313,10 @@ async def create_sales_plan(request: SalesPlanCreateRequest, db: Session = Depen
 async def update_sales_plan(plan_id: int, request: SalesPlanUpdateRequest, db: Session = Depends(get_db)):
     """영업계획 헤더 수정"""
     try:
+        company_cd = get_company_cd()
         params = {
             "plan_id": plan_id,
+            "company_cd": company_cd,
             "plan_version": request.plan_version,
             "status_code": request.status_code,
             "base_date": request.base_date,
@@ -308,7 +332,8 @@ async def update_sales_plan(plan_id: int, request: SalesPlanUpdateRequest, db: S
                     base_date = COALESCE(:base_date, base_date),
                     remarks = COALESCE(:remarks, remarks),
                     updated_by = :updated_by
-                WHERE plan_id = :plan_id
+                WHERE company_cd = :company_cd
+                  AND plan_id = :plan_id
             """),
             params
         )
@@ -335,6 +360,7 @@ async def list_sales_plan_lines(
 ):
     """영업계획 라인 목록"""
     try:
+        company_cd = get_company_cd()
         sql = """
             SELECT
                 spl.plan_line_id,
@@ -370,9 +396,10 @@ async def list_sales_plan_lines(
                 spl.plan_m11,
                 spl.plan_m12
             FROM sales_plan_line spl
-            WHERE spl.plan_id = :plan_id
+            WHERE spl.company_cd = :company_cd
+              AND spl.plan_id = :plan_id
         """
-        params = {"plan_id": plan_id}
+        params = {"plan_id": plan_id, "company_cd": company_cd}
 
         if org_id:
             sql += " AND spl.org_id = :org_id"
@@ -409,6 +436,7 @@ async def list_missing_projects(
 ):
     """필터 조건에 해당하지만 계획 라인에 없는 프로젝트 목록"""
     try:
+        company_cd = get_company_cd()
         sql = """
             SELECT
                 p.pipeline_id,
@@ -426,17 +454,32 @@ async def list_missing_projects(
                 u.login_id AS manager_id,
                 u.user_name AS manager_name
             FROM projects p
-            LEFT JOIN industry_fields f ON f.field_code = p.field_code
-            LEFT JOIN service_codes sc ON sc.service_code = p.service_code
-            LEFT JOIN clients c1 ON c1.client_id = p.customer_id
-            LEFT JOIN clients c2 ON c2.client_id = p.ordering_party_id
-            LEFT JOIN org_units o ON o.org_id = p.org_id
-            LEFT JOIN users u ON u.login_id = p.manager_id
+            LEFT JOIN industry_fields f 
+              ON f.field_code = p.field_code
+             AND f.company_cd = p.company_cd
+            LEFT JOIN service_codes sc 
+              ON sc.service_code = p.service_code
+             AND sc.company_cd = p.company_cd
+            LEFT JOIN clients c1 
+              ON c1.client_id = p.customer_id
+             AND c1.company_cd = p.company_cd
+            LEFT JOIN clients c2 
+              ON c2.client_id = p.ordering_party_id
+             AND c2.company_cd = p.company_cd
+            LEFT JOIN org_units o 
+              ON o.org_id = p.org_id
+             AND o.company_cd = p.company_cd
+            LEFT JOIN users u 
+              ON u.login_id = p.manager_id
+             AND u.company_cd = p.company_cd
             LEFT JOIN sales_plan_line spl
-                ON spl.plan_id = :plan_id AND spl.pipeline_id = p.pipeline_id
-            WHERE spl.pipeline_id IS NULL
+                ON spl.plan_id = :plan_id 
+               AND spl.pipeline_id = p.pipeline_id
+               AND spl.company_cd = p.company_cd
+            WHERE p.company_cd = :company_cd
+              AND spl.pipeline_id IS NULL
         """
-        params = {"plan_id": plan_id}
+        params = {"plan_id": plan_id, "company_cd": company_cd}
 
         if org_id:
             sql += " AND p.org_id = :org_id"
@@ -471,12 +514,13 @@ async def save_sales_plan_lines(plan_id: int, request: SalesPlanLineSaveRequest,
         if plan_id != request.plan_id:
             raise HTTPException(status_code=400, detail="plan_id mismatch")
 
+        company_cd = get_company_cd()
         pipeline_ids = [line.pipeline_id for line in request.lines]
         snapshots = _load_project_snapshots(db, pipeline_ids)
 
         sql = text("""
             INSERT INTO sales_plan_line (
-                plan_id, pipeline_id,
+                company_cd, plan_id, pipeline_id,
                 field_code, field_name_snapshot,
                 service_code, service_name_snapshot,
                 customer_id, customer_name_snapshot,
@@ -490,7 +534,7 @@ async def save_sales_plan_lines(plan_id: int, request: SalesPlanLineSaveRequest,
                 plan_m07, plan_m08, plan_m09, plan_m10, plan_m11, plan_m12,
                 created_by, updated_by
             ) VALUES (
-                :plan_id, :pipeline_id,
+                :company_cd, :plan_id, :pipeline_id,
                 :field_code, :field_name_snapshot,
                 :service_code, :service_name_snapshot,
                 :customer_id, :customer_name_snapshot,
@@ -543,6 +587,7 @@ async def save_sales_plan_lines(plan_id: int, request: SalesPlanLineSaveRequest,
             plan_total = line.plan_total if line.plan_total is not None else _sum_plan_months(line)
 
             params = {
+                "company_cd": company_cd,
                 "plan_id": plan_id,
                 "pipeline_id": line.pipeline_id,
                 "field_code": line.field_code or snap.get("field_code"),
@@ -595,6 +640,7 @@ async def delete_sales_plan_lines(plan_id: int, request: SalesPlanLineDeleteRequ
     """영업계획 라인 삭제 (선택 제외)"""
     try:
         _ensure_plan_editable(db, plan_id)
+        company_cd = get_company_cd()
 
         line_ids = request.plan_line_ids or []
         pipeline_ids = request.pipeline_ids or []
@@ -603,7 +649,7 @@ async def delete_sales_plan_lines(plan_id: int, request: SalesPlanLineDeleteRequ
             raise HTTPException(status_code=400, detail="No targets provided")
 
         conditions = []
-        params = {"plan_id": plan_id}
+        params = {"plan_id": plan_id, "company_cd": company_cd}
 
         if line_ids:
             clause, id_params = _build_in_clause([str(x) for x in line_ids], "lid")
@@ -616,7 +662,7 @@ async def delete_sales_plan_lines(plan_id: int, request: SalesPlanLineDeleteRequ
             params.update(pid_params)
 
         where_clause = " OR ".join(conditions)
-        sql = f"DELETE FROM sales_plan_line WHERE plan_id = :plan_id AND ({where_clause})"
+        sql = f"DELETE FROM sales_plan_line WHERE company_cd = :company_cd AND plan_id = :plan_id AND ({where_clause})"
 
         result = db.execute(text(sql), params)
         db.commit()
@@ -641,9 +687,10 @@ async def import_plan_lines_from_projects(
     """프로젝트 목록에서 영업계획 라인 생성 (없는 항목만 추가)"""
     try:
         _ensure_plan_editable(db, plan_id)
+        company_cd = get_company_cd()
         sql = """
             INSERT INTO sales_plan_line (
-                plan_id, pipeline_id,
+                company_cd, plan_id, pipeline_id,
                 field_code, field_name_snapshot,
                 service_code, service_name_snapshot,
                 customer_id, customer_name_snapshot,
@@ -658,6 +705,7 @@ async def import_plan_lines_from_projects(
                 created_by, updated_by
             )
             SELECT
+                :company_cd AS company_cd,
                 :plan_id AS plan_id,
                 p.pipeline_id,
                 f.field_code,
@@ -681,18 +729,35 @@ async def import_plan_lines_from_projects(
                 'system',
                 'system'
             FROM projects p
-            LEFT JOIN industry_fields f ON f.field_code = p.field_code
-            LEFT JOIN service_codes sc ON sc.service_code = p.service_code
-            LEFT JOIN clients c1 ON c1.client_id = p.customer_id
-            LEFT JOIN clients c2 ON c2.client_id = p.ordering_party_id
-            LEFT JOIN org_units o ON o.org_id = p.org_id
-            LEFT JOIN users u ON u.login_id = p.manager_id
-            LEFT JOIN project_contracts pc ON pc.pipeline_id = p.pipeline_id
+            LEFT JOIN industry_fields f 
+              ON f.field_code = p.field_code
+             AND f.company_cd = p.company_cd
+            LEFT JOIN service_codes sc 
+              ON sc.service_code = p.service_code
+             AND sc.company_cd = p.company_cd
+            LEFT JOIN clients c1 
+              ON c1.client_id = p.customer_id
+             AND c1.company_cd = p.company_cd
+            LEFT JOIN clients c2 
+              ON c2.client_id = p.ordering_party_id
+             AND c2.company_cd = p.company_cd
+            LEFT JOIN org_units o 
+              ON o.org_id = p.org_id
+             AND o.company_cd = p.company_cd
+            LEFT JOIN users u 
+              ON u.login_id = p.manager_id
+             AND u.company_cd = p.company_cd
+            LEFT JOIN project_contracts pc 
+              ON pc.pipeline_id = p.pipeline_id
+             AND pc.company_cd = p.company_cd
             LEFT JOIN sales_plan_line spl
-                ON spl.plan_id = :plan_id AND spl.pipeline_id = p.pipeline_id
-            WHERE spl.pipeline_id IS NULL
+                ON spl.plan_id = :plan_id 
+               AND spl.pipeline_id = p.pipeline_id
+               AND spl.company_cd = p.company_cd
+            WHERE p.company_cd = :company_cd
+              AND spl.pipeline_id IS NULL
         """
-        params = {"plan_id": plan_id}
+        params = {"plan_id": plan_id, "company_cd": company_cd}
 
         if org_id:
             sql += " AND p.org_id = :org_id"

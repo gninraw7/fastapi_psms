@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..core.database import get_db
+from ..core.tenant import get_company_cd
 
 # 비밀번호 암호화 컨텍스트
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -124,6 +125,7 @@ async def get_current_user(
         payload = decode_token(token)
         login_id: str = payload.get("sub")
         token_type: str = payload.get("type")
+        company_cd: str = payload.get("company_cd") or get_company_cd()
         
         if login_id is None or token_type != "access":
             raise credentials_exception
@@ -144,11 +146,15 @@ async def get_current_user(
             o.org_name,
             u.status
         FROM users u
-        LEFT JOIN org_units o ON o.org_id = u.org_id
-        WHERE u.login_id = :login_id AND u.status = 'ACTIVE'
+        LEFT JOIN org_units o 
+          ON o.org_id = u.org_id
+         AND o.company_cd = u.company_cd
+        WHERE u.company_cd = :company_cd
+          AND u.login_id = :login_id 
+          AND u.status = 'ACTIVE'
     """)
     
-    result = db.execute(query, {"login_id": login_id}).fetchone()
+    result = db.execute(query, {"login_id": login_id, "company_cd": company_cd}).fetchone()
     
     if result is None:
         raise credentials_exception
@@ -161,7 +167,8 @@ async def get_current_user(
         "email": result[4],
         "org_id": result[5],
         "org_name": result[6],
-        "status": result[7]
+        "status": result[7],
+        "company_cd": company_cd
     }
 
 async def get_current_active_user(

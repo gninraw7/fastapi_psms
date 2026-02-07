@@ -26,6 +26,10 @@ function bootstrapUsersList() {
         console.log('⚠️ usersTable 요소 없음, 초기화 스킵');
         return;
     }
+    if (typeof window.isElementInActivePage === 'function' && !window.isElementInActivePage(usersTableEl)) {
+        console.log('ℹ️ usersTable 비활성 페이지, 초기화 스킵');
+        return;
+    }
 
     try {
         const statusFilter = document.getElementById('userStatusFilter');
@@ -37,10 +41,6 @@ function bootstrapUsersList() {
             initializeUsersTable();
         }
         initializeUserEventListeners();
-        if (usersTable) {
-            // 강제 로드 (초기 생성/숨김 상태 대비)
-            usersTable.setPage(1);
-        }
         console.log('✅ 사용자 목록 초기화 완료');
     } catch (error) {
         console.error('❌ 사용자 목록 초기화 실패:', error);
@@ -144,6 +144,10 @@ function initializeUsersTable() {
                 const data = row.getData();
                 openUserForm('edit', data.user_no);
             }
+        },
+
+        tableBuilt: function() {
+            usersTable.setPage(1);
         },
 
         columns: [

@@ -11,6 +11,7 @@ from datetime import timedelta
 
 from app.core.database import get_db
 from app.core.config import settings
+from app.core.tenant import get_company_cd
 from app.core.security import (
     verify_password,
     get_password_hash,
@@ -23,6 +24,7 @@ from app.schemas.auth import (
     LoginRequest,
     TokenResponse,
     RefreshTokenRequest,
+    SwitchCompanyRequest,
     UserInfo,
     ChangePasswordRequest,
     UserProfileUpdate
@@ -45,6 +47,20 @@ def _get_client_ip(request: Request) -> str:
         return request.client.host
     return ""
 
+
+@router.get("/companies", summary="로그인 화면 회사 목록")
+async def list_companies(db: Session = Depends(get_db)):
+    try:
+        rows = db.execute(text("""
+            SELECT company_cd, company_name, company_alias, is_use
+            FROM companies
+            WHERE is_use = 'Y'
+            ORDER BY company_name ASC, company_cd ASC
+        """)).mappings().all()
+        return {"items": [dict(row) for row in rows]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"회사 목록 조회 실패: {str(e)}")
+
 @router.post("/login", response_model=TokenResponse, summary="로그인")
 async def login(
     login_data: LoginRequest,
@@ -61,13 +77,16 @@ async def login(
         TokenResponse: 액세스 토큰 및 리프레시 토큰
     """
     # 사용자 조회
+    company_cd = login_data.company_cd or get_company_cd()
+
     query = text("""
         SELECT user_no, login_id, password, user_name, role, status
         FROM users
-        WHERE login_id = :login_id
+        WHERE company_cd = :company_cd
+          AND login_id = :login_id
     """)
     
-    result = db.execute(query, {"login_id": login_data.login_id}).fetchone()
+    result = db.execute(query, {"login_id": login_data.login_id, "company_cd": company_cd}).fetchone()
     
     if not result:
         raise HTTPException(
@@ -95,6 +114,7 @@ async def login(
     
     # 토큰 생성
     token_data = {
+        "company_cd": company_cd,
         "sub": login_id,
         "user_no": user_no,
         "user_name": user_name,
@@ -107,10 +127,11 @@ async def login(
     # 로그인 이력 기록
     try:
         log_query = text("""
-            INSERT INTO login_history (login_id, action_type, ip_address, created_by)
-            VALUES (:login_id, 'LOGIN', :ip_address, :created_by)
+            INSERT INTO login_history (company_cd, login_id, action_type, ip_address, created_by)
+            VALUES (:company_cd, :login_id, 'LOGIN', :ip_address, :created_by)
         """)
         db.execute(log_query, {
+            "company_cd": company_cd,
             "login_id": login_id,
             "ip_address": _get_client_ip(request),
             "created_by": login_id
@@ -124,7 +145,8 @@ async def login(
         access_token=access_token,
         refresh_token=refresh_token,
         token_type="bearer",
-        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        company_cd=company_cd
     )
 
 @router.post("/refresh", response_model=TokenResponse, summary="토큰 갱신")
@@ -151,15 +173,17 @@ async def refresh_token(
             )
         
         login_id = payload.get("sub")
+        company_cd = payload.get("company_cd") or get_company_cd()
         
         # 사용자 확인
         query = text("""
             SELECT user_no, user_name, role, status
             FROM users
-            WHERE login_id = :login_id
+            WHERE company_cd = :company_cd
+              AND login_id = :login_id
         """)
         
-        result = db.execute(query, {"login_id": login_id}).fetchone()
+        result = db.execute(query, {"login_id": login_id, "company_cd": company_cd}).fetchone()
         
         if not result or result[3] != "ACTIVE":
             raise HTTPException(
@@ -169,6 +193,7 @@ async def refresh_token(
         
         # 새 토큰 발급
         token_data = {
+            "company_cd": company_cd,
             "sub": login_id,
             "user_no": result[0],
             "user_name": result[1],
@@ -182,7 +207,8 @@ async def refresh_token(
             access_token=access_token,
             refresh_token=new_refresh_token,
             token_type="bearer",
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            company_cd=company_cd
         )
         
     except Exception as e:
@@ -190,6 +216,72 @@ async def refresh_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"토큰 갱신 실패: {str(e)}"
         )
+
+
+@router.post("/switch-company", response_model=TokenResponse, summary="회사 전환")
+async def switch_company(
+    data: SwitchCompanyRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    현재 로그인한 사용자의 회사 전환 (새 토큰 발급)
+    """
+    target_company = (data.company_cd or "").strip()
+    if not target_company:
+        raise HTTPException(status_code=400, detail="company_cd is required")
+
+    query = text("""
+        SELECT user_no, login_id, user_name, role, status
+        FROM users
+        WHERE company_cd = :company_cd
+          AND login_id = :login_id
+    """)
+    row = db.execute(query, {
+        "company_cd": target_company,
+        "login_id": current_user.get("login_id")
+    }).fetchone()
+
+    if not row:
+        raise HTTPException(status_code=403, detail="대상 회사에 사용자 정보가 없습니다.")
+
+    user_no, login_id, user_name, role, user_status = row
+    if user_status != "ACTIVE":
+        raise HTTPException(status_code=403, detail="비활성화된 계정입니다.")
+
+    token_data = {
+        "company_cd": target_company,
+        "sub": login_id,
+        "user_no": user_no,
+        "user_name": user_name,
+        "role": role
+    }
+    access_token = create_access_token(data=token_data)
+    refresh_token = create_refresh_token(data=token_data)
+
+    try:
+        log_query = text("""
+            INSERT INTO login_history (company_cd, login_id, action_type, ip_address, created_by)
+            VALUES (:company_cd, :login_id, 'SWITCH', :ip_address, :created_by)
+        """)
+        db.execute(log_query, {
+            "company_cd": target_company,
+            "login_id": login_id,
+            "ip_address": _get_client_ip(request),
+            "created_by": login_id
+        })
+        db.commit()
+    except Exception:
+        pass
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        company_cd=target_company
+    )
 
 @router.get("/me", response_model=UserInfo, summary="현재 사용자 정보")
 async def get_me(
@@ -202,6 +294,7 @@ async def get_me(
     Returns:
         UserInfo: 사용자 정보
     """
+    company_cd = current_user.get("company_cd") or get_company_cd()
     query = text("""
         SELECT 
             u.user_no,
@@ -217,10 +310,13 @@ async def get_me(
             u.end_date,
             u.status
         FROM users u
-        LEFT JOIN org_units o ON o.org_id = u.org_id
-        WHERE u.login_id = :login_id
+        LEFT JOIN org_units o 
+          ON o.org_id = u.org_id 
+         AND o.company_cd = u.company_cd
+        WHERE u.company_cd = :company_cd
+          AND u.login_id = :login_id
     """)
-    row = db.execute(query, {"login_id": current_user["login_id"]}).fetchone()
+    row = db.execute(query, {"login_id": current_user["login_id"], "company_cd": company_cd}).fetchone()
 
     if not row:
         raise HTTPException(
@@ -266,11 +362,13 @@ async def update_me(
     update_query = text(f"""
         UPDATE users
         SET {set_clause}, updated_by = :updated_by
-        WHERE login_id = :login_id
+        WHERE company_cd = :company_cd
+          AND login_id = :login_id
     """)
 
     updates["updated_by"] = current_user["login_id"]
     updates["login_id"] = current_user["login_id"]
+    updates["company_cd"] = current_user.get("company_cd") or get_company_cd()
     db.execute(update_query, updates)
     db.commit()
 
@@ -300,10 +398,11 @@ async def logout(
     """
     try:
         log_query = text("""
-            INSERT INTO login_history (login_id, action_type, ip_address, created_by)
-            VALUES (:login_id, 'LOGOUT', :ip_address, :created_by)
+            INSERT INTO login_history (company_cd, login_id, action_type, ip_address, created_by)
+            VALUES (:company_cd, :login_id, 'LOGOUT', :ip_address, :created_by)
         """)
         db.execute(log_query, {
+            "company_cd": current_user.get("company_cd") or get_company_cd(),
             "login_id": current_user["login_id"],
             "ip_address": _get_client_ip(request),
             "created_by": current_user["login_id"]
@@ -330,10 +429,14 @@ async def change_password(
     query = text("""
         SELECT password
         FROM users
-        WHERE login_id = :login_id
+        WHERE company_cd = :company_cd
+          AND login_id = :login_id
     """)
     
-    result = db.execute(query, {"login_id": current_user["login_id"]}).fetchone()
+    result = db.execute(query, {
+        "login_id": current_user["login_id"],
+        "company_cd": current_user.get("company_cd") or get_company_cd()
+    }).fetchone()
     
     if not result:
         raise HTTPException(
@@ -371,13 +474,15 @@ async def change_password(
     update_query = text("""
         UPDATE users
         SET password = :password, updated_by = :updated_by
-        WHERE login_id = :login_id
+        WHERE company_cd = :company_cd
+          AND login_id = :login_id
     """)
     
     db.execute(update_query, {
         "password": new_hashed_password,
         "updated_by": current_user["login_id"],
-        "login_id": current_user["login_id"]
+        "login_id": current_user["login_id"],
+        "company_cd": current_user.get("company_cd") or get_company_cd()
     })
     db.commit()
     

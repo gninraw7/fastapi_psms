@@ -13,6 +13,7 @@ from sqlalchemy import text
 from typing import Optional
 from pydantic import BaseModel
 from app.core.database import get_db
+from app.core.tenant import get_company_cd
 from app.core.logger import app_logger
 
 router = APIRouter()
@@ -95,6 +96,7 @@ async def get_clients_list(
             f"field: {search_field}, text: {search_text}, "
             f"sort_field: {sort_field}, sort_dir: {sort_dir}"
         )
+        company_cd = get_company_cd()
         
         # 기본 쿼리
         base_query = """
@@ -117,11 +119,13 @@ async def get_clients_list(
                 c.created_at,
                 c.updated_at
             FROM clients c
-            LEFT JOIN industry_fields f ON f.field_code = c.industry_type
-            WHERE 1=1
+            LEFT JOIN industry_fields f 
+              ON f.field_code = c.industry_type
+             AND f.company_cd = c.company_cd
+            WHERE c.company_cd = :company_cd
         """
         
-        count_query = "SELECT COUNT(*) as total FROM clients c WHERE 1=1"
+        count_query = "SELECT COUNT(*) as total FROM clients c WHERE c.company_cd = :company_cd"
         
         # 통계 쿼리
         stats_query = """
@@ -130,9 +134,10 @@ async def get_clients_list(
                 SUM(CASE WHEN is_active = 1 OR is_active IS NULL THEN 1 ELSE 0 END) as active_count,
                 SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive_count
             FROM clients
+            WHERE company_cd = :company_cd
         """
         
-        params = {}
+        params = {"company_cd": company_cd}
         filter_condition = ""
         
         # ===================================
@@ -231,7 +236,7 @@ async def get_clients_list(
         total = count_result.fetchone()[0]
         
         # 통계 조회
-        stats_result = db.execute(text(stats_query))
+        stats_result = db.execute(text(stats_query), {"company_cd": company_cd})
         stats = stats_result.fetchone()
         
         # ===================================
@@ -297,6 +302,7 @@ async def search_clients_simple(
     """
     try:
         app_logger.info(f"🔍 거래처 간단 검색 - search_text: '{search_text}'")
+        company_cd = get_company_cd()
         
         # 활성 거래처만 조회, 최소 필드만
         query_str = """
@@ -306,10 +312,11 @@ async def search_clients_simple(
                 business_number,
                 is_active
             FROM clients
-            WHERE (is_active IS NULL OR is_active = 1)
+            WHERE company_cd = :company_cd
+              AND (is_active IS NULL OR is_active = 1)
         """
         
-        params = {}
+        params = {"company_cd": company_cd}
         
         # 검색어가 있으면 필터링
         if search_text and search_text.strip():
@@ -381,6 +388,7 @@ async def search_clients(
     """
     try:
         app_logger.info(f"🔍 거래처 검색 - search: '{search}', limit: {limit}")
+        company_cd = get_company_cd()
         
         query_str = """
             SELECT 
@@ -394,10 +402,11 @@ async def search_clients(
                 industry_type,
                 is_active
             FROM clients
-            WHERE (is_active IS NULL OR is_active = 1)
+            WHERE company_cd = :company_cd
+              AND (is_active IS NULL OR is_active = 1)
         """
         
-        params = {'limit': limit}
+        params = {'limit': limit, "company_cd": company_cd}
         
         if search and search.strip():
             query_str += """
@@ -473,6 +482,7 @@ async def get_client_detail(
     """
     try:
         app_logger.info(f"📋 거래처 상세 조회 - client_id: {client_id}")
+        company_cd = get_company_cd()
         
         query = text("""
             SELECT 
@@ -481,11 +491,14 @@ async def get_client_detail(
                 c.employee_count, c.established_date, c.is_active, c.remarks, c.created_at, c.updated_at,
                 c.created_by, c.updated_by
             FROM clients c
-            LEFT JOIN industry_fields f ON f.field_code = c.industry_type
-            WHERE c.client_id = :client_id
+            LEFT JOIN industry_fields f 
+              ON f.field_code = c.industry_type
+             AND f.company_cd = c.company_cd
+            WHERE c.company_cd = :company_cd
+              AND c.client_id = :client_id
         """)
         
-        result = db.execute(query, {'client_id': client_id})
+        result = db.execute(query, {'client_id': client_id, "company_cd": company_cd})
         row = result.fetchone()
         
         if not row:
@@ -543,27 +556,29 @@ async def create_client(
     """
     try:
         app_logger.info(f"➕ 거래처 등록 - {request.client_name}")
+        company_cd = get_company_cd()
         
         # 중복 체크
-        check_query = text("SELECT client_id FROM clients WHERE client_name = :client_name")
-        result = db.execute(check_query, {'client_name': request.client_name})
+        check_query = text("SELECT client_id FROM clients WHERE company_cd = :company_cd AND client_name = :client_name")
+        result = db.execute(check_query, {'client_name': request.client_name, "company_cd": company_cd})
         if result.fetchone():
             raise HTTPException(status_code=409, detail="이미 등록된 거래처명입니다")
         
         # INSERT 쿼리
         insert_query = text("""
             INSERT INTO clients (
-                client_name, business_number, ceo_name, address, phone,
+                company_cd, client_name, business_number, ceo_name, address, phone,
                 email, fax, homepage, industry_type, employee_count,
                 established_date, is_active, remarks, created_by
             ) VALUES (
-                :client_name, :business_number, :ceo_name, :address, :phone,
+                :company_cd, :client_name, :business_number, :ceo_name, :address, :phone,
                 :email, :fax, :homepage, :industry_type, :employee_count,
                 :established_date, :is_active, :remarks, :created_by
             )
         """)
         
         db.execute(insert_query, {
+            'company_cd': company_cd,
             'client_name': request.client_name,
             'business_number': request.business_number,
             'ceo_name': request.ceo_name,
@@ -624,16 +639,17 @@ async def update_client(
     """
     try:
         app_logger.info(f"✏️ 거래처 수정 - client_id: {client_id}")
+        company_cd = get_company_cd()
         
         # 존재 여부 확인
-        check_query = text("SELECT client_id FROM clients WHERE client_id = :client_id")
-        result = db.execute(check_query, {'client_id': client_id})
+        check_query = text("SELECT client_id FROM clients WHERE company_cd = :company_cd AND client_id = :client_id")
+        result = db.execute(check_query, {'client_id': client_id, "company_cd": company_cd})
         if not result.fetchone():
             raise HTTPException(status_code=404, detail="거래처를 찾을 수 없습니다")
         
         # 수정할 필드만 UPDATE
         update_fields = []
-        params = {'client_id': client_id}
+        params = {'client_id': client_id, "company_cd": company_cd}
         
         if request.client_name is not None:
             update_fields.append("client_name = :client_name")
@@ -697,7 +713,8 @@ async def update_client(
         query_str = f"""
             UPDATE clients
             SET {', '.join(update_fields)}
-            WHERE client_id = :client_id
+            WHERE company_cd = :company_cd
+              AND client_id = :client_id
         """
         
         db.execute(text(query_str), params)
@@ -733,26 +750,28 @@ async def delete_client(
     """
     try:
         app_logger.info(f"🗑️ 거래처 삭제 - client_id: {client_id}")
+        company_cd = get_company_cd()
         
         # 존재 여부 확인
-        check_query = text("SELECT client_id FROM clients WHERE client_id = :client_id")
-        result = db.execute(check_query, {'client_id': client_id})
+        check_query = text("SELECT client_id FROM clients WHERE company_cd = :company_cd AND client_id = :client_id")
+        result = db.execute(check_query, {'client_id': client_id, "company_cd": company_cd})
         if not result.fetchone():
             raise HTTPException(status_code=404, detail="거래처를 찾을 수 없습니다")
         
         # 프로젝트 참조 확인
         ref_query = text("""
             SELECT COUNT(*) FROM projects 
-            WHERE customer_id = :client_id OR ordering_party_id = :client_id
+            WHERE company_cd = :company_cd
+              AND (customer_id = :client_id OR ordering_party_id = :client_id)
         """)
-        ref_result = db.execute(ref_query, {'client_id': client_id})
+        ref_result = db.execute(ref_query, {'client_id': client_id, "company_cd": company_cd})
         ref_count = ref_result.fetchone()[0]
         
         if ref_count > 0:
             # 프로젝트 참조가 있으면 비활성화만 처리
             app_logger.warning(f"⚠️ 거래처가 {ref_count}개 프로젝트에서 사용 중 - 비활성화 처리")
-            query = text("UPDATE clients SET is_active = 0 WHERE client_id = :client_id")
-            db.execute(query, {'client_id': client_id})
+            query = text("UPDATE clients SET is_active = 0 WHERE company_cd = :company_cd AND client_id = :client_id")
+            db.execute(query, {'client_id': client_id, "company_cd": company_cd})
             db.commit()
             
             return {
@@ -762,8 +781,8 @@ async def delete_client(
             }
         else:
             # 참조가 없으면 비활성화 처리 (안전을 위해 삭제하지 않음)
-            query = text("UPDATE clients SET is_active = 0 WHERE client_id = :client_id")
-            db.execute(query, {'client_id': client_id})
+            query = text("UPDATE clients SET is_active = 0 WHERE company_cd = :company_cd AND client_id = :client_id")
+            db.execute(query, {'client_id': client_id, "company_cd": company_cd})
             db.commit()
             
             app_logger.info(f"✅ 거래처 삭제(비활성화) 성공")

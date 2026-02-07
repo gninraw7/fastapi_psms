@@ -39,6 +39,17 @@
 
             <!-- 로그인 폼 -->
             <form id="loginForm" class="login-form">
+                <!-- 회사 선택 -->
+                <div class="form-group">
+                    <label for="companyCd">
+                        <i class="fas fa-building"></i>
+                        회사 선택
+                    </label>
+                    <select id="companyCd" name="companyCd" required>
+                        <option value="">회사 목록 로딩중...</option>
+                    </select>
+                </div>
+
                 <!-- 로그인 ID -->
                 <div class="form-group">
                     <label for="loginId">

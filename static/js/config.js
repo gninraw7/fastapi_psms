@@ -42,6 +42,14 @@ const API_CONFIG = {
         INDUSTRY_FIELDS: '/industry-fields',
         SERVICE_CODES: '/service-codes',
         ORG_UNITS_ADMIN: '/org-units',
+        COMPANIES: '/companies',
+        DATA_MANAGEMENT_TABLES: '/data-management/tables',
+        DATA_MANAGEMENT_COPY: '/data-management/copy',
+        NOTICES_LIST: '/notices/list',
+        NOTICES: '/notices',
+        NOTICE_TEMPLATES_LIST: '/notice-templates/list',
+        NOTICE_TEMPLATES: '/notice-templates',
+        FILES_UPLOAD: '/files/upload',
 
         // 접속 이력 / 권한
         LOGIN_HISTORY: '/login-history',
@@ -59,6 +67,13 @@ const API_CONFIG = {
     
     TIMEOUT: 30000,
     RETRY: { MAX_ATTEMPTS: 3, DELAY: 1000 }
+};
+
+// ===================================
+// Company Configuration
+// ===================================
+const COMPANY_CONFIG = {
+    DEFAULT_COMPANY_CD: 'TESTCOMP'
 };
 
 // ===================================
@@ -95,6 +110,16 @@ window.TABULATOR_COMMON_OPTIONS = {
 };
 
 // ===================================
+// Active Page Helpers
+// ===================================
+window.isElementInActivePage = function(element) {
+    if (!element) return false;
+    const page = element.closest('.page-content');
+    if (!page) return true;
+    return page.classList.contains('active');
+};
+
+// ===================================
 // API Helper
 // ===================================
 const API = {
@@ -111,6 +136,13 @@ const API = {
         const token = hasAuth ? AUTH.getAccessToken() : null;
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
+        }
+        if (!headers['X-Company-CD']) {
+            const fallbackCompany = (window.AUTH?.getUserInfo?.()?.company_cd) ||
+                                    (window.AUTH?.getCompanyCd?.()) ||
+                                    (window.COMPANY_CONFIG && window.COMPANY_CONFIG.DEFAULT_COMPANY_CD) ||
+                                    'TESTCOMP';
+            headers['X-Company-CD'] = fallbackCompany;
         }
 
         try {

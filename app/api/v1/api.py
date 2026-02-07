@@ -16,6 +16,11 @@ from app.api.v1.endpoints.sales_actuals import routes as sales_actuals_routes
 from app.api.v1.endpoints.reports import routes as reports_routes
 from app.api.v1.endpoints.login_history import routes as login_history_routes
 from app.api.v1.endpoints.permissions import routes as permissions_routes
+from app.api.v1.endpoints.companies import routes as companies_routes
+from app.api.v1.endpoints.data_management import routes as data_management_routes
+from app.api.v1.endpoints.notices import routes as notices_routes
+from app.api.v1.endpoints.notice_templates import routes as notice_templates_routes
+from app.api.v1.endpoints.files import routes as files_routes
 from app.core.permissions import permission_required
 
 # API v1 메인 라우터
@@ -122,6 +127,46 @@ api_router.include_router(
     prefix="/permissions",
     tags=["permissions"],
     dependencies=[Depends(permission_required("permissions"))]
+)
+
+# 회사 관리
+api_router.include_router(
+    companies_routes.router,
+    prefix="/companies",
+    tags=["companies"],
+    dependencies=[Depends(permission_required("companies"))]
+)
+
+# 데이터 관리
+api_router.include_router(
+    data_management_routes.router,
+    prefix="/data-management",
+    tags=["data-management"],
+    dependencies=[Depends(permission_required("data-management"))]
+)
+
+# 게시판
+api_router.include_router(
+    notices_routes.router,
+    prefix="/notices",
+    tags=["notices"],
+    dependencies=[Depends(permission_required("notices"))]
+)
+
+# 공지 템플릿
+api_router.include_router(
+    notice_templates_routes.router,
+    prefix="/notice-templates",
+    tags=["notice-templates"],
+    dependencies=[Depends(permission_required("notice-templates"))]
+)
+
+# 파일 업로드
+api_router.include_router(
+    files_routes.router,
+    prefix="/files",
+    tags=["files"],
+    dependencies=[Depends(permission_required("notices"))]
 )
 
 # 사용자 관리

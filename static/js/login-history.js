@@ -19,15 +19,16 @@ function initializeLoginHistory() {
         console.log('⚠️ loginHistoryTable 요소 없음, 초기화 스킵');
         return;
     }
+    if (typeof window.isElementInActivePage === 'function' && !window.isElementInActivePage(tableEl)) {
+        console.log('ℹ️ loginHistoryTable 비활성 페이지, 초기화 스킵');
+        return;
+    }
 
     try {
         if (!loginHistoryTable) {
             createLoginHistoryTable();
         }
         bindLoginHistoryEvents();
-        if (loginHistoryTable) {
-            loginHistoryTable.setPage(1);
-        }
         console.log('✅ 접속 이력 초기화 완료');
     } catch (error) {
         console.error('❌ 접속 이력 초기화 실패:', error);
@@ -58,6 +59,9 @@ function createLoginHistoryTable() {
         paginationSize: 25,
         paginationSizeSelector: [25, 50, 100, 200],
         placeholder: "데이터가 없습니다",
+        tableBuilt: function() {
+            loginHistoryTable.setPage(1);
+        },
 
         ajaxURL: API_CONFIG.BASE_URL + API_CONFIG.API_VERSION + endpoint + '/list',
         ajaxURLGenerator: function(url, config, params) {

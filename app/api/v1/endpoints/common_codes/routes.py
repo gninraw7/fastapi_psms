@@ -14,6 +14,7 @@ from sqlalchemy import text
 from typing import List, Optional
 from pydantic import BaseModel
 from app.core.database import get_db
+from app.core.tenant import get_company_cd
 from app.core.logger import app_logger
 
 router = APIRouter()
@@ -56,7 +57,9 @@ def execute_query(db: Session, query_str: str, params: dict = None) -> List[dict
     Returns:
         List[dict]: 쿼리 결과
     """
-    result = db.execute(text(query_str), params or {})
+    params = dict(params or {})
+    params.setdefault("company_cd", get_company_cd())
+    result = db.execute(text(query_str), params)
     rows = result.fetchall()
     
     if not rows:
@@ -87,10 +90,11 @@ def get_comm_codes(db: Session, group_code: str, is_use: str = 'Y') -> List[dict
             sort_order,
             is_use
         FROM comm_code
-        WHERE group_code = :group_code
+        WHERE company_cd = :company_cd
+          AND group_code = :group_code
     """
     
-    params = {'group_code': group_code}
+    params = {'group_code': group_code, "company_cd": get_company_cd()}
     
     # is_use 필터 조건 추가
     if is_use:
@@ -127,11 +131,13 @@ def get_users_by_condition(
             o.org_name,
             u.is_sales_rep
         FROM users u
-        LEFT JOIN org_units o ON o.org_id = u.org_id
-        WHERE 1=1
+        LEFT JOIN org_units o 
+          ON o.org_id = u.org_id
+         AND o.company_cd = u.company_cd
+        WHERE u.company_cd = :company_cd
     """
     
-    params = {}
+    params = {"company_cd": get_company_cd()}
     
     # 상태 필터
     if status:
@@ -155,19 +161,20 @@ def check_code_in_use(db: Session, group_code: str, code: str) -> bool:
     """
     try:
         if group_code == "FIELD":
-            q = text("SELECT COUNT(*) AS cnt FROM projects WHERE field_code = :code")
-            return db.execute(q, {"code": code}).fetchone().cnt > 0
+            q = text("SELECT COUNT(*) AS cnt FROM projects WHERE company_cd = :company_cd AND field_code = :code")
+            return db.execute(q, {"code": code, "company_cd": get_company_cd()}).fetchone().cnt > 0
         if group_code == "STAGE":
-            q1 = text("SELECT COUNT(*) AS cnt FROM projects WHERE current_stage = :code")
-            q2 = text("SELECT COUNT(*) AS cnt FROM project_history WHERE progress_stage = :code")
-            return (db.execute(q1, {"code": code}).fetchone().cnt > 0) or \
-                   (db.execute(q2, {"code": code}).fetchone().cnt > 0)
+            q1 = text("SELECT COUNT(*) AS cnt FROM projects WHERE company_cd = :company_cd AND current_stage = :code")
+            q2 = text("SELECT COUNT(*) AS cnt FROM project_history WHERE company_cd = :company_cd AND progress_stage = :code")
+            params = {"code": code, "company_cd": get_company_cd()}
+            return (db.execute(q1, params).fetchone().cnt > 0) or \
+                   (db.execute(q2, params).fetchone().cnt > 0)
         if group_code == "ROLE":
-            q = text("SELECT COUNT(*) AS cnt FROM users WHERE role = :code")
-            return db.execute(q, {"code": code}).fetchone().cnt > 0
+            q = text("SELECT COUNT(*) AS cnt FROM users WHERE company_cd = :company_cd AND role = :code")
+            return db.execute(q, {"code": code, "company_cd": get_company_cd()}).fetchone().cnt > 0
         if group_code == "PROJECT_ATTRIBUTE":
-            q = text("SELECT COUNT(*) AS cnt FROM project_attributes WHERE attr_code = :code")
-            return db.execute(q, {"code": code}).fetchone().cnt > 0
+            q = text("SELECT COUNT(*) AS cnt FROM project_attributes WHERE company_cd = :company_cd AND attr_code = :code")
+            return db.execute(q, {"code": code, "company_cd": get_company_cd()}).fetchone().cnt > 0
     except Exception:
         # 참조 테이블이 없는 환경에서도 동작하도록 사용중으로 간주하지 않음
         return False
@@ -242,6 +249,7 @@ async def create_common_code(
     db: Session = Depends(get_db)
 ):
     try:
+        company_cd = get_company_cd()
         group_code = request.group_code.strip()
         code = (request.code or "").strip()
         code_name = request.code_name.strip()
@@ -256,19 +264,21 @@ async def create_common_code(
             next_seq_query = text("""
                 SELECT COALESCE(MAX(CAST(SUBSTRING(code, 6) AS UNSIGNED)), 0) AS max_seq
                 FROM comm_code
-                WHERE group_code = :group_code
+                WHERE company_cd = :company_cd
+                  AND group_code = :group_code
                   AND code REGEXP '^ATTR_[0-9]{5}$'
             """)
-            max_seq = db.execute(next_seq_query, {"group_code": group_code}).fetchone().max_seq or 0
+            max_seq = db.execute(next_seq_query, {"group_code": group_code, "company_cd": company_cd}).fetchone().max_seq or 0
             code = f"ATTR_{int(max_seq) + 1:05d}"
 
             # 정렬순서는 PROJECT_ATTRIBUTE 그룹 내 최대값 + 1
             sort_seq_query = text("""
                 SELECT COALESCE(MAX(sort_order), 0) AS max_sort
                 FROM comm_code
-                WHERE group_code = :group_code
+                WHERE company_cd = :company_cd
+                  AND group_code = :group_code
             """)
-            max_sort = db.execute(sort_seq_query, {"group_code": group_code}).fetchone().max_sort or 0
+            max_sort = db.execute(sort_seq_query, {"group_code": group_code, "company_cd": company_cd}).fetchone().max_sort or 0
             sort_order = int(max_sort) + 1
         else:
             sort_order = request.sort_order or 0
@@ -277,9 +287,11 @@ async def create_common_code(
         exists_query = text("""
             SELECT COUNT(*) as cnt
             FROM comm_code
-            WHERE group_code = :group_code AND code = :code
+            WHERE company_cd = :company_cd
+              AND group_code = :group_code 
+              AND code = :code
         """)
-        exists = db.execute(exists_query, {"group_code": group_code, "code": code}).fetchone().cnt
+        exists = db.execute(exists_query, {"group_code": group_code, "code": code, "company_cd": company_cd}).fetchone().cnt
         if exists:
             raise HTTPException(status_code=409, detail="이미 존재하는 코드입니다.")
 
@@ -287,24 +299,26 @@ async def create_common_code(
         duplicate_name_query = text("""
             SELECT COUNT(*) AS cnt
             FROM comm_code
-            WHERE group_code = :group_code
+            WHERE company_cd = :company_cd
+              AND group_code = :group_code
               AND UPPER(TRIM(code_name)) = UPPER(TRIM(:code_name))
         """)
         duplicate_name_cnt = db.execute(
             duplicate_name_query,
-            {"group_code": group_code, "code_name": code_name}
+            {"group_code": group_code, "code_name": code_name, "company_cd": company_cd}
         ).fetchone().cnt
         if duplicate_name_cnt:
             raise HTTPException(status_code=409, detail="이미 존재하는 속성명입니다.")
 
         insert_query = text("""
             INSERT INTO comm_code (
-                group_code, code, code_name, sort_order, is_use, created_by
+                company_cd, group_code, code, code_name, sort_order, is_use, created_by
             ) VALUES (
-                :group_code, :code, :code_name, :sort_order, :is_use, :created_by
+                :company_cd, :group_code, :code, :code_name, :sort_order, :is_use, :created_by
             )
         """)
         db.execute(insert_query, {
+            "company_cd": company_cd,
             "group_code": group_code,
             "code": code,
             "code_name": code_name,
@@ -412,13 +426,14 @@ async def get_code_groups(
     """
     try:
         app_logger.info(f"🔍 코드 그룹 목록 조회 - is_use: {is_use}")
+        company_cd = get_company_cd()
         
         query = """
             SELECT DISTINCT group_code
             FROM comm_code
-            WHERE 1=1
+            WHERE company_cd = :company_cd
         """
-        params = {}
+        params = {"company_cd": company_cd}
         
         if is_use:
             query += " AND is_use = :is_use"
@@ -453,12 +468,13 @@ async def get_org_units(
     db: Session = Depends(get_db)
 ):
     try:
+        company_cd = get_company_cd()
         query = """
             SELECT org_id, org_name, org_type, parent_id, is_use
             FROM org_units
-            WHERE 1=1
+            WHERE company_cd = :company_cd
         """
-        params = {}
+        params = {"company_cd": company_cd}
         if is_use:
             query += " AND is_use = :is_use"
             params["is_use"] = is_use
@@ -494,6 +510,7 @@ async def get_single_code(
     """
     try:
         app_logger.info(f"🔍 공통코드 단건 조회 - group_code: {group_code}, code: {code}")
+        company_cd = get_company_cd()
         
         query = """
             SELECT 
@@ -503,10 +520,12 @@ async def get_single_code(
                 sort_order,
                 is_use
             FROM comm_code
-            WHERE group_code = :group_code AND code = :code
+            WHERE company_cd = :company_cd
+              AND group_code = :group_code 
+              AND code = :code
         """
         
-        rows = execute_query(db, query, {'group_code': group_code, 'code': code})
+        rows = execute_query(db, query, {'group_code': group_code, 'code': code, 'company_cd': company_cd})
         
         if not rows:
             raise HTTPException(status_code=404, detail="공통코드를 찾을 수 없습니다.")
@@ -540,6 +559,7 @@ async def bulk_save_codes(
     db: Session = Depends(get_db)
 ):
     try:
+        company_cd = get_company_cd()
         group_code = request.group_code.strip()
         items = request.items or []
 
@@ -558,10 +578,11 @@ async def bulk_save_codes(
 
             if row_stat == 'N':
                 insert_query = text("""
-                    INSERT INTO comm_code (group_code, code, code_name, sort_order, is_use)
-                    VALUES (:group_code, :code, :code_name, :sort_order, :is_use)
+                    INSERT INTO comm_code (company_cd, group_code, code, code_name, sort_order, is_use)
+                    VALUES (:company_cd, :group_code, :code, :code_name, :sort_order, :is_use)
                 """)
                 db.execute(insert_query, {
+                    "company_cd": company_cd,
                     "group_code": group_code,
                     "code": code,
                     "code_name": code_name,
@@ -574,9 +595,12 @@ async def bulk_save_codes(
                     SET code_name = :code_name,
                         sort_order = :sort_order,
                         is_use = :is_use
-                    WHERE group_code = :group_code AND code = :code
+                    WHERE company_cd = :company_cd
+                      AND group_code = :group_code 
+                      AND code = :code
                 """)
                 db.execute(update_query, {
+                    "company_cd": company_cd,
                     "group_code": group_code,
                     "code": code,
                     "code_name": code_name,
@@ -587,20 +611,23 @@ async def bulk_save_codes(
                 if group_code == "GROUP_CODE":
                     # 그룹 삭제 시 상세코드까지 삭제 (사용중이면 차단)
                     detail_rows = execute_query(db, """
-                        SELECT code FROM comm_code WHERE group_code = :group_code
-                    """, {"group_code": code})
+                        SELECT code FROM comm_code WHERE company_cd = :company_cd AND group_code = :group_code
+                    """, {"group_code": code, "company_cd": company_cd})
                     for d in detail_rows:
                         if check_code_in_use(db, code, d['code']):
                             raise HTTPException(status_code=400, detail=f"{code} 그룹 코드가 사용 중입니다.")
 
-                    db.execute(text("DELETE FROM comm_code WHERE group_code = :group_code"), {"group_code": code})
-                    db.execute(text("DELETE FROM comm_code WHERE group_code = 'GROUP_CODE' AND code = :code"), {"code": code})
+                    db.execute(text("DELETE FROM comm_code WHERE company_cd = :company_cd AND group_code = :group_code"), {"group_code": code, "company_cd": company_cd})
+                    db.execute(text("DELETE FROM comm_code WHERE company_cd = :company_cd AND group_code = 'GROUP_CODE' AND code = :code"), {"code": code, "company_cd": company_cd})
                 else:
                     if check_code_in_use(db, group_code, code):
                         raise HTTPException(status_code=400, detail="다른 테이블에서 사용 중인 코드입니다.")
                     db.execute(text("""
-                        DELETE FROM comm_code WHERE group_code = :group_code AND code = :code
-                    """), {"group_code": group_code, "code": code})
+                        DELETE FROM comm_code 
+                        WHERE company_cd = :company_cd
+                          AND group_code = :group_code 
+                          AND code = :code
+                    """), {"group_code": group_code, "code": code, "company_cd": company_cd})
 
         db.commit()
         app_logger.info(f"✅ 공통코드 일괄 저장 완료 - group_code: {group_code}, items: {len(items)}")

@@ -11,6 +11,7 @@ from datetime import date, datetime
 
 from app.core.database import get_db
 from app.core.logger import app_logger
+from app.core.tenant import get_company_cd
 
 router = APIRouter()
 
@@ -53,16 +54,18 @@ def _get_latest_plan_ids(
     status_code: Optional[str],
     plan_id: Optional[int] = None
 ) -> List[int]:
+    company_cd = get_company_cd()
     if plan_id:
         row = db.execute(
             text("""
                 SELECT plan_id
                 FROM sales_plan
-                WHERE plan_id = :plan_id
+                WHERE company_cd = :company_cd
+                  AND plan_id = :plan_id
                   AND plan_year = :year
                 LIMIT 1
             """),
-            {"plan_id": plan_id, "year": year}
+            {"plan_id": plan_id, "year": year, "company_cd": company_cd}
         ).first()
         return [row[0]] if row else []
 
@@ -70,10 +73,11 @@ def _get_latest_plan_ids(
         rows = db.execute(
             text("""
                 SELECT plan_id FROM sales_plan
-                WHERE plan_year = :year AND plan_version = :plan_version
+                WHERE company_cd = :company_cd
+                  AND plan_year = :year AND plan_version = :plan_version
                 ORDER BY updated_at DESC, plan_id DESC
             """),
-            {"year": year, "plan_version": plan_version}
+            {"year": year, "plan_version": plan_version, "company_cd": company_cd}
         ).fetchall()
         return [row[0] for row in rows]
 
@@ -81,21 +85,23 @@ def _get_latest_plan_ids(
         rows = db.execute(
             text("""
                 SELECT plan_id FROM sales_plan
-                WHERE plan_year = :year AND status_code = :status_code
+                WHERE company_cd = :company_cd
+                  AND plan_year = :year AND status_code = :status_code
                 ORDER BY updated_at DESC, plan_id DESC
             """),
-            {"year": year, "status_code": status_code}
+            {"year": year, "status_code": status_code, "company_cd": company_cd}
         ).fetchall()
         return [row[0] for row in rows]
 
     row = db.execute(
         text("""
             SELECT plan_id FROM sales_plan
-            WHERE plan_year = :year
+            WHERE company_cd = :company_cd
+              AND plan_year = :year
             ORDER BY (status_code = 'FINAL') DESC, updated_at DESC, plan_id DESC
             LIMIT 1
         """),
-        {"year": year}
+        {"year": year, "company_cd": company_cd}
     ).first()
     return [row[0]] if row else []
 
@@ -116,7 +122,9 @@ def _build_plan_aggregate(
         raise HTTPException(status_code=400, detail="invalid dimension")
 
     in_clause = ", ".join([f":pid{i}" for i in range(len(plan_ids))])
+    company_cd = get_company_cd()
     params = {f"pid{i}": plan_id for i, plan_id in enumerate(plan_ids)}
+    params["company_cd"] = company_cd
 
     if period == "year":
         select_cols = f"SUM({_plan_sum_expr()}) AS plan_total"
@@ -140,12 +148,23 @@ def _build_plan_aggregate(
             {group_expr} AS group_name,
             {select_cols}
         FROM sales_plan_line spl
-        LEFT JOIN org_units o ON o.org_id = spl.org_id
-        LEFT JOIN users u ON u.login_id = spl.manager_id
-        LEFT JOIN industry_fields f ON f.field_code = spl.field_code
-        LEFT JOIN service_codes sc ON sc.service_code = spl.service_code
-        LEFT JOIN clients c ON c.client_id = spl.customer_id
-        WHERE spl.plan_id IN ({in_clause})
+        LEFT JOIN org_units o 
+          ON o.org_id = spl.org_id
+         AND o.company_cd = spl.company_cd
+        LEFT JOIN users u 
+          ON u.login_id = spl.manager_id
+         AND u.company_cd = spl.company_cd
+        LEFT JOIN industry_fields f 
+          ON f.field_code = spl.field_code
+         AND f.company_cd = spl.company_cd
+        LEFT JOIN service_codes sc 
+          ON sc.service_code = spl.service_code
+         AND sc.company_cd = spl.company_cd
+        LEFT JOIN clients c 
+          ON c.client_id = spl.customer_id
+         AND c.company_cd = spl.company_cd
+        WHERE spl.company_cd = :company_cd
+          AND spl.plan_id IN ({in_clause})
     """
     if org_id:
         sql += " AND spl.org_id = :org_id"
@@ -202,14 +221,25 @@ def _build_actual_aggregate(
             {group_expr} AS group_name,
             {select_cols}
         FROM sales_actual_line sal
-        LEFT JOIN org_units o ON o.org_id = sal.org_id
-        LEFT JOIN users u ON u.login_id = sal.manager_id
-        LEFT JOIN industry_fields f ON f.field_code = sal.field_code
-        LEFT JOIN service_codes sc ON sc.service_code = sal.service_code
-        LEFT JOIN clients c ON c.client_id = sal.customer_id
-        WHERE sal.actual_year = :year
+        LEFT JOIN org_units o 
+          ON o.org_id = sal.org_id
+         AND o.company_cd = sal.company_cd
+        LEFT JOIN users u 
+          ON u.login_id = sal.manager_id
+         AND u.company_cd = sal.company_cd
+        LEFT JOIN industry_fields f 
+          ON f.field_code = sal.field_code
+         AND f.company_cd = sal.company_cd
+        LEFT JOIN service_codes sc 
+          ON sc.service_code = sal.service_code
+         AND sc.company_cd = sal.company_cd
+        LEFT JOIN clients c 
+          ON c.client_id = sal.customer_id
+         AND c.company_cd = sal.company_cd
+        WHERE sal.company_cd = :company_cd
+          AND sal.actual_year = :year
     """
-    params = {"year": year}
+    params = {"year": year, "company_cd": get_company_cd()}
     if org_id:
         sql += " AND sal.org_id = :org_id"
         params["org_id"] = org_id
@@ -416,6 +446,7 @@ async def report_summary(
     db: Session = Depends(get_db)
 ):
     try:
+        company_cd = get_company_cd()
         if source not in ("plan", "actual", "gap"):
             raise HTTPException(status_code=400, detail="invalid source")
         if period not in ("year", "quarter", "month"):
@@ -434,8 +465,8 @@ async def report_summary(
         if org_list:
             in_clause, params = _build_in_clause("org", org_list)
             rows = db.execute(
-                text(f"SELECT org_id, org_name FROM org_units WHERE org_id IN ({in_clause})"),
-                params
+                text(f"SELECT org_id, org_name FROM org_units WHERE company_cd = :company_cd AND org_id IN ({in_clause})"),
+                {**params, "company_cd": company_cd}
             ).mappings().all()
             org_map = {row["org_id"]: row["org_name"] for row in rows}
             for org_id in org_list:
@@ -445,8 +476,8 @@ async def report_summary(
         if manager_list:
             in_clause, params = _build_in_clause("mgr", manager_list)
             rows = db.execute(
-                text(f"SELECT login_id, user_name FROM users WHERE login_id IN ({in_clause})"),
-                params
+                text(f"SELECT login_id, user_name FROM users WHERE company_cd = :company_cd AND login_id IN ({in_clause})"),
+                {**params, "company_cd": company_cd}
             ).mappings().all()
             manager_map = {row["login_id"]: row["user_name"] for row in rows}
             for manager_id in manager_list:
@@ -529,6 +560,7 @@ async def get_ceo_dashboard(
     db: Session = Depends(get_db)
 ):
     try:
+        company_cd = get_company_cd()
         base_year = year or date.today().year
         prev_year = base_year - 1
 
@@ -537,15 +569,15 @@ async def get_ceo_dashboard(
         years_rows = db.execute(text("""
             SELECT DISTINCT y
             FROM (
-                SELECT actual_year AS y FROM sales_actual_line
+                SELECT actual_year AS y FROM sales_actual_line WHERE company_cd = :company_cd
                 UNION
-                SELECT plan_year AS y FROM sales_plan
+                SELECT plan_year AS y FROM sales_plan WHERE company_cd = :company_cd
                 UNION
-                SELECT YEAR(created_at) AS y FROM projects
+                SELECT YEAR(created_at) AS y FROM projects WHERE company_cd = :company_cd
             ) t
             WHERE y IS NOT NULL
             ORDER BY y DESC
-        """)).fetchall()
+        """), {"company_cd": company_cd}).fetchall()
         available_years = [int(row[0]) for row in years_rows if row[0] is not None]
         if base_year not in available_years:
             available_years.insert(0, base_year)
@@ -564,7 +596,8 @@ async def get_ceo_dashboard(
                 SUM(CASE WHEN p.current_stage IN ('S05','S06') THEN 1 ELSE 0 END) AS lost_projects,
                 SUM(CASE WHEN p.current_stage IN ('S07','S08','S09') THEN 1 ELSE 0 END) AS closed_projects
             FROM projects p
-        """)).mappings().first()
+            WHERE p.company_cd = :company_cd
+        """), {"company_cd": company_cd}).mappings().first()
 
         # KPI - 위험 신호
         kpi_risk_row = db.execute(text(f"""
@@ -580,8 +613,11 @@ async def get_ceo_dashboard(
                              AND COALESCE(p.win_probability,0) < 30
                          THEN 1 ELSE 0 END) AS low_probability_projects
             FROM projects p
-            LEFT JOIN project_contracts pc ON pc.pipeline_id = p.pipeline_id
-        """)).mappings().first()
+            LEFT JOIN project_contracts pc 
+              ON pc.pipeline_id = p.pipeline_id
+             AND pc.company_cd = p.company_cd
+            WHERE p.company_cd = :company_cd
+        """), {"company_cd": company_cd}).mappings().first()
 
         # KPI - 실적/전년 비교
         actual_sum_expr = _month_sum_expr("m", "_order")
@@ -592,16 +628,18 @@ async def get_ceo_dashboard(
                 SUM({actual_sum_expr}) AS order_total,
                 SUM({profit_sum_expr}) AS profit_total
             FROM sales_actual_line
-            WHERE actual_year = :year
-        """), {"year": base_year}).mappings().first()
+            WHERE company_cd = :company_cd
+              AND actual_year = :year
+        """), {"year": base_year, "company_cd": company_cd}).mappings().first()
 
         kpi_actual_prev_row = db.execute(text(f"""
             SELECT
                 SUM({actual_sum_expr}) AS order_total,
                 SUM({profit_sum_expr}) AS profit_total
             FROM sales_actual_line
-            WHERE actual_year = :year
-        """), {"year": prev_year}).mappings().first()
+            WHERE company_cd = :company_cd
+              AND actual_year = :year
+        """), {"year": prev_year, "company_cd": company_cd}).mappings().first()
 
         # 계획 합계 (해당 연도 최신 계획)
         plan_ids = _get_latest_plan_ids(db, base_year, None, None, None)
@@ -611,8 +649,9 @@ async def get_ceo_dashboard(
             plan_row = db.execute(text(f"""
                 SELECT SUM({_plan_sum_expr()}) AS plan_total
                 FROM sales_plan_line spl
-                WHERE spl.plan_id IN ({in_clause})
-            """), in_params).mappings().first()
+                WHERE spl.company_cd = :company_cd
+                  AND spl.plan_id IN ({in_clause})
+            """), {**in_params, "company_cd": company_cd}).mappings().first()
             plan_total = _to_float(plan_row.get("plan_total")) if plan_row else 0.0
 
         order_total = _to_float(kpi_actual_row.get("order_total")) if kpi_actual_row else 0.0
@@ -624,14 +663,16 @@ async def get_ceo_dashboard(
         actual_month_row = db.execute(text(f"""
             SELECT {_month_sum_select('m', '_order')}
             FROM sales_actual_line
-            WHERE actual_year = :year
-        """), {"year": base_year}).mappings().first() or {}
+            WHERE company_cd = :company_cd
+              AND actual_year = :year
+        """), {"year": base_year, "company_cd": company_cd}).mappings().first() or {}
 
         prev_month_row = db.execute(text(f"""
             SELECT {_month_sum_select('m', '_order')}
             FROM sales_actual_line
-            WHERE actual_year = :year
-        """), {"year": prev_year}).mappings().first() or {}
+            WHERE company_cd = :company_cd
+              AND actual_year = :year
+        """), {"year": prev_year, "company_cd": company_cd}).mappings().first() or {}
 
         plan_month_row = {}
         if plan_ids:
@@ -639,8 +680,9 @@ async def get_ceo_dashboard(
             plan_month_row = db.execute(text(f"""
                 SELECT {_month_sum_select('plan_m')}
                 FROM sales_plan_line
-                WHERE plan_id IN ({in_clause})
-            """), in_params).mappings().first() or {}
+                WHERE company_cd = :company_cd
+                  AND plan_id IN ({in_clause})
+            """), {**in_params, "company_cd": company_cd}).mappings().first() or {}
 
         actual_months = _row_months(actual_month_row)
         prev_months = _row_months(prev_month_row)
@@ -680,6 +722,8 @@ async def get_ceo_dashboard(
             LEFT JOIN comm_code cc
               ON cc.group_code = 'STAGE'
              AND cc.code = p.current_stage
+             AND cc.company_cd = p.company_cd
+            WHERE p.company_cd = :company_cd
             GROUP BY COALESCE(p.current_stage, '-'), COALESCE(cc.code_name, p.current_stage, '미지정')
             ORDER BY CASE stage_code
                 WHEN 'S01' THEN 1
@@ -693,7 +737,7 @@ async def get_ceo_dashboard(
                 WHEN 'S09' THEN 9
                 ELSE 99
             END
-        """)).mappings().all()
+        """), {"company_cd": company_cd}).mappings().all()
         stage_funnel = [{
             "stage_code": row["stage_code"],
             "stage_name": row["stage_name"],
@@ -715,7 +759,8 @@ async def get_ceo_dashboard(
                 COUNT(*) AS project_count,
                 SUM(COALESCE(p.quoted_amount,0)) AS total_amount
             FROM projects p
-            WHERE {active_stage_filter}
+            WHERE p.company_cd = :company_cd
+              AND {active_stage_filter}
             GROUP BY probability_band
             ORDER BY CASE probability_band
                 WHEN '90-100%' THEN 1
@@ -724,7 +769,7 @@ async def get_ceo_dashboard(
                 WHEN '30-49%' THEN 4
                 ELSE 5
             END
-        """)).mappings().all()
+        """), {"company_cd": company_cd}).mappings().all()
         probability_bands = [{
             "probability_band": row["probability_band"],
             "project_count": int(row["project_count"] or 0),
@@ -740,12 +785,15 @@ async def get_ceo_dashboard(
                 SUM(COALESCE(p.quoted_amount,0)) AS total_amount,
                 SUM(COALESCE(p.quoted_amount,0) * COALESCE(p.win_probability,0) / 100) AS expected_amount
             FROM projects p
-            LEFT JOIN users u ON u.login_id = p.manager_id
-            WHERE {active_stage_filter}
+            LEFT JOIN users u 
+              ON u.login_id = p.manager_id
+             AND u.company_cd = p.company_cd
+            WHERE p.company_cd = :company_cd
+              AND {active_stage_filter}
             GROUP BY p.manager_id, COALESCE(u.user_name, p.manager_id, '미지정')
             ORDER BY expected_amount DESC
             LIMIT 5
-        """)).mappings().all()
+        """), {"company_cd": company_cd}).mappings().all()
         manager_top = [{
             "manager_id": row["manager_id"],
             "manager_name": row["manager_name"],
@@ -763,12 +811,15 @@ async def get_ceo_dashboard(
                 SUM(COALESCE(p.quoted_amount,0)) AS total_amount,
                 SUM(COALESCE(p.quoted_amount,0) * COALESCE(p.win_probability,0) / 100) AS expected_amount
             FROM projects p
-            LEFT JOIN industry_fields f ON f.field_code = p.field_code
-            WHERE {active_stage_filter}
+            LEFT JOIN industry_fields f 
+              ON f.field_code = p.field_code
+             AND f.company_cd = p.company_cd
+            WHERE p.company_cd = :company_cd
+              AND {active_stage_filter}
             GROUP BY p.field_code, COALESCE(f.field_name, p.field_code, '미분류')
             ORDER BY total_amount DESC
             LIMIT 8
-        """)).mappings().all()
+        """), {"company_cd": company_cd}).mappings().all()
         field_mix = [{
             "field_code": row["field_code"],
             "field_name": row["field_name"],
@@ -786,12 +837,15 @@ async def get_ceo_dashboard(
                 SUM(COALESCE(p.quoted_amount,0)) AS total_amount,
                 SUM(COALESCE(p.quoted_amount,0) * COALESCE(p.win_probability,0) / 100) AS expected_amount
             FROM projects p
-            LEFT JOIN clients c ON c.client_id = p.customer_id
-            WHERE {active_stage_filter}
+            LEFT JOIN clients c 
+              ON c.client_id = p.customer_id
+             AND c.company_cd = p.company_cd
+            WHERE p.company_cd = :company_cd
+              AND {active_stage_filter}
             GROUP BY p.customer_id, COALESCE(c.client_name, '미지정')
             ORDER BY expected_amount DESC
             LIMIT 10
-        """)).mappings().all()
+        """), {"company_cd": company_cd}).mappings().all()
         customer_top = [{
             "customer_id": row["customer_id"],
             "customer_name": row["customer_name"],
@@ -821,11 +875,15 @@ async def get_ceo_dashboard(
                     WHEN COALESCE(p.win_probability,0) < 30 THEN 1 ELSE 0
                 END AS is_low_probability
             FROM projects p
-            LEFT JOIN project_contracts pc ON pc.pipeline_id = p.pipeline_id
+            LEFT JOIN project_contracts pc 
+              ON pc.pipeline_id = p.pipeline_id
+             AND pc.company_cd = p.company_cd
             LEFT JOIN comm_code cc
               ON cc.group_code = 'STAGE'
              AND cc.code = p.current_stage
-            WHERE {active_stage_filter}
+             AND cc.company_cd = p.company_cd
+            WHERE p.company_cd = :company_cd
+              AND {active_stage_filter}
               AND (
                     (pc.end_date IS NOT NULL AND pc.end_date < CURDATE())
                  OR (DATEDIFF(CURDATE(), COALESCE(DATE(p.updated_at), DATE(p.created_at))) >= 90)
@@ -836,7 +894,7 @@ async def get_ceo_dashboard(
                      stale_days DESC,
                      p.updated_at ASC
             LIMIT 12
-        """)).mappings().all()
+        """), {"company_cd": company_cd}).mappings().all()
 
         risk_projects = [{
             "pipeline_id": row["pipeline_id"],

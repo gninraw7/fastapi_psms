@@ -73,6 +73,9 @@
                         const isAdmin = role === 'admin';
                         adminMenu.style.display = isAdmin ? '' : 'none';
                     }
+
+                    // 회사 전환 UI 초기화 (관리자만)
+                    initializeCompanySwitcher(userInfo);
                 } else {
                     console.warn('⚠️ 사용자 정보가 없습니다');
                 }
@@ -90,5 +93,76 @@
         document.addEventListener('DOMContentLoaded', applyUserUiState);
     } else {
         applyUserUiState();
+    }
+
+    async function initializeCompanySwitcher(userInfo) {
+        const container = document.getElementById('companySwitch');
+        const select = document.getElementById('currentCompanySelect');
+        const switchBtn = document.getElementById('btnSwitchCompany');
+
+        if (!container || !select || !switchBtn) return;
+
+        const role = (userInfo?.role || '').toString().toLowerCase();
+        if (role !== 'admin') {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'flex';
+
+        const currentCompany = userInfo.company_cd || AUTH.getCompanyCd() || (window.COMPANY_CONFIG?.DEFAULT_COMPANY_CD) || '';
+        try {
+            const serverUrl = AUTH.getServerUrl();
+            const response = await fetch(`${serverUrl}/api/v1/auth/companies`, { method: 'GET' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const items = data.items || [];
+
+            if (items.length === 0) {
+                renderCompanyOptions([{ company_cd: currentCompany, company_name: currentCompany }], currentCompany);
+            } else {
+                renderCompanyOptions(items, currentCompany);
+            }
+        } catch (error) {
+            console.warn('⚠️ 회사 목록 조회 실패:', error);
+            renderCompanyOptions([{ company_cd: currentCompany, company_name: currentCompany }], currentCompany);
+        }
+
+        switchBtn.addEventListener('click', async () => {
+            const target = (select.value || '').trim();
+            if (!target || target === currentCompany) {
+                return;
+            }
+
+            if (!confirm(`회사 전환: ${currentCompany} → ${target}\n전환 후 화면이 새로고침됩니다.`)) {
+                select.value = currentCompany;
+                return;
+            }
+
+            try {
+                await AUTH.switchCompany(target);
+                window.location.reload();
+            } catch (error) {
+                console.error('❌ 회사 전환 실패:', error);
+                alert(error?.message || '회사 전환 실패');
+                select.value = currentCompany;
+            }
+        });
+    }
+
+    function renderCompanyOptions(items, selectedCd) {
+        const select = document.getElementById('currentCompanySelect');
+        if (!select) return;
+        select.innerHTML = '';
+        items.forEach((item) => {
+            const option = document.createElement('option');
+            option.value = item.company_cd;
+            const name = item.company_name || item.company_cd;
+            option.textContent = `${name} (${item.company_cd})`;
+            select.appendChild(option);
+        });
+
+        const exists = items.some(item => item.company_cd === selectedCd);
+        select.value = exists ? selectedCd : (items[0]?.company_cd || selectedCd || '');
     }
 })();

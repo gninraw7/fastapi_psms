@@ -270,6 +270,109 @@
     margin: 0;
 }
 
+.excel-mode-control {
+    gap: 0.6rem;
+    padding: 0.2rem 0.75rem;
+}
+
+.excel-mode-control .excel-mode-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.excel-mode-control .form-switch {
+    width: 46px;
+    height: 24px;
+}
+
+.excel-mode-control .form-switch-slider:before {
+    width: 16px;
+    height: 16px;
+}
+
+.excel-mode-control .form-switch input:checked + .form-switch-slider:before {
+    transform: translateX(20px);
+}
+
+.grid-excel-compact .tabulator {
+    border: 1px solid #c1c9d4;
+    border-radius: 8px;
+}
+
+.grid-excel-compact .tabulator .tabulator-header {
+    background: #f8fafc;
+    border-bottom: 1px solid #c1c9d4;
+    min-height: 30px;
+}
+
+.grid-excel-compact .tabulator .tabulator-header .tabulator-col,
+.grid-excel-compact .tabulator .tabulator-header .tabulator-col-group {
+    padding: 2px 6px;
+    border-right: 1px solid #c1c9d4;
+}
+
+.grid-excel-compact .tabulator .tabulator-header .tabulator-col:last-child,
+.grid-excel-compact .tabulator .tabulator-header .tabulator-col-group:last-child {
+    border-right: none;
+}
+
+.grid-excel-compact .tabulator .tabulator-col .tabulator-col-content,
+.grid-excel-compact .tabulator .tabulator-col-group .tabulator-col-content {
+    padding: 0;
+    line-height: 1.2;
+}
+
+.grid-excel-compact .tabulator-row {
+    min-height: 26px;
+    height: 26px;
+}
+
+.grid-excel-compact .tabulator-row .tabulator-cell {
+    padding: 2px 6px;
+    border-right: 1px solid #cdd5df;
+    border-bottom: 1px solid #cdd5df;
+    line-height: 1.2;
+}
+
+.grid-excel-compact .tabulator-row .tabulator-cell:last-child {
+    border-right: none;
+}
+
+.paste-preview {
+    margin-top: 0.75rem;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    background: #f8fafc;
+    padding: 0.75rem;
+    max-height: 260px;
+    overflow: auto;
+}
+
+.paste-preview-summary {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.paste-preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.paste-preview-table th,
+.paste-preview-table td {
+    border: 1px solid #e2e8f0;
+    padding: 0.35rem 0.45rem;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.paste-preview-table th:first-child,
+.paste-preview-table td:first-child {
+    text-align: left;
+}
+
 .column-visibility-list {
     display: grid;
     gap: 0.75rem;
@@ -360,6 +463,13 @@
 #salesActualLineTable .tabulator .tabulator-tableholder .tabulator-row .tabulator-frozen {
     z-index: 3;
     box-shadow: 2px 0 0 rgba(15, 23, 42, 0.06);
+}
+
+#salesPlanLineTable .tabulator .tabulator-col .tabulator-col-title,
+#salesPlanLineTable .tabulator .tabulator-col-group .tabulator-col-title,
+#salesActualLineTable .tabulator .tabulator-col .tabulator-col-title,
+#salesActualLineTable .tabulator .tabulator-col-group .tabulator-col-title {
+    text-align: center;
 }
 
 .helper-text {

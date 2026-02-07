@@ -11,6 +11,46 @@ let cachedSalesPlans = [];
 let missingProjectsTable = null;
 let isFilterSyncing = false;
 let currentPlanEditPipelineId = null;
+let salesPlanLineTableReady = false;
+let planStickyConfig = { active: false, columns: [] };
+let planExcelCompactMode = false;
+let planPasteCache = null;
+
+function hasPipelineHeader(text) {
+    const firstLine = String(text || '').split(/\r?\n/)[0] || '';
+    return /파이프라인|pipeline/i.test(firstLine);
+}
+
+function planClipboardPasteParser(clipboard) {
+    if (!planExcelCompactMode) return clipboard;
+    if (typeof clipboard === 'string' && hasPipelineHeader(clipboard)) {
+        const result = parsePlanPaste(clipboard);
+        renderPlanPastePreview(result);
+        applyPlanPasteResult(result);
+        return [];
+    }
+    return clipboard;
+}
+
+function bindPlanTablePasteHandler() {
+    const tableEl = document.getElementById('salesPlanLineTable');
+    if (!tableEl || tableEl.dataset.pasteBound) return;
+    tableEl.dataset.pasteBound = 'true';
+    tableEl.addEventListener('paste', (event) => {
+        if (!planExcelCompactMode) return;
+        const text = event.clipboardData?.getData('text/plain') || '';
+        if (!text || !hasPipelineHeader(text)) return;
+        event.preventDefault();
+        const result = parsePlanPaste(text);
+        renderPlanPastePreview(result);
+        applyPlanPasteResult(result);
+    });
+}
+
+const PLAN_COMPACT_WIDTHS = {
+    month: 110,
+    total: 120
+};
 
 const PLAN_LINE_FIELDS = [
     { field: 'pipeline_id', title: '파이프라인ID' },
@@ -113,6 +153,30 @@ function setPlanToStorage(plan) {
         return;
     }
     localStorage.setItem('psms.salesPlan.current', JSON.stringify(plan));
+}
+
+function openSalesPlanEdit(plan) {
+    const params = new URLSearchParams();
+    params.set('page', 'sales-plan-edit');
+    if (plan?.plan_id) {
+        params.set('plan_id', plan.plan_id);
+    }
+    const url = `${window.location.pathname}?${params.toString()}`;
+    if (history.pushState) {
+        history.pushState({ page: 'sales-plan-edit', plan_id: plan?.plan_id || null }, '', url);
+    }
+    navigateTo('sales-plan-edit');
+}
+
+async function fetchSalesPlanDetail(planId) {
+    if (!planId) return null;
+    try {
+        if (typeof API === 'undefined' || !API_CONFIG?.ENDPOINTS?.SALES_PLANS) return null;
+        return await API.get(`${API_CONFIG.ENDPOINTS.SALES_PLANS}/${planId}`);
+    } catch (error) {
+        console.warn('⚠️ 영업계획 단건 조회 실패:', error);
+        return null;
+    }
 }
 
 function findPlanById(items, planId) {
@@ -238,6 +302,10 @@ function getPlanColumnStorageKey() {
     return `psms.salesPlan.columns.${getCurrentLoginId()}`;
 }
 
+function getPlanExcelModeStorageKey() {
+    return `psms.salesPlan.excelCompact.${getCurrentLoginId()}`;
+}
+
 function savePlanColumnSettings() {
     if (!salesPlanLineTable) return;
     const fields = salesPlanLineTable.getColumns()
@@ -264,6 +332,20 @@ function loadPlanColumnSettings() {
         console.warn('⚠️ 컬럼 설정 로드 실패:', error);
         return null;
     }
+}
+
+function loadPlanExcelMode() {
+    try {
+        const raw = localStorage.getItem(getPlanExcelModeStorageKey());
+        return raw ? JSON.parse(raw) : false;
+    } catch (error) {
+        console.warn('⚠️ 엑셀 모드 설정 로드 실패:', error);
+        return false;
+    }
+}
+
+function savePlanExcelMode(enabled) {
+    localStorage.setItem(getPlanExcelModeStorageKey(), JSON.stringify(!!enabled));
 }
 
 function populatePlanYearOptions() {
@@ -366,10 +448,11 @@ async function initializeSalesPlanList() {
                 setPlanToStorage(currentSalesPlan);
             }
         },
-        rowDblClick: () => {
-            if (currentSalesPlan) {
-                navigateTo('sales-plan-edit');
-            }
+        rowDblClick: (e, row) => {
+            const data = row.getData();
+            currentSalesPlan = data;
+            setPlanToStorage(currentSalesPlan);
+            openSalesPlanEdit(currentSalesPlan);
         }
     });
 
@@ -415,7 +498,7 @@ function bindSalesPlanListEvents() {
             }
             currentSalesPlan = selectedPlan;
             setPlanToStorage(currentSalesPlan);
-            navigateTo('sales-plan-edit');
+            openSalesPlanEdit(currentSalesPlan);
         });
     }
 
@@ -486,7 +569,7 @@ async function updateSalesPlanStatus(plan, statusCode) {
     }
 }
 
-function buildPlanLineColumns(settings = null) {
+function buildPlanLineColumns(settings = null, compact = false) {
     const hiddenSet = new Set(settings?.hidden || []);
     const baseColumns = PLAN_LINE_FIELDS.map((col) => {
         const def = {
@@ -505,7 +588,7 @@ function buildPlanLineColumns(settings = null) {
         if (col.field === 'start_plan_date') def.width = 140;
         if (col.field === 'end_plan_date') def.width = 140;
         if (col.field === 'plan_total') {
-            def.width = 130;
+            def.width = compact ? PLAN_COMPACT_WIDTHS.total : 130;
             def.hozAlign = 'right';
             def.formatter = (cell) => formatNumber(cell.getValue());
         }
@@ -522,6 +605,7 @@ function buildPlanLineColumns(settings = null) {
             title: `${i}월`,
             field: key,
             hozAlign: 'right',
+            ...(compact ? { width: PLAN_COMPACT_WIDTHS.month } : {}),
             editor: amountEditor,
             formatter: (cell) => formatNumber(cell.getValue()),
             cellEdited: (cell) => recalcPlanRowTotal(cell.getRow())
@@ -552,6 +636,265 @@ function buildPlanLineColumns(settings = null) {
         }
     });
     return ordered;
+}
+
+function getPlanSelectionColumn() {
+    return {
+        formatter: "rowSelection",
+        titleFormatter: "rowSelection",
+        hozAlign: "center",
+        headerSort: false,
+        width: 50,
+        frozen: true
+    };
+}
+
+function syncPlanExcelModeUI() {
+    const toggle = document.getElementById('planExcelMode');
+    if (toggle) {
+        toggle.checked = planExcelCompactMode;
+    }
+    const pasteBtn = document.getElementById('btnPlanPasteExcel');
+    if (pasteBtn) {
+        pasteBtn.disabled = !planExcelCompactMode;
+    }
+    const tableEl = document.getElementById('salesPlanLineTable');
+    if (tableEl) {
+        tableEl.classList.toggle('grid-excel-compact', planExcelCompactMode);
+    }
+}
+
+function applyPlanExcelMode(enabled) {
+    planExcelCompactMode = !!enabled;
+    syncPlanExcelModeUI();
+    if (!salesPlanLineTable) return;
+    const columnSettings = loadPlanColumnSettings() || {};
+    const columns = [
+        getPlanSelectionColumn(),
+        ...buildPlanLineColumns(columnSettings, planExcelCompactMode)
+    ];
+    salesPlanLineTable.setColumns(columns);
+    const freezeSelect = document.getElementById('planFreezeColumn');
+    if (freezeSelect) {
+        applyPlanColumnFreeze(freezeSelect.value || '');
+    }
+    renderPlanColumnsList();
+    savePlanColumnSettings();
+}
+
+function openPlanPasteModal() {
+    const modal = document.getElementById('planPasteModal');
+    if (modal) {
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+    }
+    const preview = document.getElementById('planPastePreview');
+    if (preview) preview.innerHTML = '';
+    planPasteCache = null;
+}
+
+function closePlanPasteModal() {
+    const modal = document.getElementById('planPasteModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+}
+
+function parsePasteNumber(value) {
+    const raw = String(value ?? '').trim();
+    if (!raw || raw === '-') return null;
+    const cleaned = raw.replace(/,/g, '');
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+}
+
+function normalizePasteHeader(value) {
+    return String(value ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '')
+        .replace(/[_\-()]/g, '');
+}
+
+function mapPlanPasteHeaders(headers) {
+    const mapping = {};
+    headers.forEach((header, idx) => {
+        const raw = String(header ?? '').trim();
+        const norm = normalizePasteHeader(raw);
+        if (mapping.pipeline === undefined && (norm.includes('pipeline') || norm.includes('파이프라인') || norm === 'id' || norm === '파이프라인id')) {
+            mapping.pipeline = idx;
+        }
+        const monthMatch = raw.match(/(\d{1,2})\s*월/);
+        if (monthMatch) {
+            const month = Number(monthMatch[1]);
+            if (month >= 1 && month <= 12) {
+                mapping[`plan_m${String(month).padStart(2, '0')}`] = idx;
+            }
+        }
+    });
+    return mapping;
+}
+
+function parsePlanPaste(text) {
+    const rows = String(text || '')
+        .split(/\r?\n/)
+        .map(line => line.replace(/\r/g, ''))
+        .filter(line => line.trim().length > 0)
+        .map(line => line.split('\t'));
+
+    if (rows.length < 2) {
+        return { error: '붙여넣기 데이터가 부족합니다. 헤더 포함 2줄 이상 필요합니다.' };
+    }
+
+    const headers = rows[0];
+    const mapping = mapPlanPasteHeaders(headers);
+    if (mapping.pipeline === undefined) {
+        return { error: '헤더에 파이프라인ID 컬럼이 없습니다.' };
+    }
+    const monthFields = Object.keys(mapping).filter(key => key.startsWith('plan_m'));
+    if (monthFields.length === 0) {
+        return { error: '헤더에서 월별(1월~12월) 컬럼을 찾지 못했습니다.' };
+    }
+
+    const parsedRows = [];
+    rows.slice(1).forEach(row => {
+        const pipelineId = String(row[mapping.pipeline] ?? '').trim();
+        if (!pipelineId) return;
+        const updates = {};
+        monthFields.forEach(field => {
+            const idx = mapping[field];
+            const value = parsePasteNumber(row[idx]);
+            if (value !== null) updates[field] = value;
+        });
+        if (Object.keys(updates).length > 0) {
+            parsedRows.push({ pipeline_id: pipelineId, updates });
+        }
+    });
+
+    return {
+        headers,
+        mapping,
+        monthFields,
+        rows: parsedRows,
+        totalRows: rows.length - 1
+    };
+}
+
+function renderPlanPastePreview(result) {
+    const preview = document.getElementById('planPastePreview');
+    if (!preview) return;
+    if (result.error) {
+        preview.innerHTML = `<div class="paste-preview-summary">⚠️ ${result.error}</div>`;
+        return;
+    }
+    const months = result.monthFields.sort();
+    const sampleRows = result.rows.slice(0, 5);
+    const headerLabels = ['파이프라인ID', ...months.map(field => `${Number(field.slice(-2))}월`)];
+    const tableRows = sampleRows.map(row => {
+        const cells = [row.pipeline_id, ...months.map(field => formatNumber(row.updates[field] ?? ''))];
+        return `<tr>${cells.map(cell => `<td>${cell}</td>`).join('')}</tr>`;
+    }).join('');
+    preview.innerHTML = `
+        <div class="paste-preview-summary">
+            매칭 컬럼: 파이프라인ID + ${months.length}개월 |
+            대상행: ${result.rows.length} / ${result.totalRows}행
+        </div>
+        <table class="paste-preview-table">
+            <thead><tr>${headerLabels.map(label => `<th>${label}</th>`).join('')}</tr></thead>
+            <tbody>${tableRows || '<tr><td colspan="' + headerLabels.length + '">미리보기 데이터가 없습니다.</td></tr>'}</tbody>
+        </table>
+    `;
+}
+
+function applyPlanPasteResult(result) {
+    if (result.error) {
+        alert(result.error);
+        return;
+    }
+    if (!salesPlanLineTable) {
+        alert('그리드가 준비되지 않았습니다.');
+        return;
+    }
+    const rowMap = new Map();
+    salesPlanLineTable.getRows().forEach(row => {
+        const data = row.getData();
+        if (data?.pipeline_id !== undefined && data?.pipeline_id !== null) {
+            rowMap.set(String(data.pipeline_id).trim(), row);
+        }
+    });
+
+    let matched = 0;
+    let missing = 0;
+    let updatedCells = 0;
+    const missingIds = [];
+
+    result.rows.forEach(item => {
+        const row = rowMap.get(String(item.pipeline_id).trim());
+        if (!row) {
+            missing += 1;
+            if (missingIds.length < 10) missingIds.push(item.pipeline_id);
+            return;
+        }
+        const payload = {};
+        Object.entries(item.updates).forEach(([field, value]) => {
+            payload[field] = value;
+            updatedCells += 1;
+        });
+        row.update(payload);
+        recalcPlanRowTotal(row);
+        matched += 1;
+    });
+    updatePlanConsistencyBadge();
+
+    let message = `붙여넣기 완료: ${matched}행 반영, ${missing}행 미매칭, ${updatedCells}칸 업데이트`;
+    if (missingIds.length) {
+        message += `\n미매칭 예시: ${missingIds.join(', ')}${missing > missingIds.length ? ' ...' : ''}`;
+    }
+    alert(message);
+}
+
+function clearPlanStickyStyles() {
+    const tableEl = document.getElementById('salesPlanLineTable');
+    if (!tableEl) return;
+    tableEl.querySelectorAll('[data-plan-frozen="1"]').forEach(el => {
+        el.style.position = '';
+        el.style.left = '';
+        el.style.zIndex = '';
+        el.style.backgroundColor = '';
+        delete el.dataset.planFrozen;
+    });
+}
+
+function applyPlanStickyHeaderStyles() {
+    if (!salesPlanLineTable || !planStickyConfig.active) return;
+    planStickyConfig.columns.forEach(item => {
+        const headerEl = item.col.getElement?.();
+        if (!headerEl) return;
+        headerEl.dataset.planFrozen = '1';
+        headerEl.style.position = 'sticky';
+        headerEl.style.left = `${item.left}px`;
+        headerEl.style.zIndex = '4';
+        headerEl.style.backgroundColor = '#f8f9fa';
+    });
+}
+
+function applyPlanStickyToRow(row) {
+    if (!planStickyConfig.active || !row) return;
+    const cells = row.getCells();
+    const rowEl = row.getElement?.();
+    const rowBg = rowEl ? window.getComputedStyle(rowEl).backgroundColor : '#ffffff';
+    planStickyConfig.columns.forEach(item => {
+        const cell = cells.find(c => c.getColumn && c.getColumn() === item.col);
+        if (!cell) return;
+        const el = cell.getElement();
+        if (!el) return;
+        el.dataset.planFrozen = '1';
+        el.style.position = 'sticky';
+        el.style.left = `${item.left}px`;
+        el.style.zIndex = '3';
+        el.style.backgroundColor = rowBg || '#ffffff';
+    });
 }
 
 function recalcPlanRowTotal(row) {
@@ -726,6 +1069,7 @@ async function fetchPlanLines(planId, filters = {}) {
 async function initializeSalesPlanEdit() {
     const tableEl = document.getElementById('salesPlanLineTable');
     if (!tableEl) return;
+    planExcelCompactMode = loadPlanExcelMode();
 
     if (!salesPlanLineTable) {
         const columnSettings = loadPlanColumnSettings();
@@ -739,33 +1083,55 @@ async function initializeSalesPlanEdit() {
             height: '600px',
             layout: 'fitDataStretch',
             selectable: true,
-            selectableRangeMode: "click",
+            selectableRange: true,
+            selectableRangeMode: "drag",
+            clipboard: true,
+            clipboardPasteAction: "range",
+            clipboardPasteParser: planClipboardPasteParser,
             placeholder: '계획 라인 데이터가 없습니다.',
             movableColumns: true,
             headerSortElement: sortElement,
             columnDefaults: {
                 headerSort: true
             },
+            rowFormatter: function(row) {
+                applyPlanStickyToRow(row);
+            },
             columns: [
-                {
-                    formatter: "rowSelection",
-                    titleFormatter: "rowSelection",
-                    hozAlign: "center",
-                    headerSort: false,
-                    width: 50,
-                    frozen: true
-                },
-                ...buildPlanLineColumns(columnSettings)
+                getPlanSelectionColumn(),
+                ...buildPlanLineColumns(columnSettings, planExcelCompactMode)
             ]
+        });
+        salesPlanLineTable.on('tableBuilt', () => {
+            salesPlanLineTableReady = true;
+            syncPlanExcelModeUI();
+            if (!salesPlanLineTable?.modules?.clipboard) {
+                console.warn('⚠️ Tabulator clipboard 모듈이 없습니다. full build가 필요할 수 있습니다.');
+            }
+            if (!salesPlanLineTable?.modules?.selectRange) {
+                console.warn('⚠️ Tabulator range 선택 모듈이 없습니다. full build가 필요할 수 있습니다.');
+            }
+            bindPlanTablePasteHandler();
         });
         salesPlanLineTable.on("columnMoved", () => {
             savePlanColumnSettings();
             renderPlanColumnsList();
+            const freezeSelect = document.getElementById('planFreezeColumn');
+            if (freezeSelect?.value) {
+                applyPlanColumnFreeze(freezeSelect.value);
+            }
         });
         salesPlanLineTable.on("columnVisibilityChanged", () => {
             savePlanColumnSettings();
             renderPlanColumnsList();
+            const freezeSelect = document.getElementById('planFreezeColumn');
+            if (freezeSelect?.value) {
+                applyPlanColumnFreeze(freezeSelect.value);
+            }
         });
+        if (!salesPlanLineTableReady) {
+            await new Promise(resolve => salesPlanLineTable.on('tableBuilt', resolve));
+        }
         populatePlanFreezeOptions();
         const freezeSelect = document.getElementById('planFreezeColumn');
         if (freezeSelect) {
@@ -773,12 +1139,36 @@ async function initializeSalesPlanEdit() {
             applyPlanColumnFreeze(freezeSelect.value);
         }
     }
+    if (salesPlanLineTable) {
+        syncPlanExcelModeUI();
+    }
 
-    const { items } = await fetchSalesPlans();
-    cachedSalesPlans = items;
+    if (!salesPlanLineTableReady) {
+        await new Promise(resolve => salesPlanLineTable.on('tableBuilt', resolve));
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const planIdParam = urlParams.get('plan_id');
+
+    let { items } = await fetchSalesPlans();
+    const listItems = items || [];
+    cachedSalesPlans = listItems;
+
+    let selectedPlan = null;
+    if (planIdParam) {
+        selectedPlan = findPlanById(listItems, planIdParam);
+        if (!selectedPlan) {
+            selectedPlan = await fetchSalesPlanDetail(planIdParam);
+            if (selectedPlan) {
+                items = [selectedPlan, ...listItems];
+                cachedSalesPlans = items;
+            }
+        }
+    }
+
     populatePlanSelect(items);
 
-    currentSalesPlan = resolveCurrentPlanFromList(items);
+    currentSalesPlan = selectedPlan || resolveCurrentPlanFromList(items);
     if (!currentSalesPlan && items.length === 0) {
         const storedPlan = getPlanFromStorage();
         if (storedPlan?.plan_id) {
@@ -786,10 +1176,12 @@ async function initializeSalesPlanEdit() {
             populatePlanSelect([storedPlan]);
         }
     }
+
     loadPlanHeader(currentSalesPlan);
     setPlanToStorage(currentSalesPlan);
+
     if (currentSalesPlan) {
-        const lines = await fetchPlanLines(currentSalesPlan.plan_id);
+        const lines = await fetchPlanLines(currentSalesPlan.plan_id, getPlanLineFilters());
         salesPlanLineTable.setData(lines);
         updatePlanConsistencyBadge();
     } else {
@@ -1060,30 +1452,95 @@ function populatePlanFreezeOptions() {
 function applyPlanColumnFreeze(targetField) {
     if (!salesPlanLineTable) return;
     const leafColumns = salesPlanLineTable.getColumns(true);
+    const supportsFreeze = leafColumns.some(col => typeof col.freeze === 'function' || typeof col.setFrozen === 'function');
+    const visibleColumns = leafColumns.filter(col => (typeof col.isVisible === 'function' ? col.isVisible() : true));
     let targetIndex = -1;
 
-    leafColumns.forEach((col, idx) => {
+    visibleColumns.forEach((col, idx) => {
         const field = col.getField?.();
         if (field === targetField) {
             targetIndex = idx;
         }
     });
 
+    if (!targetField) {
+        if (supportsFreeze) {
+            leafColumns.forEach((col, idx) => {
+                const field = col.getField?.();
+                const isSelection = !field;
+                if (typeof col.freeze === 'function') {
+                    if (isSelection) col.freeze();
+                    else col.unfreeze?.();
+                } else if (typeof col.setFrozen === 'function') {
+                    col.setFrozen(isSelection);
+                }
+            });
+        }
+        planStickyConfig = { active: false, columns: [] };
+        clearPlanStickyStyles();
+        if (typeof salesPlanLineTable.redraw === 'function') {
+            salesPlanLineTable.redraw(true);
+        }
+        return;
+    }
+
+    if (!supportsFreeze) {
+        let left = 0;
+        const frozenColumns = [];
+        visibleColumns.forEach((col, idx) => {
+            if (idx > targetIndex) return;
+            const headerEl = col.getElement?.();
+            const width = col.getWidth?.() || headerEl?.offsetWidth || 0;
+            const safeWidth = width || 80;
+            frozenColumns.push({ col, left });
+            left += safeWidth;
+        });
+        planStickyConfig = { active: true, columns: frozenColumns };
+        clearPlanStickyStyles();
+        applyPlanStickyHeaderStyles();
+        if (typeof salesPlanLineTable.redraw === 'function') {
+            salesPlanLineTable.redraw(true);
+        }
+        return;
+    }
+
     leafColumns.forEach((col, idx) => {
         const field = col.getField?.();
         const isSelection = !field;
+        const freeze = (frozen) => {
+            if (frozen) {
+                if (typeof col.freeze === 'function') {
+                    col.freeze();
+                    return;
+                }
+                if (typeof col.setFrozen === 'function') {
+                    col.setFrozen(true);
+                    return;
+                }
+            } else {
+                if (typeof col.unfreeze === 'function') {
+                    col.unfreeze();
+                    return;
+                }
+                if (typeof col.setFrozen === 'function') {
+                    col.setFrozen(false);
+                }
+            }
+        };
         if (!targetField) {
-            col.setFrozen(isSelection);
+            freeze(isSelection);
             return;
         }
         if (targetIndex < 0) {
-            col.setFrozen(isSelection);
+            freeze(isSelection);
             return;
         }
-        col.setFrozen(idx <= targetIndex || isSelection);
+        freeze(idx <= targetIndex || isSelection);
     });
 
-    salesPlanLineTable.redraw(true);
+    if (typeof salesPlanLineTable.redraw === 'function') {
+        salesPlanLineTable.redraw(true);
+    }
 }
 
 function openPlanColumnsModal() {
@@ -1331,6 +1788,43 @@ function bindSalesPlanEditEvents() {
         });
     }
 
+    const pasteBtn = document.getElementById('btnPlanPasteExcel');
+    if (pasteBtn && !pasteBtn.dataset.bound) {
+        pasteBtn.dataset.bound = 'true';
+        pasteBtn.addEventListener('click', () => {
+            if (!planExcelCompactMode) {
+                const ok = confirm('엑셀 모드에서 붙여넣기를 사용할 수 있습니다. 엑셀 모드로 전환할까요?');
+                if (!ok) return;
+                applyPlanExcelMode(true);
+                savePlanExcelMode(true);
+            }
+            openPlanPasteModal();
+        });
+    }
+
+    const pastePreviewBtn = document.getElementById('btnPlanPastePreview');
+    if (pastePreviewBtn && !pastePreviewBtn.dataset.bound) {
+        pastePreviewBtn.dataset.bound = 'true';
+        pastePreviewBtn.addEventListener('click', () => {
+            const text = document.getElementById('planPasteInput')?.value || '';
+            planPasteCache = parsePlanPaste(text);
+            renderPlanPastePreview(planPasteCache);
+        });
+    }
+
+    const pasteApplyBtn = document.getElementById('btnPlanPasteApply');
+    if (pasteApplyBtn && !pasteApplyBtn.dataset.bound) {
+        pasteApplyBtn.dataset.bound = 'true';
+        pasteApplyBtn.addEventListener('click', () => {
+            if (!planPasteCache) {
+                const text = document.getElementById('planPasteInput')?.value || '';
+                planPasteCache = parsePlanPaste(text);
+            }
+            renderPlanPastePreview(planPasteCache);
+            applyPlanPasteResult(planPasteCache);
+        });
+    }
+
     const editSelectedBtn = document.getElementById('btnPlanEditSelected');
     if (editSelectedBtn && !editSelectedBtn.dataset.bound) {
         editSelectedBtn.dataset.bound = 'true';
@@ -1353,6 +1847,16 @@ function bindSalesPlanEditEvents() {
         freezeSelect.addEventListener('change', () => {
             applyPlanColumnFreeze(freezeSelect.value);
             savePlanColumnSettings();
+        });
+    }
+
+    const excelToggle = document.getElementById('planExcelMode');
+    if (excelToggle && !excelToggle.dataset.bound) {
+        excelToggle.dataset.bound = 'true';
+        excelToggle.checked = planExcelCompactMode;
+        excelToggle.addEventListener('change', () => {
+            applyPlanExcelMode(excelToggle.checked);
+            savePlanExcelMode(excelToggle.checked);
         });
     }
 
@@ -1641,16 +2145,20 @@ window.addSelectedMissingProjects = addSelectedMissingProjects;
 window.openPlanColumnsModal = openPlanColumnsModal;
 window.closePlanColumnsModal = closePlanColumnsModal;
 window.closePlanLineEditModal = closePlanLineEditModal;
+window.closePlanPasteModal = closePlanPasteModal;
 window.setAllPlanColumns = setAllPlanColumns;
 window.togglePlanColumnGroup = togglePlanColumnGroup;
+window.openSalesPlanEdit = openSalesPlanEdit;
 
 // DOMContentLoaded Hook
 
 document.addEventListener('DOMContentLoaded', () => {
-    if (document.getElementById('salesPlanTable')) {
+    const listEl = document.getElementById('salesPlanTable');
+    if (listEl && (typeof window.isElementInActivePage !== 'function' || window.isElementInActivePage(listEl))) {
         initializeSalesPlanList();
     }
-    if (document.getElementById('salesPlanLineTable')) {
+    const lineEl = document.getElementById('salesPlanLineTable');
+    if (lineEl && (typeof window.isElementInActivePage !== 'function' || window.isElementInActivePage(lineEl))) {
         initializeSalesPlanEdit();
     }
 });

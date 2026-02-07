@@ -12,6 +12,7 @@ from typing import Optional, List, Dict
 
 from app.core.database import get_db
 from app.core.logger import app_logger
+from app.core.tenant import get_company_cd
 
 router = APIRouter()
 
@@ -109,6 +110,8 @@ def _load_project_snapshots(db: Session, pipeline_ids: List[str]) -> Dict[str, d
     if not clause:
         return {}
 
+    company_cd = get_company_cd()
+    params["company_cd"] = company_cd
     sql = f"""
         SELECT
             p.pipeline_id,
@@ -129,14 +132,29 @@ def _load_project_snapshots(db: Session, pipeline_ids: List[str]) -> Dict[str, d
             pc.start_date,
             pc.end_date
         FROM projects p
-        LEFT JOIN industry_fields f ON f.field_code = p.field_code
-        LEFT JOIN service_codes sc ON sc.service_code = p.service_code
-        LEFT JOIN clients c1 ON c1.client_id = p.customer_id
-        LEFT JOIN clients c2 ON c2.client_id = p.ordering_party_id
-        LEFT JOIN org_units o ON o.org_id = p.org_id
-        LEFT JOIN users u ON u.login_id = p.manager_id
-        LEFT JOIN project_contracts pc ON pc.pipeline_id = p.pipeline_id
-        WHERE p.pipeline_id IN ({clause})
+        LEFT JOIN industry_fields f 
+          ON f.field_code = p.field_code
+         AND f.company_cd = p.company_cd
+        LEFT JOIN service_codes sc 
+          ON sc.service_code = p.service_code
+         AND sc.company_cd = p.company_cd
+        LEFT JOIN clients c1 
+          ON c1.client_id = p.customer_id
+         AND c1.company_cd = p.company_cd
+        LEFT JOIN clients c2 
+          ON c2.client_id = p.ordering_party_id
+         AND c2.company_cd = p.company_cd
+        LEFT JOIN org_units o 
+          ON o.org_id = p.org_id
+         AND o.company_cd = p.company_cd
+        LEFT JOIN users u 
+          ON u.login_id = p.manager_id
+         AND u.company_cd = p.company_cd
+        LEFT JOIN project_contracts pc 
+          ON pc.pipeline_id = p.pipeline_id
+         AND pc.company_cd = p.company_cd
+        WHERE p.company_cd = :company_cd
+          AND p.pipeline_id IN ({clause})
     """
     rows = db.execute(text(sql), params).mappings().all()
     return {row["pipeline_id"]: dict(row) for row in rows}
@@ -156,6 +174,7 @@ async def list_sales_actual_lines(
     db: Session = Depends(get_db)
 ):
     try:
+        company_cd = get_company_cd()
         sql = """
             SELECT
                 sal.actual_line_id,
@@ -192,9 +211,10 @@ async def list_sales_actual_lines(
                 sal.m11_order, sal.m11_profit,
                 sal.m12_order, sal.m12_profit
             FROM sales_actual_line sal
-            WHERE sal.actual_year = :actual_year
+            WHERE sal.company_cd = :company_cd
+              AND sal.actual_year = :actual_year
         """
-        params = {"actual_year": actual_year}
+        params = {"actual_year": actual_year, "company_cd": company_cd}
 
         if org_id:
             sql += " AND sal.org_id = :org_id"
@@ -223,12 +243,13 @@ async def list_sales_actual_lines(
 async def save_sales_actual_lines(request: SalesActualLineSaveRequest, db: Session = Depends(get_db)):
     """실적 라인 저장 (Upsert)"""
     try:
+        company_cd = get_company_cd()
         pipeline_ids = [line.pipeline_id for line in request.lines]
         snapshots = _load_project_snapshots(db, pipeline_ids)
 
         sql = text("""
             INSERT INTO sales_actual_line (
-                actual_year, pipeline_id,
+                company_cd, actual_year, pipeline_id,
                 field_code, field_name_snapshot,
                 service_code, service_name_snapshot,
                 customer_id, customer_name_snapshot,
@@ -252,7 +273,7 @@ async def save_sales_actual_lines(request: SalesActualLineSaveRequest, db: Sessi
                 m12_order, m12_profit,
                 created_by, updated_by
             ) VALUES (
-                :actual_year, :pipeline_id,
+                :company_cd, :actual_year, :pipeline_id,
                 :field_code, :field_name_snapshot,
                 :service_code, :service_name_snapshot,
                 :customer_id, :customer_name_snapshot,
@@ -329,6 +350,7 @@ async def save_sales_actual_lines(request: SalesActualLineSaveRequest, db: Sessi
             profit_total = line.profit_total if line.profit_total is not None else _sum_actual_profit(line)
 
             params = {
+                "company_cd": company_cd,
                 "actual_year": request.actual_year,
                 "pipeline_id": line.pipeline_id,
                 "field_code": line.field_code or snap.get("field_code"),
@@ -395,13 +417,16 @@ async def delete_sales_actual_lines(request: SalesActualLineDeleteRequest, db: S
         if not pipeline_ids:
             return {"deleted": 0}
 
+        company_cd = get_company_cd()
         clause, params = _build_in_clause(pipeline_ids, "pid")
         sql = text(f"""
             DELETE FROM sales_actual_line
-            WHERE actual_year = :actual_year
+            WHERE company_cd = :company_cd
+              AND actual_year = :actual_year
               AND pipeline_id IN ({clause})
         """)
         params["actual_year"] = request.actual_year
+        params["company_cd"] = company_cd
         result = db.execute(sql, params)
         db.commit()
         return {"deleted": result.rowcount or 0}
@@ -421,6 +446,7 @@ async def sales_actual_summary(
     db: Session = Depends(get_db)
 ):
     try:
+        company_cd = get_company_cd()
         group_map = {
             "org": "COALESCE(sal.org_name_snapshot, o.org_name, '-')",
             "manager": "COALESCE(sal.manager_name_snapshot, u.user_name, '-')",
@@ -438,17 +464,28 @@ async def sales_actual_summary(
                 SUM(COALESCE(sal.order_total,0)) AS order_total,
                 SUM(COALESCE(sal.profit_total,0)) AS profit_total
             FROM sales_actual_line sal
-            LEFT JOIN org_units o ON o.org_id = sal.org_id
-            LEFT JOIN users u ON u.login_id = sal.manager_id
-            LEFT JOIN industry_fields f ON f.field_code = sal.field_code
-            LEFT JOIN service_codes sc ON sc.service_code = sal.service_code
-            LEFT JOIN clients c ON c.client_id = sal.customer_id
-            WHERE sal.actual_year = :actual_year
+            LEFT JOIN org_units o 
+              ON o.org_id = sal.org_id
+             AND o.company_cd = sal.company_cd
+            LEFT JOIN users u 
+              ON u.login_id = sal.manager_id
+             AND u.company_cd = sal.company_cd
+            LEFT JOIN industry_fields f 
+              ON f.field_code = sal.field_code
+             AND f.company_cd = sal.company_cd
+            LEFT JOIN service_codes sc 
+              ON sc.service_code = sal.service_code
+             AND sc.company_cd = sal.company_cd
+            LEFT JOIN clients c 
+              ON c.client_id = sal.customer_id
+             AND c.company_cd = sal.company_cd
+            WHERE sal.company_cd = :company_cd
+              AND sal.actual_year = :actual_year
             GROUP BY group_name
             ORDER BY group_name
         """
 
-        rows = db.execute(text(sql), {"actual_year": actual_year}).mappings().all()
+        rows = db.execute(text(sql), {"actual_year": actual_year, "company_cd": company_cd}).mappings().all()
         return {"items": [dict(row) for row in rows]}
     except HTTPException:
         raise

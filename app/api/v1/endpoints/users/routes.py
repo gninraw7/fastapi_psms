@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.logger import app_logger
+from app.core.tenant import get_company_cd
 from app.core.security import get_password_hash
 
 router = APIRouter()
@@ -67,16 +68,17 @@ def _check_login_id_in_use(db: Session, login_id: str) -> int:
     login_id가 다른 테이블에 사용 중인지 확인
     반환값: 참조 건수 합계
     """
+    company_cd = get_company_cd()
     usage_query = text("""
         SELECT
-            (SELECT COUNT(*) FROM projects WHERE manager_id = :login_id) +
-            (SELECT COUNT(*) FROM project_history WHERE creator_id = :login_id) +
-            (SELECT COUNT(*) FROM login_history WHERE login_id = :login_id) +
-            (SELECT COUNT(*) FROM clients WHERE created_by = :login_id OR updated_by = :login_id) +
-            (SELECT COUNT(*) FROM projects WHERE created_by = :login_id OR updated_by = :login_id) +
-            (SELECT COUNT(*) FROM project_contracts WHERE created_by = :login_id OR updated_by = :login_id) AS total_refs
+            (SELECT COUNT(*) FROM projects WHERE company_cd = :company_cd AND manager_id = :login_id) +
+            (SELECT COUNT(*) FROM project_history WHERE company_cd = :company_cd AND creator_id = :login_id) +
+            (SELECT COUNT(*) FROM login_history WHERE company_cd = :company_cd AND login_id = :login_id) +
+            (SELECT COUNT(*) FROM clients WHERE company_cd = :company_cd AND (created_by = :login_id OR updated_by = :login_id)) +
+            (SELECT COUNT(*) FROM projects WHERE company_cd = :company_cd AND (created_by = :login_id OR updated_by = :login_id)) +
+            (SELECT COUNT(*) FROM project_contracts WHERE company_cd = :company_cd AND (created_by = :login_id OR updated_by = :login_id)) AS total_refs
     """)
-    result = db.execute(usage_query, {"login_id": login_id}).fetchone()
+    result = db.execute(usage_query, {"login_id": login_id, "company_cd": company_cd}).fetchone()
     return int(result[0] or 0)
 
 
@@ -102,6 +104,7 @@ async def get_users_list(
             f"📋 사용자 목록 조회 - page: {page}, size: {page_size}, "
             f"sort_field: {sort_field}, sort_dir: {sort_dir}"
         )
+        company_cd = get_company_cd()
 
         base_query = """
             SELECT
@@ -122,11 +125,13 @@ async def get_users_list(
                 u.created_by,
                 u.updated_by
             FROM users u
-            LEFT JOIN org_units o ON o.org_id = u.org_id
-            WHERE 1=1
+            LEFT JOIN org_units o 
+              ON o.org_id = u.org_id
+             AND o.company_cd = u.company_cd
+            WHERE u.company_cd = :company_cd
         """
 
-        count_query = "SELECT COUNT(*) as total FROM users u LEFT JOIN org_units o ON o.org_id = u.org_id WHERE 1=1"
+        count_query = "SELECT COUNT(*) as total FROM users u LEFT JOIN org_units o ON o.org_id = u.org_id AND o.company_cd = u.company_cd WHERE u.company_cd = :company_cd"
 
         stats_query = """
             SELECT
@@ -134,9 +139,10 @@ async def get_users_list(
                 SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) as active_count,
                 SUM(CASE WHEN status = 'INACTIVE' THEN 1 ELSE 0 END) as inactive_count
             FROM users
+            WHERE company_cd = :company_cd
         """
 
-        params = {}
+        params = {"company_cd": company_cd}
         filter_condition = ""
 
         if search_text and search_text.strip():
@@ -213,7 +219,7 @@ async def get_users_list(
         count_result = db.execute(text(count_query), params).fetchone()
         total = int(count_result[0] if count_result else 0)
 
-        stats_result = db.execute(text(stats_query)).fetchone()
+        stats_result = db.execute(text(stats_query), {"company_cd": company_cd}).fetchone()
         total_count = int(stats_result[0] if stats_result else 0)
         active_count = int(stats_result[1] if stats_result else 0)
         inactive_count = int(stats_result[2] if stats_result else 0)
@@ -246,6 +252,7 @@ async def get_user_detail(
     db: Session = Depends(get_db)
 ):
     try:
+        company_cd = get_company_cd()
         query = text("""
             SELECT
                 u.user_no,
@@ -265,10 +272,13 @@ async def get_user_detail(
                 u.created_by,
                 u.updated_by
             FROM users u
-            LEFT JOIN org_units o ON o.org_id = u.org_id
-            WHERE u.user_no = :user_no
+            LEFT JOIN org_units o 
+              ON o.org_id = u.org_id
+             AND o.company_cd = u.company_cd
+            WHERE u.company_cd = :company_cd
+              AND u.user_no = :user_no
         """)
-        result = db.execute(query, {"user_no": user_no}).fetchone()
+        result = db.execute(query, {"user_no": user_no, "company_cd": company_cd}).fetchone()
         if not result:
             raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
         return dict(result._mapping)
@@ -288,7 +298,11 @@ async def can_change_login_id(
     db: Session = Depends(get_db)
 ):
     try:
-        result = db.execute(text("SELECT login_id FROM users WHERE user_no = :user_no"), {"user_no": user_no}).fetchone()
+        company_cd = get_company_cd()
+        result = db.execute(
+            text("SELECT login_id FROM users WHERE company_cd = :company_cd AND user_no = :user_no"),
+            {"user_no": user_no, "company_cd": company_cd}
+        ).fetchone()
         if not result:
             raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
 
@@ -316,6 +330,7 @@ async def create_user(
     db: Session = Depends(get_db)
 ):
     try:
+        company_cd = get_company_cd()
         login_id = user_data.login_id.strip()
         if not login_id:
             raise HTTPException(status_code=400, detail="login_id는 필수입니다.")
@@ -325,7 +340,10 @@ async def create_user(
             raise HTTPException(status_code=400, detail="role은 필수입니다.")
 
         # 중복 체크
-        exists = db.execute(text("SELECT 1 FROM users WHERE login_id = :login_id"), {"login_id": login_id}).fetchone()
+        exists = db.execute(
+            text("SELECT 1 FROM users WHERE company_cd = :company_cd AND login_id = :login_id"),
+            {"login_id": login_id, "company_cd": company_cd}
+        ).fetchone()
         if exists:
             raise HTTPException(status_code=400, detail="이미 존재하는 login_id입니다.")
 
@@ -337,18 +355,19 @@ async def create_user(
 
         query = text("""
             INSERT INTO users (
-                login_id, password, user_name, role, is_sales_rep,
+                company_cd, login_id, password, user_name, role, is_sales_rep,
                 email, phone, org_id,
                 start_date, end_date, status,
                 created_by, updated_by
             ) VALUES (
-                :login_id, :password, :user_name, :role, :is_sales_rep,
+                :company_cd, :login_id, :password, :user_name, :role, :is_sales_rep,
                 :email, :phone, :org_id,
                 :start_date, :end_date, :status,
                 :created_by, :updated_by
             )
         """)
         db.execute(query, {
+            "company_cd": company_cd,
             "login_id": login_id,
             "password": password_hash,
             "user_name": user_data.user_name,
@@ -365,7 +384,10 @@ async def create_user(
         })
         db.commit()
 
-        user_no = db.execute(text("SELECT user_no FROM users WHERE login_id = :login_id"), {"login_id": login_id}).fetchone()
+        user_no = db.execute(
+            text("SELECT user_no FROM users WHERE company_cd = :company_cd AND login_id = :login_id"),
+            {"login_id": login_id, "company_cd": company_cd}
+        ).fetchone()
         return {"success": True, "user_no": user_no[0] if user_no else None}
     except HTTPException:
         raise
@@ -385,7 +407,11 @@ async def update_user(
     db: Session = Depends(get_db)
 ):
     try:
-        current = db.execute(text("SELECT login_id FROM users WHERE user_no = :user_no"), {"user_no": user_no}).fetchone()
+        company_cd = get_company_cd()
+        current = db.execute(
+            text("SELECT login_id FROM users WHERE company_cd = :company_cd AND user_no = :user_no"),
+            {"user_no": user_no, "company_cd": company_cd}
+        ).fetchone()
         if not current:
             raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
 
@@ -406,14 +432,14 @@ async def update_user(
 
             # 중복 체크
             exists = db.execute(
-                text("SELECT 1 FROM users WHERE login_id = :login_id AND user_no <> :user_no"),
-                {"login_id": new_login_id, "user_no": user_no}
+                text("SELECT 1 FROM users WHERE company_cd = :company_cd AND login_id = :login_id AND user_no <> :user_no"),
+                {"login_id": new_login_id, "user_no": user_no, "company_cd": company_cd}
             ).fetchone()
             if exists:
                 raise HTTPException(status_code=400, detail="이미 존재하는 login_id입니다.")
 
         update_fields = []
-        params = {"user_no": user_no}
+        params = {"user_no": user_no, "company_cd": company_cd}
 
         def add_field(field_name, value):
             update_fields.append(f"{field_name} = :{field_name}")
@@ -449,7 +475,8 @@ async def update_user(
         update_query = text(f"""
             UPDATE users
             SET {", ".join(update_fields)}
-            WHERE user_no = :user_no
+            WHERE company_cd = :company_cd
+              AND user_no = :user_no
         """)
         db.execute(update_query, params)
         db.commit()
@@ -471,11 +498,18 @@ async def delete_user(
     db: Session = Depends(get_db)
 ):
     try:
-        result = db.execute(text("SELECT login_id FROM users WHERE user_no = :user_no"), {"user_no": user_no}).fetchone()
+        company_cd = get_company_cd()
+        result = db.execute(
+            text("SELECT login_id FROM users WHERE company_cd = :company_cd AND user_no = :user_no"),
+            {"user_no": user_no, "company_cd": company_cd}
+        ).fetchone()
         if not result:
             raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
 
-        db.execute(text("DELETE FROM users WHERE user_no = :user_no"), {"user_no": user_no})
+        db.execute(
+            text("DELETE FROM users WHERE company_cd = :company_cd AND user_no = :user_no"),
+            {"user_no": user_no, "company_cd": company_cd}
+        )
         db.commit()
         return {"success": True}
     except HTTPException:
@@ -498,11 +532,13 @@ async def bulk_password_reset(
         if not reset_data.user_nos:
             raise HTTPException(status_code=400, detail="대상 사용자가 없습니다.")
 
+        company_cd = get_company_cd()
         user_nos = list(reset_data.user_nos)
         placeholders = ",".join([f":user_no_{i}" for i in range(len(user_nos))])
         params = {f"user_no_{i}": user_nos[i] for i in range(len(user_nos))}
+        params["company_cd"] = company_cd
         users = db.execute(
-            text(f"SELECT user_no, login_id FROM users WHERE user_no IN ({placeholders})"),
+            text(f"SELECT user_no, login_id FROM users WHERE company_cd = :company_cd AND user_no IN ({placeholders})"),
             params
         ).fetchall()
 
@@ -517,12 +553,14 @@ async def bulk_password_reset(
                 text("""
                     UPDATE users
                     SET password = :password, updated_by = :updated_by
-                    WHERE user_no = :user_no
+                    WHERE company_cd = :company_cd
+                      AND user_no = :user_no
                 """),
                 {
                     "password": new_password,
                     "updated_by": updated_by or login_id,
-                    "user_no": user_no
+                    "user_no": user_no,
+                    "company_cd": company_cd
                 }
             )
 

@@ -116,7 +116,8 @@ body {
 /* Input Fields */
 .form-group input[type="url"],
 .form-group input[type="text"],
-.form-group input[type="password"] {
+.form-group input[type="password"],
+.form-group select {
     width: 100%;
     padding: 12px 16px;
     font-size: 15px;
@@ -129,6 +130,12 @@ body {
 }
 
 .form-group input:focus {
+    border-color: var(--primary-color);
+    background: white;
+    box-shadow: 0 0 0 3px rgba(47, 85, 151, 0.1);
+}
+
+.form-group select:focus {
     border-color: var(--primary-color);
     background: white;
     box-shadow: 0 0 0 3px rgba(47, 85, 151, 0.1);

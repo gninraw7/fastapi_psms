@@ -65,6 +65,18 @@ const PAGE_INFO = {
         path: ['Report', '유형별 현황'],
         theme: 'breadcrumb-report'
     },
+    'notices-list': {
+        title: '게시판',
+        icon: 'fas fa-bullhorn',
+        path: ['게시판', '게시판 목록'],
+        theme: 'breadcrumb-report'
+    },
+    'notice-detail': {
+        title: '게시판 상세',
+        icon: 'fas fa-file-alt',
+        path: ['게시판', '게시판 상세'],
+        theme: 'breadcrumb-report'
+    },
     'users': {
         title: '사용자 관리',
         icon: 'fas fa-users',
@@ -83,6 +95,12 @@ const PAGE_INFO = {
         path: ['관리자', '공통코드 관리'],
         theme: 'breadcrumb-admin'
     },
+    'notice-templates': {
+        title: '공지 템플릿 관리',
+        icon: 'fas fa-file-lines',
+        path: ['관리자', '공지 템플릿 관리'],
+        theme: 'breadcrumb-admin'
+    },
     'industry-fields': {
         title: '분야코드 관리',
         icon: 'fas fa-tags',
@@ -99,6 +117,18 @@ const PAGE_INFO = {
         title: '조직 관리',
         icon: 'fas fa-sitemap',
         path: ['관리자', '조직 관리'],
+        theme: 'breadcrumb-admin'
+    },
+    'companies': {
+        title: '회사 관리',
+        icon: 'fas fa-building',
+        path: ['관리자', '회사 관리'],
+        theme: 'breadcrumb-admin'
+    },
+    'data-management': {
+        title: '데이터 관리',
+        icon: 'fas fa-database',
+        path: ['관리자', '데이터 관리'],
         theme: 'breadcrumb-admin'
     },
     'login-history': {
@@ -340,6 +370,33 @@ function ensureReportReady() {
     document.body.appendChild(script);
 }
 
+function ensureNoticesReady() {
+    if (typeof window.bootstrapNoticeList === 'function') {
+        window.bootstrapNoticeList();
+        return;
+    }
+
+    const existing = document.querySelector('script[data-notices]');
+    if (existing) {
+        existing.addEventListener('load', () => {
+            if (typeof window.bootstrapNoticeList === 'function') {
+                window.bootstrapNoticeList();
+            }
+        }, { once: true });
+        return;
+    }
+
+    const script = document.createElement('script');
+    script.src = '/static/js/notices.js?v=1.0';
+    script.dataset.notices = '1';
+    script.onload = () => {
+        if (typeof window.bootstrapNoticeList === 'function') {
+            window.bootstrapNoticeList();
+        }
+    };
+    document.body.appendChild(script);
+}
+
 /**
  * 사용자 목록 스크립트 로드 보장
  */
@@ -415,6 +472,9 @@ function initializePage(pageId) {
             console.log('🏢 거래처 목록 페이지 초기화');
             // clients-list.js의 테이블이 자동 초기화됨
             // 필요시 추가 로직 작성
+            if (typeof bootstrapClientsList === 'function') {
+                bootstrapClientsList();
+            }
             if (typeof refreshClientsList === 'function') {
                 refreshClientsList();
             }
@@ -465,6 +525,22 @@ function initializePage(pageId) {
             console.log('📑 Report 초기화');
             ensureReportReady();
             break;
+
+        case 'notices-list':
+            console.log('📌 게시판 목록 초기화');
+            ensureNoticesReady();
+            if (typeof window.refreshNoticeList === 'function') {
+                window.refreshNoticeList();
+            }
+            break;
+
+        case 'notice-detail':
+            console.log('📝 게시판 상세 초기화');
+            ensureNoticesReady();
+            if (typeof window.initializeNoticeDetailPage === 'function') {
+                window.initializeNoticeDetailPage();
+            }
+            break;
             
         case 'users':
             console.log('👥 사용자 관리 초기화');
@@ -494,7 +570,14 @@ function initializePage(pageId) {
             
         case 'common-codes':
             console.log('🔧 공통코드 관리 초기화');
-            // TODO: 공통코드 관리 초기화 로직
+            ensureCommonCodesReady();
+            break;
+
+        case 'notice-templates':
+            console.log('📝 공지 템플릿 관리 초기화');
+            if (typeof window.bootstrapNoticeTemplates === 'function') {
+                window.bootstrapNoticeTemplates();
+            }
             break;
 
         case 'industry-fields':
@@ -515,6 +598,20 @@ function initializePage(pageId) {
             console.log('🏢 조직 관리 초기화');
             if (typeof bootstrapOrgUnits === 'function') {
                 bootstrapOrgUnits();
+            }
+            break;
+
+        case 'companies':
+            console.log('🏢 회사 관리 초기화');
+            if (typeof bootstrapCompanies === 'function') {
+                bootstrapCompanies();
+            }
+            break;
+
+        case 'data-management':
+            console.log('🗄️ 데이터 관리 초기화');
+            if (typeof bootstrapDataManagement === 'function') {
+                bootstrapDataManagement();
             }
             break;
 

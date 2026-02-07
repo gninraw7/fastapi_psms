@@ -6,6 +6,7 @@ import pymysql
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
+from app.core.tenant import get_company_cd
 
 # PyMySQL을 MySQLdb로 사용
 pymysql.install_as_MySQLdb()
@@ -33,6 +34,15 @@ def get_db():
     """데이터베이스 세션 dependency"""
     db = SessionLocal()
     try:
+        # 요청 컨텍스트의 company_cd를 세션에 저장 (쿼리 파라미터 기본값으로 사용)
+        company_cd = get_company_cd()
+        if company_cd:
+            db.info["company_cd"] = company_cd
+            try:
+                db.execute(text("SET @company_cd = :company_cd"), {"company_cd": company_cd})
+            except Exception:
+                # 세션 변수 설정 실패해도 기본 동작 유지
+                pass
         yield db
     finally:
         db.close()

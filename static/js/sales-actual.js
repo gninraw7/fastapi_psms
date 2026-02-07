@@ -13,6 +13,21 @@ let pendingActualCandidates = [];
 let pendingActualMergeMode = 'append';
 let pendingActualPreviewMeta = null;
 let currentActualEditPipelineId = null;
+let actualStickyConfig = { active: false, columns: [] };
+let salesActualLineTableReady = false;
+let pendingActualLineData = null;
+let actualExcelCompactMode = false;
+let actualPasteCache = null;
+
+function hasPipelineHeader(text) {
+    const firstLine = String(text || '').split(/\r?\n/)[0] || '';
+    return /파이프라인|pipeline/i.test(firstLine);
+}
+
+const ACTUAL_COMPACT_WIDTHS = {
+    month: 110,
+    total: 120
+};
 
 const ACTUAL_BASE_FIELDS = [
     { field: 'pipeline_id', title: '파이프라인ID' },
@@ -602,6 +617,10 @@ function getActualColumnStorageKey() {
     return `psms.salesActual.columns.${getCurrentLoginId()}`;
 }
 
+function getActualExcelModeStorageKey() {
+    return `psms.salesActual.excelCompact.${getCurrentLoginId()}`;
+}
+
 function getActualMonthViewValue() {
     const select = document.getElementById('actualMonthView');
     return select?.value || currentActualViewMode || 'group';
@@ -641,6 +660,20 @@ function loadActualColumnSettings() {
     }
 }
 
+function loadActualExcelMode() {
+    try {
+        const raw = localStorage.getItem(getActualExcelModeStorageKey());
+        return raw ? JSON.parse(raw) : false;
+    } catch (error) {
+        console.warn('⚠️ 엑셀 모드 설정 로드 실패:', error);
+        return false;
+    }
+}
+
+function saveActualExcelMode(enabled) {
+    localStorage.setItem(getActualExcelModeStorageKey(), JSON.stringify(!!enabled));
+}
+
 function populateActualYearOptions(selectId) {
     const select = document.getElementById(selectId);
     if (!select) return;
@@ -656,7 +689,7 @@ function populateActualYearOptions(selectId) {
     });
 }
 
-function buildActualLineColumns(settings = null, viewMode = 'group') {
+function buildActualLineColumns(settings = null, viewMode = 'group', compact = false) {
     const hiddenSet = new Set(settings?.hidden || []);
     const order = settings?.order || [];
 
@@ -691,7 +724,7 @@ function buildActualLineColumns(settings = null, viewMode = 'group') {
         if (col.field === 'start_date') def.width = 140;
         if (col.field === 'end_date') def.width = 140;
         if (col.field === 'order_total' || col.field === 'profit_total') {
-            def.width = 130;
+            def.width = compact ? ACTUAL_COMPACT_WIDTHS.total : 130;
             def.hozAlign = 'right';
             def.formatter = (cell) => formatNumber(cell.getValue());
         }
@@ -707,6 +740,7 @@ function buildActualLineColumns(settings = null, viewMode = 'group') {
                 title: col.title,
                 field: col.field,
                 hozAlign: 'right',
+                ...(compact ? { width: ACTUAL_COMPACT_WIDTHS.month } : {}),
                 editor: amountEditor,
                 formatter: (cell) => formatNumber(cell.getValue()),
                 cellEdited: (cell) => recalcActualRowTotal(cell.getRow())
@@ -727,6 +761,7 @@ function buildActualLineColumns(settings = null, viewMode = 'group') {
             title: '수주',
             field: orderField,
             hozAlign: 'right',
+            ...(compact ? { width: ACTUAL_COMPACT_WIDTHS.month } : {}),
             editor: amountEditor,
             formatter: (cell) => formatNumber(cell.getValue()),
             cellEdited: (cell) => recalcActualRowTotal(cell.getRow())
@@ -735,6 +770,7 @@ function buildActualLineColumns(settings = null, viewMode = 'group') {
             title: '이익',
             field: profitField,
             hozAlign: 'right',
+            ...(compact ? { width: ACTUAL_COMPACT_WIDTHS.month } : {}),
             editor: amountEditor,
             formatter: (cell) => formatNumber(cell.getValue()),
             cellEdited: (cell) => recalcActualRowTotal(cell.getRow())
@@ -846,6 +882,49 @@ function isSelectionColumn(col) {
     return def?.formatter === 'rowSelection' || def?.titleFormatter === 'rowSelection';
 }
 
+function clearActualStickyStyles() {
+    const tableEl = document.getElementById('salesActualLineTable');
+    if (!tableEl) return;
+    tableEl.querySelectorAll('[data-actual-frozen="1"]').forEach(el => {
+        el.style.position = '';
+        el.style.left = '';
+        el.style.zIndex = '';
+        el.style.backgroundColor = '';
+        delete el.dataset.actualFrozen;
+    });
+}
+
+function applyActualStickyHeaderStyles() {
+    if (!salesActualLineTable || !actualStickyConfig.active) return;
+    actualStickyConfig.columns.forEach(item => {
+        const headerEl = item.col.getElement?.();
+        if (!headerEl) return;
+        headerEl.dataset.actualFrozen = '1';
+        headerEl.style.position = 'sticky';
+        headerEl.style.left = `${item.left}px`;
+        headerEl.style.zIndex = '4';
+        headerEl.style.backgroundColor = '#f8f9fa';
+    });
+}
+
+function applyActualStickyToRow(row) {
+    if (!actualStickyConfig.active || !row) return;
+    const cells = row.getCells();
+    const rowEl = row.getElement?.();
+    const rowBg = rowEl ? window.getComputedStyle(rowEl).backgroundColor : '#ffffff';
+    actualStickyConfig.columns.forEach(item => {
+        const cell = cells.find(c => c.getColumn && c.getColumn() === item.col);
+        if (!cell) return;
+        const el = cell.getElement();
+        if (!el) return;
+        el.dataset.actualFrozen = '1';
+        el.style.position = 'sticky';
+        el.style.left = `${item.left}px`;
+        el.style.zIndex = '3';
+        el.style.backgroundColor = rowBg || '#ffffff';
+    });
+}
+
 function columnHasField(col, field) {
     if (!col || !field) return false;
     if (typeof col.getField === 'function' && col.getField() === field) return true;
@@ -871,25 +950,80 @@ function populateActualFreezeOptions() {
 function applyActualColumnFreeze(targetField) {
     if (!salesActualLineTable) return;
     const leafColumns = getActualLeafColumns();
+    const supportsFreeze = leafColumns.some(col => typeof col.freeze === 'function' || typeof col.setFrozen === 'function');
+    const visibleColumns = leafColumns.filter(col => (typeof col.isVisible === 'function' ? col.isVisible() : true));
     let targetIndex = -1;
 
-    leafColumns.forEach((col, idx) => {
+    visibleColumns.forEach((col, idx) => {
         const field = col.getField?.();
         if (field === targetField) targetIndex = idx;
     });
 
+    if (!targetField) {
+        if (supportsFreeze) {
+            leafColumns.forEach((col) => {
+                const field = col.getField?.();
+                const isSelection = !field;
+                if (typeof col.freeze === 'function') {
+                    if (isSelection) col.freeze();
+                    else col.unfreeze?.();
+                } else if (typeof col.setFrozen === 'function') {
+                    col.setFrozen(isSelection);
+                }
+            });
+        }
+        actualStickyConfig = { active: false, columns: [] };
+        clearActualStickyStyles();
+        salesActualLineTable.redraw(true);
+        return;
+    }
+
+    if (!supportsFreeze) {
+        let left = 0;
+        const frozenColumns = [];
+        visibleColumns.forEach((col, idx) => {
+            if (idx > targetIndex) return;
+            const headerEl = col.getElement?.();
+            const width = col.getWidth?.() || headerEl?.offsetWidth || 0;
+            const safeWidth = width || 80;
+            frozenColumns.push({ col, left });
+            left += safeWidth;
+        });
+        actualStickyConfig = { active: true, columns: frozenColumns };
+        clearActualStickyStyles();
+        applyActualStickyHeaderStyles();
+        salesActualLineTable.redraw(true);
+        return;
+    }
+
     leafColumns.forEach((col, idx) => {
         const field = col.getField?.();
         const isSelection = !field;
-        if (!targetField) {
-            col.setFrozen(isSelection);
-            return;
-        }
+        const freeze = (frozen) => {
+            if (frozen) {
+                if (typeof col.freeze === 'function') {
+                    col.freeze();
+                    return;
+                }
+                if (typeof col.setFrozen === 'function') {
+                    col.setFrozen(true);
+                    return;
+                }
+            } else {
+                if (typeof col.unfreeze === 'function') {
+                    col.unfreeze();
+                    return;
+                }
+                if (typeof col.setFrozen === 'function') {
+                    col.setFrozen(false);
+                }
+            }
+        };
         if (targetIndex < 0) {
-            col.setFrozen(isSelection);
+            freeze(isSelection);
             return;
         }
-        col.setFrozen(idx <= targetIndex || isSelection);
+        freeze(idx <= targetIndex || isSelection);
     });
 
     salesActualLineTable.redraw(true);
@@ -906,6 +1040,243 @@ function getActualSelectionColumn() {
     };
 }
 
+function syncActualExcelModeUI() {
+    const toggle = document.getElementById('actualExcelMode');
+    if (toggle) {
+        toggle.checked = actualExcelCompactMode;
+    }
+    const pasteBtn = document.getElementById('btnActualPasteExcel');
+    if (pasteBtn) {
+        pasteBtn.disabled = !actualExcelCompactMode;
+    }
+    const tableEl = document.getElementById('salesActualLineTable');
+    if (tableEl) {
+        tableEl.classList.toggle('grid-excel-compact', actualExcelCompactMode);
+    }
+}
+
+function applyActualExcelMode(enabled) {
+    actualExcelCompactMode = !!enabled;
+    syncActualExcelModeUI();
+    if (!salesActualLineTable) return;
+    const columnSettings = loadActualColumnSettings() || {};
+    const columns = [
+        getActualSelectionColumn(),
+        ...buildActualLineColumns(columnSettings, currentActualViewMode, actualExcelCompactMode)
+    ];
+    salesActualLineTable.setColumns(columns);
+    const freezeSelect = document.getElementById('actualFreezeColumn');
+    if (freezeSelect) {
+        applyActualColumnFreeze(freezeSelect.value || '');
+    }
+    renderActualColumnsList();
+    saveActualColumnSettings();
+}
+
+function actualClipboardPasteParser(clipboard) {
+    if (!actualExcelCompactMode) return clipboard;
+    if (typeof clipboard === 'string' && hasPipelineHeader(clipboard)) {
+        const result = parseActualPaste(clipboard);
+        renderActualPastePreview(result);
+        applyActualPasteResult(result);
+        return [];
+    }
+    return clipboard;
+}
+
+function bindActualTablePasteHandler() {
+    const tableEl = document.getElementById('salesActualLineTable');
+    if (!tableEl || tableEl.dataset.pasteBound) return;
+    tableEl.dataset.pasteBound = 'true';
+    tableEl.addEventListener('paste', (event) => {
+        if (!actualExcelCompactMode) return;
+        const text = event.clipboardData?.getData('text/plain') || '';
+        if (!text || !hasPipelineHeader(text)) return;
+        event.preventDefault();
+        const result = parseActualPaste(text);
+        renderActualPastePreview(result);
+        applyActualPasteResult(result);
+    });
+}
+
+function parsePasteNumber(value) {
+    const raw = String(value ?? '').trim();
+    if (!raw || raw === '-') return null;
+    const cleaned = raw.replace(/,/g, '');
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+}
+
+function normalizePasteHeader(value) {
+    return String(value ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '')
+        .replace(/[_\-()]/g, '');
+}
+
+function openActualPasteModal() {
+    const modal = document.getElementById('actualPasteModal');
+    if (modal) {
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+    }
+    const preview = document.getElementById('actualPastePreview');
+    if (preview) preview.innerHTML = '';
+    actualPasteCache = null;
+}
+
+function closeActualPasteModal() {
+    const modal = document.getElementById('actualPasteModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+}
+
+function parseActualPaste(text) {
+    const rows = String(text || '')
+        .split(/\r?\n/)
+        .map(line => line.replace(/\r/g, ''))
+        .filter(line => line.trim().length > 0)
+        .map(line => line.split('\t'));
+
+    if (rows.length < 2) {
+        return { error: '붙여넣기 데이터가 부족합니다. 헤더 포함 2줄 이상 필요합니다.' };
+    }
+
+    const headers = rows[0];
+    const mapping = mapActualPasteHeaders(headers);
+    if (mapping.pipeline === undefined) {
+        return { error: '헤더에 파이프라인ID 컬럼이 없습니다.' };
+    }
+    const monthFields = Object.keys(mapping).filter(key => key.startsWith('m') && (key.endsWith('_order') || key.endsWith('_profit')));
+    if (monthFields.length === 0) {
+        return { error: '헤더에서 월별 수주/이익 컬럼을 찾지 못했습니다.' };
+    }
+
+    const parsedRows = [];
+    rows.slice(1).forEach(row => {
+        const pipelineId = String(row[mapping.pipeline] ?? '').trim();
+        if (!pipelineId) return;
+        const updates = {};
+        monthFields.forEach(field => {
+            const idx = mapping[field];
+            const value = parsePasteNumber(row[idx]);
+            if (value !== null) updates[field] = value;
+        });
+        if (Object.keys(updates).length > 0) {
+            parsedRows.push({ pipeline_id: pipelineId, updates });
+        }
+    });
+
+    return {
+        headers,
+        mapping,
+        monthFields,
+        rows: parsedRows,
+        totalRows: rows.length - 1
+    };
+}
+
+function mapActualPasteHeaders(headers) {
+    const mapping = {};
+    headers.forEach((header, idx) => {
+        const raw = String(header ?? '').trim();
+        const norm = normalizePasteHeader(raw);
+        if (mapping.pipeline === undefined && (norm.includes('pipeline') || norm.includes('파이프라인') || norm === 'id' || norm === '파이프라인id')) {
+            mapping.pipeline = idx;
+        }
+        const monthMatch = raw.match(/(\d{1,2})\s*월/);
+        if (!monthMatch) return;
+        const month = Number(monthMatch[1]);
+        if (month < 1 || month > 12) return;
+        let type = null;
+        if (norm.includes('수주') || norm.includes('order')) type = 'order';
+        if (norm.includes('이익') || norm.includes('매출') || norm.includes('profit')) type = type || 'profit';
+        if (!type) return;
+        mapping[`m${String(month).padStart(2, '0')}_${type}`] = idx;
+    });
+    return mapping;
+}
+
+function renderActualPastePreview(result) {
+    const preview = document.getElementById('actualPastePreview');
+    if (!preview) return;
+    if (result.error) {
+        preview.innerHTML = `<div class="paste-preview-summary">⚠️ ${result.error}</div>`;
+        return;
+    }
+    const monthFields = result.monthFields.sort();
+    const sampleRows = result.rows.slice(0, 5);
+    const headerLabels = ['파이프라인ID', ...monthFields.map(field => {
+        const month = Number(field.slice(1, 3));
+        const label = field.endsWith('_order') ? '수주' : '이익';
+        return `${month}월 ${label}`;
+    })];
+    const tableRows = sampleRows.map(row => {
+        const cells = [row.pipeline_id, ...monthFields.map(field => formatNumber(row.updates[field] ?? ''))];
+        return `<tr>${cells.map(cell => `<td>${cell}</td>`).join('')}</tr>`;
+    }).join('');
+    preview.innerHTML = `
+        <div class="paste-preview-summary">
+            매칭 컬럼: 파이프라인ID + ${monthFields.length}개 금액 |
+            대상행: ${result.rows.length} / ${result.totalRows}행
+        </div>
+        <table class="paste-preview-table">
+            <thead><tr>${headerLabels.map(label => `<th>${label}</th>`).join('')}</tr></thead>
+            <tbody>${tableRows || '<tr><td colspan="' + headerLabels.length + '">미리보기 데이터가 없습니다.</td></tr>'}</tbody>
+        </table>
+    `;
+}
+
+function applyActualPasteResult(result) {
+    if (result.error) {
+        alert(result.error);
+        return;
+    }
+    if (!salesActualLineTable) {
+        alert('그리드가 준비되지 않았습니다.');
+        return;
+    }
+    const rowMap = new Map();
+    salesActualLineTable.getRows().forEach(row => {
+        const data = row.getData();
+        if (data?.pipeline_id !== undefined && data?.pipeline_id !== null) {
+            rowMap.set(String(data.pipeline_id).trim(), row);
+        }
+    });
+
+    let matched = 0;
+    let missing = 0;
+    let updatedCells = 0;
+    const missingIds = [];
+
+    result.rows.forEach(item => {
+        const row = rowMap.get(String(item.pipeline_id).trim());
+        if (!row) {
+            missing += 1;
+            if (missingIds.length < 10) missingIds.push(item.pipeline_id);
+            return;
+        }
+        const payload = {};
+        Object.entries(item.updates).forEach(([field, value]) => {
+            payload[field] = value;
+            updatedCells += 1;
+        });
+        row.update(payload);
+        recalcActualRowTotal(row);
+        matched += 1;
+    });
+    updateActualConsistencyBadge();
+
+    let message = `붙여넣기 완료: ${matched}행 반영, ${missing}행 미매칭, ${updatedCells}칸 업데이트`;
+    if (missingIds.length) {
+        message += `\n미매칭 예시: ${missingIds.join(', ')}${missing > missingIds.length ? ' ...' : ''}`;
+    }
+    alert(message);
+}
+
 function applyActualMonthView(mode) {
     if (!salesActualLineTable) return;
     currentActualViewMode = mode || 'group';
@@ -913,7 +1284,7 @@ function applyActualMonthView(mode) {
     columnSettings.view_mode = currentActualViewMode;
     const columns = [
         getActualSelectionColumn(),
-        ...buildActualLineColumns(columnSettings, currentActualViewMode)
+        ...buildActualLineColumns(columnSettings, currentActualViewMode, actualExcelCompactMode)
     ];
     salesActualLineTable.setColumns(columns);
     const freezeSelect = document.getElementById('actualFreezeColumn');
@@ -1055,6 +1426,10 @@ async function reloadActualLines() {
     const actualYear = Number(document.getElementById('salesActualYear')?.value || new Date().getFullYear());
     const lines = await fetchActualLines(actualYear, getActualLineFilters());
     cachedActualLines = lines;
+    if (!salesActualLineTableReady) {
+        pendingActualLineData = lines;
+        return;
+    }
     salesActualLineTable.setData(lines);
     updateActualConsistencyBadge();
     refreshActualPreviewRegistrationStatus();
@@ -1270,6 +1645,7 @@ async function initializeSalesActualEntry() {
     if (!tableEl) return;
 
     populateActualYearOptions('salesActualYear');
+    actualExcelCompactMode = loadActualExcelMode();
 
     if (!salesActualLineTable) {
         const columnSettings = loadActualColumnSettings();
@@ -1284,26 +1660,59 @@ async function initializeSalesActualEntry() {
             height: '600px',
             layout: 'fitDataStretch',
             selectable: true,
-            selectableRangeMode: "click",
+            selectableRange: true,
+            selectableRangeMode: "drag",
+            clipboard: true,
+            clipboardPasteAction: "range",
+            clipboardPasteParser: actualClipboardPasteParser,
             placeholder: '실적 라인 데이터가 없습니다.',
             movableColumns: true,
             headerSortElement: sortElement,
             columnDefaults: {
                 headerSort: true
             },
+            rowFormatter: function(row) {
+                applyActualStickyToRow(row);
+            },
             columns: [
                 getActualSelectionColumn(),
-                ...buildActualLineColumns(columnSettings, currentActualViewMode)
+                ...buildActualLineColumns(columnSettings, currentActualViewMode, actualExcelCompactMode)
             ]
+        });
+        salesActualLineTable.on('tableBuilt', () => {
+            salesActualLineTableReady = true;
+            if (pendingActualLineData) {
+                salesActualLineTable.setData(pendingActualLineData);
+                pendingActualLineData = null;
+            }
+            syncActualExcelModeUI();
+            if (!salesActualLineTable?.modules?.clipboard) {
+                console.warn('⚠️ Tabulator clipboard 모듈이 없습니다. full build가 필요할 수 있습니다.');
+            }
+            if (!salesActualLineTable?.modules?.selectRange) {
+                console.warn('⚠️ Tabulator range 선택 모듈이 없습니다. full build가 필요할 수 있습니다.');
+            }
+            bindActualTablePasteHandler();
         });
         salesActualLineTable.on("columnMoved", () => {
             saveActualColumnSettings();
             renderActualColumnsList();
+            const freezeSelect = document.getElementById('actualFreezeColumn');
+            if (freezeSelect?.value) {
+                applyActualColumnFreeze(freezeSelect.value);
+            }
         });
         salesActualLineTable.on("columnVisibilityChanged", () => {
             saveActualColumnSettings();
             renderActualColumnsList();
+            const freezeSelect = document.getElementById('actualFreezeColumn');
+            if (freezeSelect?.value) {
+                applyActualColumnFreeze(freezeSelect.value);
+            }
         });
+        if (!salesActualLineTableReady) {
+            await new Promise(resolve => salesActualLineTable.on('tableBuilt', resolve));
+        }
         populateActualFreezeOptions();
         const freezeSelect = document.getElementById('actualFreezeColumn');
         if (freezeSelect) {
@@ -1314,6 +1723,9 @@ async function initializeSalesActualEntry() {
         if (viewSelect) {
             viewSelect.value = currentActualViewMode;
         }
+    }
+    if (salesActualLineTable) {
+        syncActualExcelModeUI();
     }
 
     await loadActualFilters();
@@ -1370,12 +1782,59 @@ async function initializeSalesActualEntry() {
         });
     }
 
+    const pasteBtn = document.getElementById('btnActualPasteExcel');
+    if (pasteBtn && !pasteBtn.dataset.bound) {
+        pasteBtn.dataset.bound = 'true';
+        pasteBtn.addEventListener('click', () => {
+            if (!actualExcelCompactMode) {
+                const ok = confirm('엑셀 모드에서 붙여넣기를 사용할 수 있습니다. 엑셀 모드로 전환할까요?');
+                if (!ok) return;
+                applyActualExcelMode(true);
+                saveActualExcelMode(true);
+            }
+            openActualPasteModal();
+        });
+    }
+
+    const pastePreviewBtn = document.getElementById('btnActualPastePreview');
+    if (pastePreviewBtn && !pastePreviewBtn.dataset.bound) {
+        pastePreviewBtn.dataset.bound = 'true';
+        pastePreviewBtn.addEventListener('click', () => {
+            const text = document.getElementById('actualPasteInput')?.value || '';
+            actualPasteCache = parseActualPaste(text);
+            renderActualPastePreview(actualPasteCache);
+        });
+    }
+
+    const pasteApplyBtn = document.getElementById('btnActualPasteApply');
+    if (pasteApplyBtn && !pasteApplyBtn.dataset.bound) {
+        pasteApplyBtn.dataset.bound = 'true';
+        pasteApplyBtn.addEventListener('click', () => {
+            if (!actualPasteCache) {
+                const text = document.getElementById('actualPasteInput')?.value || '';
+                actualPasteCache = parseActualPaste(text);
+            }
+            renderActualPastePreview(actualPasteCache);
+            applyActualPasteResult(actualPasteCache);
+        });
+    }
+
     const freezeSelect = document.getElementById('actualFreezeColumn');
     if (freezeSelect && !freezeSelect.dataset.bound) {
         freezeSelect.dataset.bound = 'true';
         freezeSelect.addEventListener('change', () => {
             applyActualColumnFreeze(freezeSelect.value);
             saveActualColumnSettings();
+        });
+    }
+
+    const excelToggle = document.getElementById('actualExcelMode');
+    if (excelToggle && !excelToggle.dataset.bound) {
+        excelToggle.dataset.bound = 'true';
+        excelToggle.checked = actualExcelCompactMode;
+        excelToggle.addEventListener('change', () => {
+            applyActualExcelMode(excelToggle.checked);
+            saveActualExcelMode(excelToggle.checked);
         });
     }
 
@@ -1835,10 +2294,12 @@ function updateActualSummaryGroupStat() {
 // DOMContentLoaded Hook
 
 document.addEventListener('DOMContentLoaded', () => {
-    if (document.getElementById('salesActualLineTable')) {
+    const lineEl = document.getElementById('salesActualLineTable');
+    if (lineEl && (typeof window.isElementInActivePage !== 'function' || window.isElementInActivePage(lineEl))) {
         initializeSalesActualEntry();
     }
-    if (document.getElementById('salesActualSummaryTable')) {
+    const summaryEl = document.getElementById('salesActualSummaryTable');
+    if (summaryEl && (typeof window.isElementInActivePage !== 'function' || window.isElementInActivePage(summaryEl))) {
         initializeSalesActualDashboard();
     }
 });
@@ -1852,3 +2313,4 @@ window.setAllActualColumns = setAllActualColumns;
 window.toggleActualColumnGroup = toggleActualColumnGroup;
 window.closeActualTargetPreviewModal = closeActualTargetPreviewModal;
 window.closeActualLineEditModal = closeActualLineEditModal;
+window.closeActualPasteModal = closeActualPasteModal;

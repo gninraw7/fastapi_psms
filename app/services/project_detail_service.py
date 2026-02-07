@@ -15,6 +15,7 @@ from app.schemas.project_detail import (
     ProjectDetail, ProjectAttribute, ProjectHistory, ProjectContract,
     ProjectFullDetail, ProjectSaveRequest, ProjectSaveResponse
 )
+from app.core.tenant import get_company_cd
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +25,13 @@ def get_project_detail(db: Session, pipeline_id: str) -> Optional[ProjectDetail]
     프로젝트 상세 정보 조회 (JOIN)
     ✅ 수정: notes, win_probability 필드 추가
     """
+    company_cd = get_company_cd()
     query = text("""
         SELECT 
             p.pipeline_id,
             p.project_name,
             p.field_code,
-            cc_field.code_name as field_name,
+            ifield.field_name as field_name,
             p.service_code,
             sc.service_name as service_name,
             p.manager_id,
@@ -49,17 +51,33 @@ def get_project_detail(db: Session, pipeline_id: str) -> Optional[ProjectDetail]
             p.created_at,
             p.updated_at
         FROM projects p
-        LEFT JOIN users u ON p.manager_id = u.login_id
-        LEFT JOIN org_units o ON p.org_id = o.org_id
-        LEFT JOIN clients c1 ON p.customer_id = c1.client_id
-        LEFT JOIN clients c2 ON p.ordering_party_id = c2.client_id
-        LEFT JOIN service_codes sc ON p.service_code = sc.service_code
-        LEFT JOIN comm_code cc_field ON p.field_code = cc_field.code AND cc_field.group_code = 'FIELD'
-        LEFT JOIN comm_code cc_stage ON p.current_stage = cc_stage.code AND cc_stage.group_code = 'STAGE'
-        WHERE p.pipeline_id = :pipeline_id
+        LEFT JOIN users u 
+          ON p.manager_id = u.login_id
+         AND u.company_cd = p.company_cd
+        LEFT JOIN org_units o 
+          ON p.org_id = o.org_id
+         AND o.company_cd = p.company_cd
+        LEFT JOIN clients c1 
+          ON p.customer_id = c1.client_id
+         AND c1.company_cd = p.company_cd
+        LEFT JOIN clients c2 
+          ON p.ordering_party_id = c2.client_id
+         AND c2.company_cd = p.company_cd
+        LEFT JOIN service_codes sc 
+          ON p.service_code = sc.service_code
+         AND sc.company_cd = p.company_cd
+        LEFT JOIN industry_fields ifield
+          ON p.field_code = ifield.field_code
+         AND ifield.company_cd = p.company_cd
+        LEFT JOIN comm_code cc_stage 
+          ON p.current_stage = cc_stage.code 
+         AND cc_stage.group_code = 'STAGE'
+         AND cc_stage.company_cd = p.company_cd
+        WHERE p.company_cd = :company_cd
+          AND p.pipeline_id = :pipeline_id
     """)
     
-    result = db.execute(query, {"pipeline_id": pipeline_id}).fetchone()
+    result = db.execute(query, {"pipeline_id": pipeline_id, "company_cd": company_cd}).fetchone()
     
     if result:
         return ProjectDetail(
@@ -94,6 +112,7 @@ def get_project_attributes(db: Session, pipeline_id: str) -> List[ProjectAttribu
     """
     프로젝트 속성 목록 조회
     """
+    company_cd = get_company_cd()
     query = text("""
         SELECT 
             pa.pipeline_id,
@@ -103,12 +122,16 @@ def get_project_attributes(db: Session, pipeline_id: str) -> List[ProjectAttribu
             pa.created_at,
             pa.updated_at
         FROM project_attributes pa
-        LEFT JOIN comm_code cc ON pa.attr_code = cc.code AND cc.group_code = 'PROJECT_ATTRIBUTE'
-        WHERE pa.pipeline_id = :pipeline_id
+        LEFT JOIN comm_code cc 
+          ON pa.attr_code = cc.code 
+         AND cc.group_code = 'PROJECT_ATTRIBUTE'
+         AND cc.company_cd = pa.company_cd
+        WHERE pa.company_cd = :company_cd
+          AND pa.pipeline_id = :pipeline_id
         ORDER BY pa.created_at
     """)
     
-    results = db.execute(query, {"pipeline_id": pipeline_id}).fetchall()
+    results = db.execute(query, {"pipeline_id": pipeline_id, "company_cd": company_cd}).fetchall()
     
     return [
         ProjectAttribute(
@@ -127,6 +150,7 @@ def get_project_histories(db: Session, pipeline_id: str) -> List[ProjectHistory]
     """
     프로젝트 이력 목록 조회
     """
+    company_cd = get_company_cd()
     query = text("""
         SELECT 
             ph.history_id,
@@ -141,13 +165,19 @@ def get_project_histories(db: Session, pipeline_id: str) -> List[ProjectHistory]
             ph.created_at,
             ph.updated_at
         FROM project_history ph
-        LEFT JOIN comm_code cc ON ph.progress_stage = cc.code AND cc.group_code = 'STAGE'
-        LEFT JOIN users u ON ph.creator_id = u.login_id
-        WHERE ph.pipeline_id = :pipeline_id
+        LEFT JOIN comm_code cc 
+          ON ph.progress_stage = cc.code 
+         AND cc.group_code = 'STAGE'
+         AND cc.company_cd = ph.company_cd
+        LEFT JOIN users u 
+          ON ph.creator_id = u.login_id
+         AND u.company_cd = ph.company_cd
+        WHERE ph.company_cd = :company_cd
+          AND ph.pipeline_id = :pipeline_id
         ORDER BY ph.base_date DESC, ph.created_at DESC
     """)
     
-    results = db.execute(query, {"pipeline_id": pipeline_id}).fetchall()
+    results = db.execute(query, {"pipeline_id": pipeline_id, "company_cd": company_cd}).fetchall()
     
     return [
         ProjectHistory(
@@ -170,6 +200,7 @@ def get_project_contract(db: Session, pipeline_id: str) -> Optional[ProjectContr
     """
     프로젝트 계약/기간 정보 조회
     """
+    company_cd = get_company_cd()
     query = text("""
         SELECT
             contract_date,
@@ -179,9 +210,10 @@ def get_project_contract(db: Session, pipeline_id: str) -> Optional[ProjectContr
             contract_amount,
             remarks
         FROM project_contracts
-        WHERE pipeline_id = :pipeline_id
+        WHERE company_cd = :company_cd
+          AND pipeline_id = :pipeline_id
     """)
-    row = db.execute(query, {"pipeline_id": pipeline_id}).fetchone()
+    row = db.execute(query, {"pipeline_id": pipeline_id, "company_cd": company_cd}).fetchone()
     if not row:
         return None
     return ProjectContract(
@@ -219,6 +251,7 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
     프로젝트 저장 (신규/수정 통합, 속성/이력 포함)
     """
     try:
+        company_cd = get_company_cd()
         pipeline_id = data.pipeline_id
         mode = "UPDATE" if pipeline_id else "INSERT"
 
@@ -236,25 +269,27 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
             max_query = text("""
                 SELECT MAX(CAST(SUBSTRING(pipeline_id, 6) AS UNSIGNED)) as max_seq
                 FROM projects
-                WHERE pipeline_id LIKE :year_pattern
+                WHERE company_cd = :company_cd
+                  AND pipeline_id LIKE :year_pattern
             """)
-            max_result = db.execute(max_query, {"year_pattern": year_pattern}).fetchone()
+            max_result = db.execute(max_query, {"year_pattern": year_pattern, "company_cd": company_cd}).fetchone()
             max_seq = max_result.max_seq if max_result and max_result.max_seq else 0
             pipeline_id = f"{year}_{str(max_seq + 1).zfill(3)}"
             
             insert_query = text("""
                 INSERT INTO projects (
-                    pipeline_id, project_name, field_code, service_code, manager_id, org_id,
+                    company_cd, pipeline_id, project_name, field_code, service_code, manager_id, org_id,
                     customer_id, ordering_party_id, current_stage, 
                     quoted_amount, win_probability, notes, status, created_by
                 ) VALUES (
-                    :pipeline_id, :project_name, :field_code, :service_code, :manager_id, :org_id,
+                    :company_cd, :pipeline_id, :project_name, :field_code, :service_code, :manager_id, :org_id,
                     :customer_id, :ordering_party_id, :current_stage,
                     :quoted_amount, :win_probability, :notes, :status, :user_id
                 )
             """)
             
             db.execute(insert_query, {
+                "company_cd": company_cd,
                 "pipeline_id": pipeline_id,
                 "project_name": data.project_name,
                 "field_code": data.field_code,
@@ -287,10 +322,12 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                     win_probability = :win_probability,
                     notes = :notes,
                     updated_by = :user_id
-                WHERE pipeline_id = :pipeline_id
+                WHERE company_cd = :company_cd
+                  AND pipeline_id = :pipeline_id
             """)
             
             db.execute(update_query, {
+                "company_cd": company_cd,
                 "pipeline_id": pipeline_id,
                 "project_name": data.project_name,
                 "field_code": data.field_code,
@@ -339,17 +376,17 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
 
             if not has_value:
                 db.execute(
-                    text("DELETE FROM project_contracts WHERE pipeline_id = :pipeline_id"),
-                    {"pipeline_id": pipeline_id}
+                    text("DELETE FROM project_contracts WHERE company_cd = :company_cd AND pipeline_id = :pipeline_id"),
+                    {"pipeline_id": pipeline_id, "company_cd": company_cd}
                 )
             else:
                 db.execute(text("""
                     INSERT INTO project_contracts (
-                        pipeline_id, contract_date, start_date, end_date,
+                        company_cd, pipeline_id, contract_date, start_date, end_date,
                         order_amount, contract_amount, remarks,
                         created_by, updated_by
                     ) VALUES (
-                        :pipeline_id, :contract_date, :start_date, :end_date,
+                        :company_cd, :pipeline_id, :contract_date, :start_date, :end_date,
                         :order_amount, :contract_amount, :remarks,
                         :user_id, :user_id
                     )
@@ -362,6 +399,7 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                         remarks = VALUES(remarks),
                         updated_by = :user_id
                 """), {
+                    "company_cd": company_cd,
                     "pipeline_id": pipeline_id,
                     "contract_date": contract_payload["contract_date"],
                     "start_date": contract_payload["start_date"],
@@ -382,9 +420,10 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                 if row_stat == "N":  # 신규
                     if attr.get("attr_code"):
                         db.execute(text("""
-                            INSERT INTO project_attributes (pipeline_id, attr_code, attr_value, created_by)
-                            VALUES (:pipeline_id, :attr_code, :attr_value, :user_id)
+                            INSERT INTO project_attributes (company_cd, pipeline_id, attr_code, attr_value, created_by)
+                            VALUES (:company_cd, :pipeline_id, :attr_code, :attr_value, :user_id)
                         """), {
+                            "company_cd": company_cd,
                             "pipeline_id": pipeline_id,
                             "attr_code": attr["attr_code"],
                             "attr_value": attr.get("attr_value", ""),
@@ -397,8 +436,11 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                         db.execute(text("""
                             UPDATE project_attributes 
                             SET attr_value = :attr_value, updated_by = :user_id
-                            WHERE pipeline_id = :pipeline_id AND attr_code = :attr_code
+                            WHERE company_cd = :company_cd
+                              AND pipeline_id = :pipeline_id 
+                              AND attr_code = :attr_code
                         """), {
+                            "company_cd": company_cd,
                             "pipeline_id": pipeline_id,
                             "attr_code": attr["attr_code"],
                             "attr_value": attr.get("attr_value", ""),
@@ -410,8 +452,11 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                     if attr.get("attr_code"):
                         db.execute(text("""
                             DELETE FROM project_attributes 
-                            WHERE pipeline_id = :pipeline_id AND attr_code = :attr_code
+                            WHERE company_cd = :company_cd
+                              AND pipeline_id = :pipeline_id 
+                              AND attr_code = :attr_code
                         """), {
+                            "company_cd": company_cd,
                             "pipeline_id": pipeline_id,
                             "attr_code": attr["attr_code"]
                         })
@@ -427,11 +472,12 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                 if row_stat == "N":  # 신규
                     db.execute(text("""
                         INSERT INTO project_history (
-                            pipeline_id, base_date, progress_stage, strategy_content, creator_id, created_by
+                            company_cd, pipeline_id, base_date, progress_stage, strategy_content, creator_id, created_by
                         ) VALUES (
-                            :pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, :created_by
+                            :company_cd, :pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, :created_by
                         )
                     """), {
+                        "company_cd": company_cd,
                         "pipeline_id": pipeline_id,
                         "base_date": hist.get("base_date"),
                         "progress_stage": hist.get("progress_stage"),
@@ -450,8 +496,10 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                                 progress_stage = :progress_stage, 
                                 strategy_content = :strategy_content,
                                 updated_by = :user_id
-                            WHERE history_id = :history_id
+                            WHERE company_cd = :company_cd
+                              AND history_id = :history_id
                         """), {
+                            "company_cd": company_cd,
                             "history_id": history_id,
                             "base_date": hist.get("base_date"),
                             "progress_stage": hist.get("progress_stage"),
@@ -464,8 +512,11 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                     history_id = hist.get("history_id")
                     if history_id:
                         db.execute(text("""
-                            DELETE FROM project_history WHERE history_id = :history_id
+                            DELETE FROM project_history 
+                            WHERE company_cd = :company_cd
+                              AND history_id = :history_id
                         """), {
+                            "company_cd": company_cd,
                             "history_id": history_id
                         })
                         hist_count += 1
@@ -493,9 +544,10 @@ def delete_project(db: Session, pipeline_id: str, user_id: str) -> bool:
     프로젝트 종료(소프트 삭제)
     """
     try:
+        company_cd = get_company_cd()
         # 존재 확인
-        check_query = text("SELECT pipeline_id FROM projects WHERE pipeline_id = :pipeline_id")
-        result = db.execute(check_query, {"pipeline_id": pipeline_id}).fetchone()
+        check_query = text("SELECT pipeline_id FROM projects WHERE company_cd = :company_cd AND pipeline_id = :pipeline_id")
+        result = db.execute(check_query, {"pipeline_id": pipeline_id, "company_cd": company_cd}).fetchone()
         
         if not result:
             return False
@@ -504,10 +556,12 @@ def delete_project(db: Session, pipeline_id: str, user_id: str) -> bool:
         db.execute(text("""
             UPDATE projects
             SET status = 'CLOSED', updated_by = :user_id
-            WHERE pipeline_id = :pipeline_id
+            WHERE company_cd = :company_cd
+              AND pipeline_id = :pipeline_id
         """), {
             "pipeline_id": pipeline_id,
-            "user_id": user_id
+            "user_id": user_id,
+            "company_cd": company_cd
         })
         
         db.commit()

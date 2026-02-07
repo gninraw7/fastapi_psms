@@ -17,6 +17,8 @@ from app.api.v1.endpoints import auth
 
 from app.core.config import settings
 from app.core.database import test_connection
+from app.core.tenant import set_company_cd
+from app.core.security import decode_token
 from app.core.logger import app_logger, access_logger, db_logger, log_startup_info, log_shutdown_info
 from app.api.v1.api import api_router  # ⭐ api.py에서 통합 라우터 import
 
@@ -69,6 +71,61 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan
 )
+
+
+# ============================================
+# 미들웨어: company_cd 주입
+# ============================================
+@app.middleware("http")
+async def inject_company_cd(request: Request, call_next):
+    """
+    요청 컨텍스트에 company_cd 주입
+    - 로그인 전: 요청 바디의 company_cd 또는 기본값
+    - 로그인 후: JWT 토큰의 company_cd
+    - 헤더 X-Company-CD는 보조(토큰이 우선)
+    """
+    company_cd = None
+
+    # 1) Authorization 토큰에서 company_cd 추출 (우선)
+    auth_header = request.headers.get("Authorization") or ""
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        if token:
+            try:
+                payload = decode_token(token)
+                company_cd = payload.get("company_cd") or company_cd
+            except Exception:
+                # 토큰이 유효하지 않으면 무시 (인증은 별도 처리)
+                pass
+
+    # 2) 로그인 요청 바디에서 company_cd 추출
+    if company_cd is None and request.url.path.endswith("/auth/login"):
+        try:
+            body = await request.body()
+            if body:
+                import json
+                data = json.loads(body)
+                if isinstance(data, dict):
+                    company_cd = data.get("company_cd") or company_cd
+            # downstream에서 body 재사용 가능하도록 설정
+            request._body = body
+        except Exception:
+            pass
+
+    # 3) 헤더 보조
+    if company_cd is None:
+        header_cd = request.headers.get("X-Company-CD")
+        if header_cd:
+            company_cd = header_cd.strip()
+
+    # 4) 기본값 사용
+    if company_cd is None:
+        company_cd = settings.DEFAULT_COMPANY_CD
+
+    set_company_cd(company_cd)
+    request.state.company_cd = company_cd
+
+    return await call_next(request)
 
 
 # ============================================

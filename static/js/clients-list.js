@@ -28,17 +28,21 @@ let currentClientFilters = {
 // ===================================
 // Initialization
 // ===================================
-document.addEventListener('DOMContentLoaded', () => {
+function bootstrapClientsList() {
     console.log('🚀 거래처 목록 초기화 시작...');
-    
+
     // 거래처 목록 페이지인지 확인
     const clientsTableEl = document.getElementById('clientsTable');
-    
+
     if (!clientsTableEl) {
         console.log('⚠️ clientsTable 요소 없음, 초기화 스킵');
         return;
     }
-    
+    if (typeof window.isElementInActivePage === 'function' && !window.isElementInActivePage(clientsTableEl)) {
+        console.log('ℹ️ 거래처 목록 비활성 페이지, 초기화 스킵');
+        return;
+    }
+
     try {
         // 테이블 초기화
         initializeClientsTable();
@@ -53,7 +57,13 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) {
         console.error('❌ 거래처 목록 초기화 실패:', error);
     }
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrapClientsList);
+} else {
+    bootstrapClientsList();
+}
 
 // ===================================
 // Load Industry Fields (업종)
@@ -766,5 +776,6 @@ window.bulkExportClients = bulkExportClients;
 window.applyClientFilters = applyClientFilters;
 window.resetClientFilters = resetClientFilters;
 window.clearClientSelection = clearClientSelection;
+window.bootstrapClientsList = bootstrapClientsList;
 
 console.log('✅ clients-list.js 로드 완료');

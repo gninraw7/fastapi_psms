@@ -9,6 +9,7 @@ from typing import Optional
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.tenant import get_company_cd
 
 
 def _map_method_to_action(method: str) -> str:
@@ -37,12 +38,19 @@ def permission_required(form_id: str, action: Optional[str] = None):
         db: Session = Depends(get_db)
     ):
         role = (current_user.get("role") or "").upper()
+        company_cd = current_user.get("company_cd") or get_company_cd()
         if role == "ADMIN":
             return
 
         # 권한 데이터가 없으면 허용
-        has_role_perm = db.execute(text("SELECT 1 FROM auth_permissions LIMIT 1")).fetchone()
-        has_user_perm = db.execute(text("SELECT 1 FROM auth_user_permissions LIMIT 1")).fetchone()
+        has_role_perm = db.execute(
+            text("SELECT 1 FROM auth_role_permissions WHERE company_cd = :company_cd LIMIT 1"),
+            {"company_cd": company_cd}
+        ).fetchone()
+        has_user_perm = db.execute(
+            text("SELECT 1 FROM auth_user_permissions WHERE company_cd = :company_cd LIMIT 1"),
+            {"company_cd": company_cd}
+        ).fetchone()
         if not has_role_perm and not has_user_perm:
             return
 
@@ -59,8 +67,11 @@ def permission_required(form_id: str, action: Optional[str] = None):
         user_row = db.execute(text("""
             SELECT can_view, can_create, can_update, can_delete
             FROM auth_user_permissions
-            WHERE login_id = :login_id AND form_id = :form_id
+            WHERE company_cd = :company_cd
+              AND login_id = :login_id 
+              AND form_id = :form_id
         """), {
+            "company_cd": company_cd,
             "login_id": current_user.get("login_id"),
             "form_id": form_id
         }).fetchone()
@@ -70,13 +81,23 @@ def permission_required(form_id: str, action: Optional[str] = None):
         else:
             role_row = db.execute(text("""
                 SELECT can_view, can_create, can_update, can_delete
-                FROM auth_permissions
-                WHERE role = :role AND form_id = :form_id
+                FROM auth_role_permissions
+                WHERE company_cd = :company_cd
+                  AND role = :role 
+                  AND form_id = :form_id
             """), {
+                "company_cd": company_cd,
                 "role": current_user.get("role"),
                 "form_id": form_id
             }).fetchone()
-            allowed = bool(role_row and getattr(role_row, col) == 'Y')
+
+            if role_row is None and user_row is None:
+                # 해당 form_id에 대한 권한 정의가 없으면 조회(GET)만 허용
+                if col == "can_view":
+                    return
+                allowed = False
+            else:
+                allowed = bool(role_row and getattr(role_row, col) == 'Y')
 
         if not allowed:
             raise HTTPException(

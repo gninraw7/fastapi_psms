@@ -13,6 +13,8 @@
     
     <!-- Tabulator CSS -->
     <link href="https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator.min.css" rel="stylesheet">
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <link href="https://unpkg.com/quill-better-table@1.2.10/dist/quill-better-table.min.css" rel="stylesheet">
     
     <!-- SheetJS -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -87,6 +89,16 @@
                         <li><a href="#" data-page="report-hub"><i class="fas fa-layer-group"></i> 유형별 현황</a></li>
                     </ul>
                 </li>
+
+                <li class="navbar-item">
+                    <a href="#" class="navbar-link">
+                        <i class="fas fa-bullhorn"></i>
+                        게시판
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="#" data-page="notices-list"><i class="fas fa-list"></i> 게시판 목록</a></li>
+                    </ul>
+                </li>
                 
                 <li class="navbar-item" id="adminMenu">
                     <a href="#" class="navbar-link">
@@ -96,9 +108,12 @@
                     <ul class="dropdown-menu">
                         <li><a href="#" data-page="users"><i class="fas fa-users"></i> 사용자 관리</a></li>
                         <li><a href="#" data-page="common-codes"><i class="fas fa-code"></i> 공통코드 관리</a></li>
+                        <li><a href="#" data-page="notice-templates"><i class="fas fa-file-lines"></i> 공지 템플릿 관리</a></li>
                         <li><a href="#" data-page="industry-fields"><i class="fas fa-tags"></i> 분야코드 관리</a></li>
                         <li><a href="#" data-page="service-codes"><i class="fas fa-layer-group"></i> 서비스코드 관리</a></li>
                         <li><a href="#" data-page="org-units"><i class="fas fa-sitemap"></i> 조직 관리</a></li>
+                        <li><a href="#" data-page="companies"><i class="fas fa-building"></i> 회사 관리</a></li>
+                        <li><a href="#" data-page="data-management"><i class="fas fa-database"></i> 데이터 관리</a></li>
                         <li><a href="#" data-page="login-history"><i class="fas fa-clock"></i> 접속 이력</a></li>
                         <li><a href="#" data-page="permissions"><i class="fas fa-shield-halved"></i> 권한 관리</a></li>
                         <li class="dropdown-divider"></li>
@@ -108,6 +123,13 @@
 			</ul>			
             
             <div class="navbar-user">
+                <div class="company-switch" id="companySwitch" style="display:none;">
+                    <i class="fas fa-building"></i>
+                    <select id="currentCompanySelect" class="company-select"></select>
+                    <button class="btn-icon" id="btnSwitchCompany" title="회사 변경">
+                        <i class="fas fa-exchange-alt"></i>
+                    </button>
+                </div>
                 <div class="user-info">
                     <i class="fas fa-user-circle"></i>
                     <span id="currentUser">사용자</span>
@@ -1254,6 +1276,13 @@
                         <button class="btn btn-primary" id="btnCeoRefresh">
                             <i class="fas fa-rotate"></i> 새로고침
                         </button>
+                        <div class="ceo-theme-toggle">
+                            <span class="ceo-theme-label"><i class="fas fa-moon"></i> Dark</span>
+                            <label class="form-switch">
+                                <input type="checkbox" id="ceoDashboardDarkToggle" class="form-switch-input">
+                                <span class="form-switch-slider"></span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -1570,6 +1599,15 @@
                                 <option value="">고정 없음</option>
                             </select>
                         </div>
+                        <div class="plan-freeze-control excel-mode-control">
+                            <label class="excel-mode-label" for="planExcelMode">
+                                <i class="fas fa-table"></i> 엑셀 모드
+                            </label>
+                            <label class="form-switch">
+                                <input type="checkbox" id="planExcelMode" class="form-switch-input">
+                                <span class="form-switch-slider"></span>
+                            </label>
+                        </div>
                     </div>
                     <div class="toolbar-right">
                         <button class="btn btn-primary" id="btnPlanEditSelected">
@@ -1580,6 +1618,9 @@
                         </button>
                         <button class="btn btn-outline-secondary" id="btnPlanColumns">
                             <i class="fas fa-columns"></i> 컬럼 설정
+                        </button>
+                        <button class="btn btn-outline-secondary" id="btnPlanPasteExcel">
+                            <i class="fas fa-paste"></i> 엑셀 붙여넣기
                         </button>
                         <button class="btn btn-secondary" id="btnPlanRecalc">
                             <i class="fas fa-calculator"></i> 합계 계산
@@ -1696,6 +1737,15 @@
                                 <option value="">고정 없음</option>
                             </select>
                         </div>
+                        <div class="plan-freeze-control excel-mode-control">
+                            <label class="excel-mode-label" for="actualExcelMode">
+                                <i class="fas fa-table"></i> 엑셀 모드
+                            </label>
+                            <label class="form-switch">
+                                <input type="checkbox" id="actualExcelMode" class="form-switch-input">
+                                <span class="form-switch-slider"></span>
+                            </label>
+                        </div>
                     </div>
                     <div class="toolbar-right">
                         <button class="btn btn-primary" id="btnActualEditSelected">
@@ -1706,6 +1756,9 @@
                         </button>
                         <button class="btn btn-outline-secondary" id="btnActualColumns">
                             <i class="fas fa-columns"></i> 컬럼 설정
+                        </button>
+                        <button class="btn btn-outline-secondary" id="btnActualPasteExcel">
+                            <i class="fas fa-paste"></i> 엑셀 붙여넣기
                         </button>
                         <button class="btn btn-secondary" id="btnActualRecalc">
                             <i class="fas fa-calculator"></i> 합계 계산
@@ -2170,6 +2223,39 @@
     </div>
 
     <!-- ===================================
+         영업계획 엑셀 붙여넣기 모달
+         =================================== -->
+    <div id="planPasteModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2><i class="fas fa-paste"></i> 영업계획 엑셀 붙여넣기</h2>
+                <button class="modal-close" type="button" onclick="closePlanPasteModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>엑셀에서 복사한 내용을 붙여넣기</label>
+                    <textarea id="planPasteInput" class="form-textarea" rows="10" placeholder="헤더 포함 상태로 붙여넣기 해주세요.&#10;예: 파이프라인ID | 1월 | 2월 | ... | 12월"></textarea>
+                    <small><i class="fas fa-circle-info"></i> 헤더 타이틀 기준으로 컬럼을 매칭합니다. (파이프라인ID, 1월~12월)</small>
+                </div>
+                <div id="planPastePreview" class="paste-preview"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" type="button" id="btnPlanPastePreview">
+                    <i class="fas fa-eye"></i> 미리보기
+                </button>
+                <button class="btn btn-primary" type="button" id="btnPlanPasteApply">
+                    <i class="fas fa-check"></i> 적용
+                </button>
+                <button class="btn btn-outline-secondary" type="button" onclick="closePlanPasteModal()">
+                    <i class="fas fa-times"></i> 닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================
          실적 컬럼 설정 모달
          =================================== -->
     <div id="actualColumnsModal" class="modal">
@@ -2262,6 +2348,39 @@
     </div>
 
     <!-- ===================================
+         실적 엑셀 붙여넣기 모달
+         =================================== -->
+    <div id="actualPasteModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2><i class="fas fa-paste"></i> 실적 등록 엑셀 붙여넣기</h2>
+                <button class="modal-close" type="button" onclick="closeActualPasteModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>엑셀에서 복사한 내용을 붙여넣기</label>
+                    <textarea id="actualPasteInput" class="form-textarea" rows="10" placeholder="헤더 포함 상태로 붙여넣기 해주세요.&#10;예: 파이프라인ID | 1월 수주 | 1월 이익 | ..."></textarea>
+                    <small><i class="fas fa-circle-info"></i> 헤더 타이틀 기준으로 컬럼을 매칭합니다. (파이프라인ID, 1월 수주/이익)</small>
+                </div>
+                <div id="actualPastePreview" class="paste-preview"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" type="button" id="btnActualPastePreview">
+                    <i class="fas fa-eye"></i> 미리보기
+                </button>
+                <button class="btn btn-primary" type="button" id="btnActualPasteApply">
+                    <i class="fas fa-check"></i> 적용
+                </button>
+                <button class="btn btn-outline-secondary" type="button" onclick="closeActualPasteModal()">
+                    <i class="fas fa-times"></i> 닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================
          실적 대상 미리보기 모달
          =================================== -->
     <div id="actualTargetPreviewModal" class="modal">
@@ -2325,6 +2444,323 @@
                 </button>
             </div>
         </div>
+    </div>
+
+    <!-- ===================================
+         게시판 - 목록 페이지
+         =================================== -->
+    <div id="page-notices-list" class="page-content">
+        <main class="app-main">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="fas fa-bullhorn"></i>
+                        게시판
+                    </div>
+                    <div class="panel-actions">
+                        <button class="btn btn-primary" id="btnNoticeNew" type="button">
+                            <i class="fas fa-plus-circle"></i> 새 글
+                        </button>
+                        <button class="btn btn-secondary" id="btnNoticeOpen" type="button">
+                            <i class="fas fa-folder-open"></i> 상세보기
+                        </button>
+                        <button class="btn btn-outline-secondary" id="btnNoticeExportExcel" type="button">
+                            <i class="fas fa-file-excel"></i> 엑셀
+                        </button>
+                        <button class="btn btn-outline-secondary" id="btnNoticeExportPdf" type="button">
+                            <i class="fas fa-file-pdf"></i> PDF
+                        </button>
+                        <button class="btn btn-info" id="btnNoticeRefresh" type="button">
+                            <i class="fas fa-sync-alt"></i> 새로고침
+                        </button>
+                    </div>
+                </div>
+                <div class="helper-text">
+                    공지사항/업무 안내를 확인하고 공유할 수 있습니다.
+                </div>
+            </div>
+
+            <div class="filter-panel notice-filter-panel">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label><i class="fas fa-search"></i> 검색필드</label>
+                        <select id="noticeSearchField" class="form-select">
+                            <option value="title">제목</option>
+                            <option value="content">내용</option>
+                            <option value="author_id">작성자 ID</option>
+                        </select>
+                    </div>
+                    <div class="filter-group" style="flex: 2;">
+                        <label><i class="fas fa-keyboard"></i> 검색어</label>
+                        <input type="text" id="noticeSearchText" class="form-input" placeholder="검색어를 입력하세요">
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-tag"></i> 카테고리</label>
+                        <select id="noticeCategory" class="form-select">
+                            <option value="">전체</option>
+                            <option value="SYSTEM">SYSTEM</option>
+                            <option value="GENERAL">GENERAL</option>
+                            <option value="URGENT">URGENT</option>
+                        </select>
+                    </div>
+                    <div class="filter-group filter-group-small">
+                        <label>게시중</label>
+                        <select id="noticeActiveOnly" class="form-select">
+                            <option value="">전체</option>
+                            <option value="Y">게시중</option>
+                        </select>
+                    </div>
+                    <div class="filter-group" style="flex: 0 0 auto;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-secondary" id="btnNoticeSearch" type="button">
+                            <i class="fas fa-search"></i> 검색
+                        </button>
+                    </div>
+                </div>
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label><i class="fas fa-user"></i> 작성자</label>
+                        <input type="text" id="noticeAuthorFilter" class="form-input" placeholder="작성자명/ID">
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-calendar"></i> 작성일(시작)</label>
+                        <input type="date" id="noticeDateFrom" class="form-input">
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-calendar-check"></i> 작성일(종료)</label>
+                        <input type="date" id="noticeDateTo" class="form-input">
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-flag"></i> 상태</label>
+                        <select id="noticeStatusFilter" class="form-select">
+                            <option value="">전체</option>
+                            <option value="NORMAL">일반</option>
+                            <option value="IN_PROGRESS">진행 중</option>
+                            <option value="DONE">완료</option>
+                            <option value="HOLD">보류</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-paperclip"></i> 첨부파일</label>
+                        <select id="noticeHasFilesFilter" class="form-select">
+                            <option value="">전체</option>
+                            <option value="Y">있음</option>
+                            <option value="N">없음</option>
+                        </select>
+                    </div>
+                    <div class="filter-group" style="flex: 1.2;">
+                        <label><i class="fas fa-hashtag"></i> 해시태그</label>
+                        <input type="text" id="noticeTagsFilter" class="form-input" placeholder="#견적 #오류수정">
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-panel">
+                <div id="noticesTable"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         게시판 - 상세 페이지
+         =================================== -->
+    <div id="page-notice-detail" class="page-content">
+        <main class="app-main">
+            <div class="notice-detail-container">
+                <div class="form-header">
+                    <div class="form-title">
+                        <i class="fas fa-file-alt"></i>
+                        <h2 id="noticeDetailTitle">게시판 상세</h2>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-primary" id="btnNoticeSave" type="button">
+                            <i class="fas fa-save"></i> 저장
+                        </button>
+                        <button class="btn btn-danger" id="btnNoticeDelete" type="button">
+                            <i class="fas fa-trash"></i> 삭제
+                        </button>
+                        <button class="btn btn-outline-secondary" id="btnNoticeDetailExportExcel" type="button">
+                            <i class="fas fa-file-excel"></i> 엑셀
+                        </button>
+                        <button class="btn btn-outline-secondary" id="btnNoticeDetailExportPdf" type="button">
+                            <i class="fas fa-file-pdf"></i> PDF
+                        </button>
+                        <button class="btn btn-secondary" id="btnNoticeBack" type="button">
+                            <i class="fas fa-list"></i> 목록
+                        </button>
+                    </div>
+                </div>
+
+                <div class="notice-meta-grid">
+                    <div class="form-group notice-field-title">
+                        <label>제목</label>
+                        <input type="text" id="noticeTitleInput" class="form-input" placeholder="제목을 입력하세요">
+                    </div>
+                    <div class="form-group notice-field-category">
+                        <label>카테고리</label>
+                        <select id="noticeCategorySelect" class="form-select">
+                            <option value="GENERAL">GENERAL</option>
+                            <option value="SYSTEM">SYSTEM</option>
+                            <option value="URGENT">URGENT</option>
+                        </select>
+                    </div>
+                    <div class="form-group notice-field-fixed">
+                        <label>고정</label>
+                        <select id="noticeFixedSelect" class="form-select">
+                            <option value="N">N</option>
+                            <option value="Y">Y</option>
+                        </select>
+                    </div>
+                    <div class="form-group notice-field-status">
+                        <label>상태</label>
+                        <select id="noticeStatusSelect" class="form-select">
+                            <option value="NORMAL">일반</option>
+                            <option value="IN_PROGRESS">진행 중</option>
+                            <option value="DONE">완료</option>
+                            <option value="HOLD">보류</option>
+                        </select>
+                    </div>
+                    <div class="form-group notice-field-tags">
+                        <label>해시태그</label>
+                        <input type="text" id="noticeHashtagsInput" class="form-input" placeholder="#견적 #오류수정 #긴급">
+                    </div>
+                    <div class="form-group notice-field-start">
+                        <label>게시 시작</label>
+                        <input type="date" id="noticeStartDate" class="form-input">
+                    </div>
+                    <div class="form-group notice-field-end">
+                        <label>게시 종료</label>
+                        <input type="date" id="noticeEndDate" class="form-input">
+                    </div>
+                    <div class="form-group notice-field-author">
+                        <label>작성자</label>
+                        <input type="text" id="noticeAuthor" class="form-input" disabled>
+                    </div>
+                    <div class="form-group notice-field-view">
+                        <label>조회수</label>
+                        <input type="text" id="noticeViewCount" class="form-input" disabled>
+                    </div>
+                    <div class="form-group notice-field-read">
+                        <label>읽음 수</label>
+                        <input type="text" id="noticeReadCount" class="form-input" disabled>
+                    </div>
+                    <div class="form-group notice-field-created">
+                        <label>작성일</label>
+                        <input type="text" id="noticeCreatedAt" class="form-input" disabled>
+                    </div>
+                </div>
+
+                <div class="notice-reactions">
+                    <button class="btn btn-outline-secondary btn-sm notice-reaction" id="btnNoticeLike" type="button" data-reaction="LIKE">
+                        👍 좋아요 <span id="noticeLikeCount">0</span>
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm notice-reaction" id="btnNoticeCheck" type="button" data-reaction="CHECK">
+                        ✅ 확인 <span id="noticeCheckCount">0</span>
+                    </button>
+                </div>
+
+                <div class="notice-readers">
+                    <div class="notice-readers-header">
+                        <span>읽음 사용자</span>
+                        <button class="btn btn-outline-secondary btn-sm" id="btnNoticeReadersToggle" type="button">보기</button>
+                    </div>
+                    <div id="noticeReadersPanel" class="notice-readers-panel" style="display: none;">
+                        <div id="noticeReadersList" class="notice-readers-list"></div>
+                    </div>
+                </div>
+
+                <div class="notice-attachments-panel">
+                    <div class="notice-attachments-header">
+                        <span>첨부 파일</span>
+                        <div class="notice-attachments-actions">
+                            <button class="btn btn-secondary btn-sm" id="btnNoticeFileUpload" type="button">
+                                <i class="fas fa-paperclip"></i> 업로드
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" id="btnNoticeFileDownloadSelected" type="button">
+                                <i class="fas fa-download"></i> 선택 다운로드
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" id="btnNoticeFileDownloadAll" type="button">
+                                <i class="fas fa-file-archive"></i> 전체 다운로드
+                            </button>
+                        </div>
+                    </div>
+                    <label class="notice-attachments-selectall">
+                        <input type="checkbox" id="noticeFilesSelectAll"> 전체 선택
+                    </label>
+                    <div class="notice-upload-status" id="noticeUploadStatus" style="display: none;">
+                        <span class="notice-upload-spinner"></span>
+                        <span class="notice-upload-text" id="noticeUploadText"></span>
+                    </div>
+                    <div class="notice-upload-progress" id="noticeUploadProgress" style="display: none;">
+                        <div class="notice-upload-progress-bar" id="noticeUploadProgressBar"></div>
+                    </div>
+                    <input type="file" id="noticeFileInput" multiple style="display: none;">
+                    <div id="noticeAttachmentsList" class="notice-attachments-list"></div>
+                </div>
+
+                <div class="notice-editor-panel">
+                    <label class="notice-editor-label">내용</label>
+                    <div id="noticeEditor" class="notice-editor"></div>
+                    <textarea id="noticeContentFallback" class="notice-editor-fallback" placeholder="내용을 입력하세요"></textarea>
+                </div>
+
+                <div class="notice-replies-panel">
+                    <div class="notice-replies-header">
+                        <span>답글</span>
+                        <span id="noticeReplyCount">0건</span>
+                    </div>
+                    <div class="notice-reply-editor">
+                        <div class="notice-reply-target" id="noticeReplyTarget" style="display: none;">
+                            <span id="noticeReplyTargetLabel"></span>
+                            <button class="btn btn-outline-secondary btn-sm" id="btnNoticeReplyCancel" type="button">
+                                <i class="fas fa-times"></i> 답글 취소
+                            </button>
+                        </div>
+                        <div id="noticeReplyEditor"></div>
+                        <textarea id="noticeReplyFallback" class="notice-reply-fallback" placeholder="답글을 입력하세요"></textarea>
+                        <div class="notice-reply-files">
+                            <div class="notice-attachments-header">
+                                <span>첨부 파일</span>
+                                <div class="notice-attachments-actions">
+                                    <button class="btn btn-secondary btn-sm" id="btnNoticeReplyFileUpload" type="button">
+                                        <i class="fas fa-paperclip"></i> 업로드
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" id="btnNoticeReplyFileDownloadSelected" type="button">
+                                        <i class="fas fa-download"></i> 선택 다운로드
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" id="btnNoticeReplyFileDownloadAll" type="button">
+                                        <i class="fas fa-file-archive"></i> 전체 다운로드
+                                    </button>
+                                </div>
+                            </div>
+                            <label class="notice-attachments-selectall">
+                                <input type="checkbox" id="noticeReplyFilesSelectAll"> 전체 선택
+                            </label>
+                            <div class="notice-upload-status" id="noticeReplyUploadStatus" style="display: none;">
+                                <span class="notice-upload-spinner"></span>
+                                <span class="notice-upload-text" id="noticeReplyUploadText"></span>
+                            </div>
+                            <div class="notice-upload-progress" id="noticeReplyUploadProgress" style="display: none;">
+                                <div class="notice-upload-progress-bar" id="noticeReplyUploadProgressBar"></div>
+                            </div>
+                            <input type="file" id="noticeReplyFileInput" multiple style="display: none;">
+                            <div id="noticeReplyAttachmentsList" class="notice-attachments-list"></div>
+                        </div>
+                        <div class="notice-reply-actions">
+                            <button class="btn btn-primary" id="btnNoticeReplySave" type="button">
+                                <i class="fas fa-paper-plane"></i> 답글 등록
+                            </button>
+                        </div>
+                    </div>
+                    <div id="noticeRepliesList" class="notice-replies-list"></div>
+                    <div class="notice-replies-pagination">
+                        <button class="btn btn-outline-secondary btn-sm" id="btnNoticeRepliesMore" type="button">
+                            더보기
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
 
     <!-- ===================================
@@ -2753,59 +3189,145 @@
                 </div>
 
                 <div id="permissions-pane-roles" class="detail-pane">
-                    <section class="common-code-panel">
-                        <div class="panel-header">
-                            <h3><i class="fas fa-user-shield"></i> 역할 권한</h3>
-                            <div class="panel-actions">
-                                <button class="btn btn-primary" id="btnPermRolesNew" type="button">
-                                    <i class="fas fa-plus-circle"></i> 신규
-                                </button>
-                                <button class="btn btn-danger" id="btnPermRolesDelete" type="button">
-                                    <i class="fas fa-trash"></i> 삭제
-                                </button>
-                                <button class="btn btn-success" id="btnPermRolesSave" type="button">
-                                    <i class="fas fa-save"></i> 저장
-                                </button>
-                                <button class="btn btn-info" id="btnPermRolesRefresh" type="button">
-                                    <i class="fas fa-sync-alt"></i> 새로고침
-                                </button>
-                                <button class="btn btn-success" id="btnPermRolesExcel" type="button">
-                                    <i class="fas fa-file-excel"></i> 엑셀
-                                </button>
-                            </div>
+                    <div class="permissions-grid">
+                        <div class="permissions-left">
+                            <section class="common-code-panel permissions-subpanel">
+                                <div class="panel-header">
+                                    <h3><i class="fas fa-users-cog"></i> 역할 목록</h3>
+                                    <div class="panel-actions">
+                                        <button class="btn btn-info" id="btnPermRolesListRefresh" type="button">
+                                            <i class="fas fa-sync-alt"></i> 새로고침
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="table-panel">
+                                    <div id="permissionsRolesListTable"></div>
+                                </div>
+                            </section>
+
+                            <section class="common-code-panel permissions-subpanel">
+                                <div class="panel-header">
+                                    <div>
+                                        <h3><i class="fas fa-window-restore"></i> 화면 목록</h3>
+                                        <div class="panel-subtitle">선택한 역할에 권한을 부여할 화면을 선택하세요.</div>
+                                    </div>
+                                    <div class="panel-actions">
+                                        <button class="btn btn-secondary" id="btnPermRoleViewOnly" type="button">
+                                            <i class="fas fa-eye"></i> 조회만 부여
+                                        </button>
+                                        <button class="btn btn-primary" id="btnPermRoleGrantAll" type="button">
+                                            <i class="fas fa-shield-check"></i> 전체 권한 부여
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="table-panel">
+                                    <div id="permissionsRoleFormsTable"></div>
+                                </div>
+                            </section>
                         </div>
-                        <div class="table-panel">
-                            <div id="permissionsRolesTable"></div>
+
+                        <div class="permissions-right">
+                            <section class="common-code-panel">
+                                <div class="panel-header">
+                                    <div>
+                                        <h3><i class="fas fa-user-shield"></i> 역할 권한</h3>
+                                        <div class="panel-subtitle">선택된 역할: <span id="permActiveRoleLabel">-</span></div>
+                                    </div>
+                                    <div class="panel-actions">
+                                        <button class="btn btn-primary" id="btnPermRolesNew" type="button">
+                                            <i class="fas fa-plus-circle"></i> 신규
+                                        </button>
+                                        <button class="btn btn-danger" id="btnPermRolesDelete" type="button">
+                                            <i class="fas fa-trash"></i> 삭제
+                                        </button>
+                                        <button class="btn btn-success" id="btnPermRolesSave" type="button">
+                                            <i class="fas fa-save"></i> 저장
+                                        </button>
+                                        <button class="btn btn-info" id="btnPermRolesRefresh" type="button">
+                                            <i class="fas fa-sync-alt"></i> 새로고침
+                                        </button>
+                                        <button class="btn btn-success" id="btnPermRolesExcel" type="button">
+                                            <i class="fas fa-file-excel"></i> 엑셀
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="table-panel">
+                                    <div id="permissionsRolesTable"></div>
+                                </div>
+                            </section>
                         </div>
-                    </section>
+                    </div>
                 </div>
 
                 <div id="permissions-pane-users" class="detail-pane">
-                    <section class="common-code-panel">
-                        <div class="panel-header">
-                            <h3><i class="fas fa-user-lock"></i> 사용자 권한</h3>
-                            <div class="panel-actions">
-                                <button class="btn btn-primary" id="btnPermUsersNew" type="button">
-                                    <i class="fas fa-plus-circle"></i> 신규
-                                </button>
-                                <button class="btn btn-danger" id="btnPermUsersDelete" type="button">
-                                    <i class="fas fa-trash"></i> 삭제
-                                </button>
-                                <button class="btn btn-success" id="btnPermUsersSave" type="button">
-                                    <i class="fas fa-save"></i> 저장
-                                </button>
-                                <button class="btn btn-info" id="btnPermUsersRefresh" type="button">
-                                    <i class="fas fa-sync-alt"></i> 새로고침
-                                </button>
-                                <button class="btn btn-success" id="btnPermUsersExcel" type="button">
-                                    <i class="fas fa-file-excel"></i> 엑셀
-                                </button>
-                            </div>
+                    <div class="permissions-grid">
+                        <div class="permissions-left">
+                            <section class="common-code-panel permissions-subpanel">
+                                <div class="panel-header">
+                                    <h3><i class="fas fa-users"></i> 사용자 목록</h3>
+                                    <div class="panel-actions">
+                                        <button class="btn btn-info" id="btnPermUsersListRefresh" type="button">
+                                            <i class="fas fa-sync-alt"></i> 새로고침
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="table-panel">
+                                    <div id="permissionsUsersListTable"></div>
+                                </div>
+                            </section>
+
+                            <section class="common-code-panel permissions-subpanel">
+                                <div class="panel-header">
+                                    <div>
+                                        <h3><i class="fas fa-window-restore"></i> 화면 목록</h3>
+                                        <div class="panel-subtitle">선택한 사용자에게 권한을 부여할 화면을 선택하세요.</div>
+                                    </div>
+                                    <div class="panel-actions">
+                                        <button class="btn btn-secondary" id="btnPermUserViewOnly" type="button">
+                                            <i class="fas fa-eye"></i> 조회만 부여
+                                        </button>
+                                        <button class="btn btn-primary" id="btnPermUserGrantAll" type="button">
+                                            <i class="fas fa-shield-check"></i> 전체 권한 부여
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="table-panel">
+                                    <div id="permissionsUserFormsTable"></div>
+                                </div>
+                            </section>
                         </div>
-                        <div class="table-panel">
-                            <div id="permissionsUsersTable"></div>
+
+                        <div class="permissions-right">
+                            <section class="common-code-panel">
+                                <div class="panel-header">
+                                    <div>
+                                        <h3><i class="fas fa-user-lock"></i> 사용자 권한</h3>
+                                        <div class="panel-subtitle">선택된 사용자: <span id="permActiveUserLabel">-</span></div>
+                                    </div>
+                                    <div class="panel-actions">
+                                        <button class="btn btn-primary" id="btnPermUsersNew" type="button">
+                                            <i class="fas fa-plus-circle"></i> 신규
+                                        </button>
+                                        <button class="btn btn-danger" id="btnPermUsersDelete" type="button">
+                                            <i class="fas fa-trash"></i> 삭제
+                                        </button>
+                                        <button class="btn btn-success" id="btnPermUsersSave" type="button">
+                                            <i class="fas fa-save"></i> 저장
+                                        </button>
+                                        <button class="btn btn-info" id="btnPermUsersRefresh" type="button">
+                                            <i class="fas fa-sync-alt"></i> 새로고침
+                                        </button>
+                                        <button class="btn btn-success" id="btnPermUsersExcel" type="button">
+                                            <i class="fas fa-file-excel"></i> 엑셀
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="table-panel">
+                                    <div id="permissionsUsersTable"></div>
+                                </div>
+                            </section>
                         </div>
-                    </section>
+                    </div>
                 </div>
             </div>
         </main>
@@ -2878,6 +3400,80 @@
                         <div id="codeDetailTable"></div>
                     </div>
                     <input type="file" id="detailExcelInput" accept=".xlsx,.xls" style="display:none;">
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         공지 템플릿 관리 페이지
+         =================================== -->
+    <div id="page-notice-templates" class="page-content">
+        <main class="app-main">
+            <div class="notice-template-layout">
+                <section class="notice-template-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-file-lines"></i> 공지 템플릿 목록</h3>
+                        <div class="panel-actions">
+                            <button class="btn btn-primary" id="btnNoticeTemplateNew" type="button">
+                                <i class="fas fa-plus-circle"></i> 신규
+                            </button>
+                            <button class="btn btn-danger" id="btnNoticeTemplateDelete" type="button">
+                                <i class="fas fa-trash"></i> 삭제
+                            </button>
+                            <button class="btn btn-success" id="btnNoticeTemplateSave" type="button">
+                                <i class="fas fa-save"></i> 저장
+                            </button>
+                            <button class="btn btn-info" id="btnNoticeTemplateRefresh" type="button">
+                                <i class="fas fa-sync-alt"></i> 새로고침
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-panel">
+                        <div id="noticeTemplatesTable"></div>
+                    </div>
+                </section>
+
+                <section class="notice-template-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-pen-to-square"></i> 템플릿 편집</h3>
+                    </div>
+                    <div class="notice-template-form">
+                        <div class="form-group">
+                            <label for="noticeTemplateTitle">템플릿 제목</label>
+                            <input type="text" id="noticeTemplateTitle" class="form-input" placeholder="템플릿 제목">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="noticeTemplateCategory">분류</label>
+                                <input type="text" id="noticeTemplateCategory" class="form-input" placeholder="예: 시스템, 공지">
+                            </div>
+                            <div class="form-group">
+                                <label for="noticeTemplateSort">정렬</label>
+                                <input type="number" id="noticeTemplateSort" class="form-input" value="0" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="noticeTemplateShared">공유</label>
+                                <select id="noticeTemplateShared" class="form-select">
+                                    <option value="N">비공유</option>
+                                    <option value="Y">공유</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="noticeTemplateUse">사용 여부</label>
+                                <select id="noticeTemplateUse" class="form-select">
+                                    <option value="Y">사용</option>
+                                    <option value="N">미사용</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="noticeTemplateContent">내용</label>
+                            <div id="noticeTemplateEditor" class="notice-template-editor"></div>
+                            <textarea id="noticeTemplateContent" class="form-textarea" placeholder="템플릿 내용을 입력하세요"></textarea>
+                            <div class="form-help">게시판 상세 에디터에서 선택 시 본문에 삽입됩니다.</div>
+                        </div>
+                    </div>
                 </section>
             </div>
         </main>
@@ -2995,6 +3591,150 @@
                         <div id="orgUnitsTable"></div>
                     </div>
                     <input type="file" id="orgExcelInput" accept=".xlsx,.xls" style="display:none;">
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         회사 관리 페이지
+         =================================== -->
+    <div id="page-companies" class="page-content">
+        <main class="app-main">
+            <div class="common-code-layout single">
+                <section class="common-code-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-building"></i> 회사 관리</h3>
+                        <div class="panel-actions">
+                            <button class="btn btn-info" id="btnCompanyRefresh" type="button">
+                                <i class="fas fa-sync-alt"></i> 새로고침
+                            </button>
+                            <button class="btn btn-warning" id="btnCompanyDeactivate" type="button">
+                                <i class="fas fa-ban"></i> 사용중지
+                            </button>
+                            <button class="btn btn-success" id="btnCompanyActivate" type="button">
+                                <i class="fas fa-check"></i> 사용
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="filter-panel" style="margin-bottom: 1rem;">
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <label>회사 코드<span class="required">*</span></label>
+                                <input type="text" id="companyCdInput" class="form-input" placeholder="예: COMP001">
+                            </div>
+                            <div class="filter-group">
+                                <label>회사명<span class="required">*</span></label>
+                                <input type="text" id="companyNameInput" class="form-input" placeholder="회사명을 입력하세요">
+                            </div>
+                            <div class="filter-group">
+                                <label>별칭</label>
+                                <input type="text" id="companyAliasInput" class="form-input" placeholder="선택 입력">
+                            </div>
+                            <div class="filter-group filter-group-small">
+                                <label>사용</label>
+                                <select id="companyUseSelect" class="form-select">
+                                    <option value="Y" selected>Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="filter-group company-copy-group">
+                                <div class="company-copy-header">
+                                    <span class="company-copy-title">공통코드 복사</span>
+                                    <label class="company-copy-checkbox">
+                                        <input type="checkbox" id="companyCopyCodes">
+                                        <span>현재 회사 기준 복사</span>
+                                    </label>
+                                </div>
+                                <select id="companyCopyFromSelect" class="form-select">
+                                    <option value="">복사 원본 선택</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="filter-actions">
+                            <button class="btn btn-primary" id="btnCompanyCreate" type="button">
+                                <i class="fas fa-plus-circle"></i> 등록
+                            </button>
+                            <button class="btn btn-secondary" id="btnCompanyReset" type="button">
+                                <i class="fas fa-rotate-left"></i> 초기화
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="company-grid-layout">
+                        <div class="table-panel">
+                            <div id="companiesTable"></div>
+                        </div>
+                        <div class="table-panel company-common-panel">
+                            <div class="company-common-header">
+                                <h4><i class="fas fa-layer-group"></i> 복사대상 공통테이블</h4>
+                                <div class="panel-subtitle">회사 생성 시 선택된 테이블을 복사합니다.</div>
+                            </div>
+                            <div id="companyCommonTablesTable"></div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- ===================================
+         데이터 관리 페이지
+         =================================== -->
+    <div id="page-data-management" class="page-content">
+        <main class="app-main">
+            <div class="data-management-layout">
+                <div class="filter-panel data-management-controls" id="dataManagementControls">
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>Source 회사</label>
+                            <select id="sourceCompanySelect" class="form-select"></select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Target 회사</label>
+                            <select id="targetCompanySelect" class="form-select"></select>
+                        </div>
+                        <div class="filter-group data-management-exclude">
+                            <label>제외 테이블</label>
+                            <input type="text" id="excludeTablesInput" class="form-input" placeholder="예: login_history, tmp_table">
+                            <div class="form-help">콤마(,)로 구분. 기본 제외: companies, tmp_invalid_project_manager_id, board_notices</div>
+                        </div>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn btn-info" id="btnDataRefresh" type="button">
+                            <i class="fas fa-sync-alt"></i> 새로고침
+                        </button>
+                        <button class="btn btn-danger" id="btnDataCopy" type="button">
+                            <i class="fas fa-copy"></i> 선택 테이블 복제
+                        </button>
+                    </div>
+                </div>
+
+                <div id="dataCopySummary" class="filter-panel data-management-summary" style="display:none;"></div>
+
+                <section class="common-code-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3><i class="fas fa-database"></i> Source 회사 테이블</h3>
+                            <div class="panel-subtitle">복제할 테이블을 선택하세요 (참조 테이블은 자동 포함됨)</div>
+                        </div>
+                    </div>
+                    <div class="table-panel">
+                        <div id="sourceTablesTable"></div>
+                    </div>
+                </section>
+
+                <section class="common-code-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3><i class="fas fa-database"></i> Target 회사 테이블</h3>
+                            <div class="panel-subtitle">복제 대상 데이터 현황/상태</div>
+                        </div>
+                    </div>
+                    <div class="table-panel">
+                        <div id="targetTablesTable"></div>
+                    </div>
                 </section>
             </div>
         </main>
@@ -3356,8 +4096,62 @@
         </div>
     </div>
 
+    <!-- ===================================
+         공지 표 삽입 모달
+         =================================== -->
+    <div id="noticeTableModal" class="modal">
+        <div class="modal-content modal-medium">
+            <div class="modal-header">
+                <h2><i class="fas fa-table"></i> 표 삽입</h2>
+                <button class="modal-close" type="button" onclick="closeNoticeTableModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="noticeTableRows">행 (Rows)</label>
+                    <input type="number" id="noticeTableRows" class="form-input" min="1" max="30" value="3">
+                </div>
+                <div class="form-group">
+                    <label for="noticeTableCols">열 (Columns)</label>
+                    <input type="number" id="noticeTableCols" class="form-input" min="1" max="20" value="3">
+                </div>
+                <div class="form-help">기본값: 행 3 / 열 3</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeNoticeTableModal()">
+                    <i class="fas fa-times"></i> 닫기
+                </button>
+                <button type="button" class="btn btn-primary" id="btnNoticeTableInsert">
+                    <i class="fas fa-table"></i> 삽입
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 공지 표 삽입 팝오버 -->
+    <div id="noticeTablePopover" class="notice-table-popover">
+        <div class="popover-title"><i class="fas fa-table"></i> 빠른 표 삽입</div>
+        <div class="popover-row">
+            <label for="noticeTableRowsPopover">행</label>
+            <input type="number" id="noticeTableRowsPopover" class="form-input" min="1" max="30" value="3">
+        </div>
+        <div class="popover-row">
+            <label for="noticeTableColsPopover">열</label>
+            <input type="number" id="noticeTableColsPopover" class="form-input" min="1" max="20" value="3">
+        </div>
+        <div class="popover-actions">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnNoticeTablePopoverMore">
+                상세
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" id="btnNoticeTablePopoverInsert">
+                삽입
+            </button>
+        </div>
+    </div>
+
     <!-- Scripts 순서 중요 -->
-    <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js"></script>
+    <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js?full=1"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="/static/js/config.js?v=3.5"></script>
@@ -3370,14 +4164,20 @@
     <script src="/static/js/sales-actual.js?v=3.2"></script>
     <script src="/static/js/sales-dashboard.js?v=1.1"></script>
     <script src="/static/js/report.js?v=1.16"></script>
+    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    <script src="https://unpkg.com/quill-better-table@1.2.10/dist/quill-better-table.min.js"></script>
     <script src="/static/js/users-list.js?v=2.2"></script>
     <script src="/static/js/users-form.js?v=1.4"></script>
+    <script src="/static/js/notices.js?v=1.0"></script>
+    <script src="/static/js/notice-templates.js?v=1.0"></script>
     <script src="/static/js/login-history.js?v=1.0"></script>
     <script src="/static/js/permissions.js?v=1.1"></script>
     <script src="/static/js/common-codes.js?v=1.5"></script>
     <script src="/static/js/industry-fields.js?v=1.0"></script>
     <script src="/static/js/service-codes.js?v=1.0"></script>
     <script src="/static/js/org-units.js?v=1.0"></script>
+    <script src="/static/js/companies.js?v=1.0"></script>
+    <script src="/static/js/data-management.js?v=1.0"></script>
     <script src="/static/js/my-info.js?v=1.1"></script>
     <script src="/static/js/app.js?v=3.2"></script>
     <script src="/static/js/mobile.js?v=2.5"></script>

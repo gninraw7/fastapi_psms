@@ -14,6 +14,10 @@ function bootstrapCommonCodes() {
         console.log('⚠️ 공통코드 테이블 요소 없음, 초기화 스킵');
         return;
     }
+    if (typeof window.isElementInActivePage === 'function' && !window.isElementInActivePage(groupEl)) {
+        console.log('ℹ️ 공통코드 비활성 페이지, 초기화 스킵');
+        return;
+    }
 
     try {
         initializeCommonCodesTables();
