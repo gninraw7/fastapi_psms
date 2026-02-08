@@ -159,6 +159,8 @@ def get_project_histories(db: Session, pipeline_id: str) -> List[ProjectHistory]
             ph.record_date,
             ph.progress_stage,
             cc.code_name as stage_name,
+            ph.activity_type,
+            cc_act.code_name as activity_type_name,
             ph.strategy_content,
             ph.creator_id,
             u.user_name as creator_name,
@@ -169,6 +171,10 @@ def get_project_histories(db: Session, pipeline_id: str) -> List[ProjectHistory]
           ON ph.progress_stage = cc.code 
          AND cc.group_code = 'STAGE'
          AND cc.company_cd = ph.company_cd
+        LEFT JOIN comm_code cc_act
+          ON ph.activity_type = cc_act.code
+         AND cc_act.group_code = 'ACTIVITY_TYPE'
+         AND cc_act.company_cd = ph.company_cd
         LEFT JOIN users u 
           ON ph.creator_id = u.login_id
          AND u.company_cd = ph.company_cd
@@ -187,6 +193,8 @@ def get_project_histories(db: Session, pipeline_id: str) -> List[ProjectHistory]
             record_date=row.record_date,
             progress_stage=row.progress_stage,
             stage_name=row.stage_name,
+            activity_type=row.activity_type,
+            activity_type_name=row.activity_type_name,
             strategy_content=row.strategy_content,
             creator_name=row.creator_name,
             created_at=row.created_at,
@@ -472,15 +480,16 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                 if row_stat == "N":  # 신규
                     db.execute(text("""
                         INSERT INTO project_history (
-                            company_cd, pipeline_id, base_date, progress_stage, strategy_content, creator_id, created_by
+                            company_cd, pipeline_id, base_date, progress_stage, activity_type, strategy_content, creator_id, created_by
                         ) VALUES (
-                            :company_cd, :pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, :created_by
+                            :company_cd, :pipeline_id, :base_date, :progress_stage, :activity_type, :strategy_content, :creator_id, :created_by
                         )
                     """), {
                         "company_cd": company_cd,
                         "pipeline_id": pipeline_id,
                         "base_date": hist.get("base_date"),
                         "progress_stage": hist.get("progress_stage"),
+                        "activity_type": hist.get("activity_type"),
                         "strategy_content": hist.get("strategy_content", ""),
                         "creator_id": data.user_id,
                         "created_by": data.user_id
@@ -493,7 +502,8 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                         db.execute(text("""
                             UPDATE project_history 
                             SET base_date = :base_date, 
-                                progress_stage = :progress_stage, 
+                                progress_stage = :progress_stage,
+                                activity_type = :activity_type,
                                 strategy_content = :strategy_content,
                                 updated_by = :user_id
                             WHERE company_cd = :company_cd
@@ -503,6 +513,7 @@ def save_project(db: Session, data: ProjectSaveRequest) -> ProjectSaveResponse:
                             "history_id": history_id,
                             "base_date": hist.get("base_date"),
                             "progress_stage": hist.get("progress_stage"),
+                            "activity_type": hist.get("activity_type"),
                             "strategy_content": hist.get("strategy_content", ""),
                             "user_id": data.user_id
                         })

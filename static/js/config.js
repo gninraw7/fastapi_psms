@@ -20,6 +20,10 @@ const API_CONFIG = {
         PROJECT_DETAIL: '/project-detail',
         PROJECT_SAVE: '/project-detail/save', 
         PROJECT_HISTORY: '/projects/history',
+        PROJECT_HISTORY_FILTERS: '/projects/history/filters',
+        PROJECT_HISTORY_CALENDAR: '/projects/history/calendar',
+        PROJECT_HISTORY_PROJECTS: '/projects/history/project-search',
+        PROJECT_HISTORY_SUMMARY: '/projects/history/calendar/summary',
         
         // 거래처 관련
         CLIENTS_LIST: '/clients/list',

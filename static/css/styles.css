@@ -813,6 +813,10 @@ body {
     display: flex;
 }
 
+.modal.modal-front {
+    z-index: 1200;
+}
+
 .modal-content {
     background: var(--card-bg);
     border-radius: var(--radius-lg);
@@ -2270,6 +2274,33 @@ body {
     width: 100%;
     border-collapse: collapse;
     margin-top: 0.5rem;
+}
+
+.detail-history-table {
+    table-layout: fixed;
+}
+
+.detail-history-table th,
+.detail-history-table td {
+    word-break: break-word;
+}
+
+.detail-history-table th:nth-child(1),
+.detail-history-table td:nth-child(1) {
+    width: 28px;
+    white-space: nowrap;
+}
+
+.detail-history-table th:nth-child(2),
+.detail-history-table td:nth-child(2) {
+    width: 30px;
+    white-space: nowrap;
+}
+
+.detail-history-table th:nth-child(4),
+.detail-history-table td:nth-child(4) {
+    width: 20px;
+    white-space: nowrap;
 }
 
 .detail-table th,

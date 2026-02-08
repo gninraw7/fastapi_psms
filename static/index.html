@@ -15,6 +15,7 @@
     <link href="https://unpkg.com/tabulator-tables@5.5.2/dist/css/tabulator.min.css" rel="stylesheet">
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <link href="https://unpkg.com/quill-better-table@1.2.10/dist/quill-better-table.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
     
     <!-- SheetJS -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -27,6 +28,7 @@
     <link rel="stylesheet" href="/static/css/breadcrumb.css">
     <link rel="stylesheet" href="/static/css/sales-planning.css?v=2.4">
     <link rel="stylesheet" href="/static/css/sales-dashboard.css?v=1.1">
+    <link rel="stylesheet" href="/static/css/project-history-calendar.css?v=1.0">
 
     <!-- ⭐ 인증 관리 스크립트 추가 -->
     <script src="/static/js/auth.js?v=2.5"></script>
@@ -54,6 +56,7 @@
                         <li><a href="#" data-page="projects-new" data-mode="new"><i class="fas fa-plus-circle"></i> 신규 프로젝트</a></li>
                         <li><a href="#" data-page="clients-list"><i class="fas fa-building"></i> 거래처 관리</a></li>
                         <li class="dropdown-divider"></li>
+                        <li><a href="#" data-page="project-history-calendar"><i class="fas fa-calendar-check"></i> 진행상황 조회</a></li>
                         <li><a href="#" data-page="sales-dashboard"><i class="fas fa-tachometer-alt"></i> 프로젝트 대시보드</a></li>
                     </ul>
                 </li>
@@ -1257,6 +1260,148 @@
                 </div>
             </form>
         </div>
+    </div>
+
+    <!-- ===================================
+         진행상황 조회
+         =================================== -->
+    <div id="page-project-history-calendar" class="page-content">
+        <main class="app-main ph-main">
+            <div class="ph-shell">
+                <div class="ph-header">
+                    <div>
+                        <h2><i class="fas fa-calendar-check"></i> 진행상황 조회</h2>
+                        <p>지정된 기간의 Project History를 달력과 카드로 확인하고, 선택 결과를 엑셀로 출력합니다.</p>
+                    </div>
+                    <div class="ph-header-actions">
+                        <button class="btn btn-secondary" id="btnHistoryToday">
+                            <i class="fas fa-bullseye"></i> 오늘
+                        </button>
+                        <button class="btn btn-primary" id="btnHistoryRefresh">
+                            <i class="fas fa-rotate"></i> 새로고침
+                        </button>
+                    </div>
+                </div>
+
+                <div class="ph-controls">
+                    <div class="ph-control-row">
+                    </div>
+
+                    <div class="ph-control-row ph-filter-row">
+                        <div class="ph-control-group">
+                            <label><i class="fas fa-tags"></i> 분야</label>
+                            <select id="historyFilterField" class="form-select" multiple></select>
+                        </div>
+                        <div class="ph-control-group">
+                            <label><i class="fas fa-layer-group"></i> 서비스</label>
+                            <select id="historyFilterService" class="form-select" multiple></select>
+                        </div>
+                        <div class="ph-control-group">
+                            <label><i class="fas fa-tags"></i> 활동유형</label>
+                            <select id="historyFilterActivityType" class="form-select" multiple></select>
+                        </div>
+                        <div class="ph-control-group">
+                            <label><i class="fas fa-user"></i> 담당자</label>
+                            <select id="historyFilterManager" class="form-select" multiple></select>
+                        </div>
+                        <div class="ph-control-group">
+                            <label><i class="fas fa-sitemap"></i> 조직</label>
+                            <select id="historyFilterOrg" class="form-select" multiple></select>
+                        </div>
+                        <div class="ph-control-group ph-project-search">
+                            <label><i class="fas fa-search"></i> 프로젝트</label>
+                            <input type="text" id="historyProjectSearch" class="form-input" placeholder="프로젝트/고객사/발주사/ID 검색">
+                            <select id="historyProjectSelect" class="form-select"></select>
+                            <div class="ph-project-pagination" id="historyProjectPaging"></div>
+                        </div>
+                    </div>
+
+                    <div class="ph-control-row ph-view-row">
+                        <div class="ph-control-group">
+                            <label><i class="fas fa-layer-group"></i> 보기 유형</label>
+                            <div class="ph-view-toggle">
+                                <button class="btn btn-toggle active" data-view="year">Year</button>
+                                <button class="btn btn-toggle" data-view="month">Month</button>
+                                <button class="btn btn-toggle" data-view="week">Week</button>
+                                <button class="btn btn-toggle" data-view="daily">Daily Card</button>
+                            </div>
+                        </div>
+                        <div class="ph-year-controls">
+                            <div class="ph-control-group">
+                                <label><i class="fas fa-calendar"></i> 연도</label>
+                                <select id="historyYearSelect" class="form-select"></select>
+                            </div>
+                            <div class="ph-control-group">
+                                <label><i class="fas fa-th-large"></i> 배치</label>
+                                <select id="historyYearLayout" class="form-select">
+                                    <option value="3x4">3x4</option>
+                                    <option value="4x3" selected>4x3</option>
+                                    <option value="1x12">1x12</option>
+                                    <option value="2x6">2x6</option>
+                                    <option value="6x2">6x2</option>
+                                </select>
+                            </div>
+                            <div class="ph-control-group">
+                                <label><i class="fas fa-sort"></i> 월 정렬</label>
+                                <div class="ph-inline-controls">
+                                    <select id="historyMonthOrder" class="form-select">
+                                        <option value="normal">연도순</option>
+                                        <option value="current-first">현재월 먼저</option>
+                                        <option value="current-last" selected>현재월 마지막</option>
+                                        <option value="current-slot">현재월 지정</option>
+                                    </select>
+                                    <input type="number" id="historyMonthSlot" class="form-input ph-slot-input" min="1" max="12" value="1">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ph-control-row ph-selection-row">
+                        <div class="ph-selection-summary" id="historySelectionSummary">
+                            선택된 일자: 0개
+                        </div>
+                        <div class="ph-selection-actions">
+                            <button class="btn btn-secondary" id="btnHistoryViewSelection" disabled>
+                                <i class="fas fa-list"></i> 선택 이력 보기
+                            </button>
+                            <button class="btn btn-success" id="btnHistoryExportSelection" disabled>
+                                <i class="fas fa-file-excel"></i> 선택 엑셀
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ph-view-container">
+                    <div class="ph-calendar-nav">
+                        <div class="ph-nav-left">
+                            <button class="btn btn-outline" id="btnHistoryPrevRange"><i class="fas fa-chevron-left"></i> 이전</button>
+                            <button class="btn btn-outline" id="btnHistoryNextRange">다음 <i class="fas fa-chevron-right"></i></button>
+                        </div>
+                        <div class="ph-nav-label" id="historyPeriodLabel">-</div>
+                        <div class="ph-nav-right" id="historyNavRight"></div>
+                    </div>
+                    <div class="ph-legend" id="historyLegend">
+                        <span class="ph-legend-item">
+                            <span class="ph-legend-dots" id="legendStageDots"></span>
+                            진행단계 색상
+                        </span>
+                        <span class="ph-legend-item">
+                            <span class="ph-legend-dots" id="legendComboDots"></span>
+                            분야/서비스/담당자/조직 조합 색상
+                        </span>
+                        <span class="ph-legend-item">
+                            <span class="ph-legend-dots" id="legendActivityDots"></span>
+                            활동유형 색상
+                        </span>
+                    </div>
+                    <div id="historyYearView" class="ph-year-view"></div>
+                    <div id="historyCalendar" class="ph-calendar"></div>
+                    <div id="historyWeekList" class="ph-week-list"></div>
+                    <div id="historyDailyView" class="ph-daily-view"></div>
+                    <div id="historyTooltip" class="ph-tooltip" aria-hidden="true"></div>
+                </div>
+            </div>
+        </main>
     </div>
 
     <!-- ===================================
@@ -3914,6 +4059,27 @@
         </div>
     </div>
 
+    <!-- 모달: 진행상황 조회 선택 이력 -->
+    <div id="projectHistoryModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2><i class="fas fa-calendar-check"></i> 선택 이력</h2>
+                <button class="modal-close" onclick="closeProjectHistoryModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="ph-modal-summary" id="projectHistoryModalSummary">-</div>
+                <div class="ph-modal-actions">
+                    <button class="btn btn-success" id="btnHistoryModalExport">
+                        <i class="fas fa-file-excel"></i> 엑셀 다운로드
+                    </button>
+                </div>
+                <div id="projectHistoryModalList" class="ph-modal-list"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- 로딩 오버레이 -->
     <div id="loadingOverlay" class="loading-overlay">
         <div class="loading-spinner">
@@ -3956,6 +4122,18 @@
                         </label>
                         <select id="edit_history_stage" class="form-select" required>
                             <option value="">진행단계 선택</option>
+                            <!-- JavaScript에서 동적으로 채움 -->
+                        </select>
+                    </div>
+
+                    <!-- 활동유형 -->
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #333;">
+                            <i class="fas fa-tags" style="color: #667eea; margin-right: 0.5rem;"></i>
+                            활동유형
+                        </label>
+                        <select id="edit_history_activity" class="form-select">
+                            <option value="">미지정</option>
                             <!-- JavaScript에서 동적으로 채움 -->
                         </select>
                     </div>
@@ -4154,6 +4332,7 @@
     <script src="https://unpkg.com/tabulator-tables@5.5.2/dist/js/tabulator.min.js?full=1"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
     <script src="/static/js/config.js?v=3.5"></script>
     <script src="/static/js/navigation.js?v=4.5"></script>  <!-- ⭐ 버전 업 -->
     <script src="/static/js/stage-icons.js"></script>
@@ -4163,6 +4342,7 @@
     <script src="/static/js/sales-plan.js?v=2.7"></script>
     <script src="/static/js/sales-actual.js?v=3.2"></script>
     <script src="/static/js/sales-dashboard.js?v=1.1"></script>
+    <script src="/static/js/project-history-calendar.js?v=1.1"></script>
     <script src="/static/js/report.js?v=1.16"></script>
     <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
     <script src="https://unpkg.com/quill-better-table@1.2.10/dist/quill-better-table.min.js"></script>

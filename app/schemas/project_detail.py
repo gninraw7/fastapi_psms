@@ -97,6 +97,7 @@ class ProjectHistoryBase(BaseModel):
     """프로젝트 이력 기본"""
     base_date: Optional[date] = Field(None, description="기준일자")
     progress_stage: Optional[str] = Field(None, description="진행단계")
+    activity_type: Optional[str] = Field(None, description="활동유형")
     strategy_content: Optional[str] = Field(None, description="영업전략 및 진행상황")
 
 
@@ -118,6 +119,7 @@ class ProjectHistory(ProjectHistoryBase):
     pipeline_id: str
     record_date: Optional[datetime] = Field(None, description="기록 일시")
     stage_name: Optional[str] = Field(None, description="진행단계명")
+    activity_type_name: Optional[str] = Field(None, description="활동유형명")
     creator_name: Optional[str] = Field(None, description="작성자명")
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

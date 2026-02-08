@@ -23,6 +23,12 @@ const PAGE_INFO = {
         path: ['프로젝트 관리', '프로젝트 대시보드'],
         theme: 'breadcrumb-sales'
     },
+    'project-history-calendar': {
+        title: '진행상황 조회',
+        icon: 'fas fa-calendar-check',
+        path: ['프로젝트 관리', '진행상황 조회'],
+        theme: 'breadcrumb-projects'
+    },
     'clients-list': {
         title: '거래처 관리',
         icon: 'fas fa-building',
@@ -436,6 +442,37 @@ function ensureUsersListReady() {
     document.head.appendChild(script);
 }
 
+function ensureHistoryCalendarReady() {
+    if (typeof window.initializeProjectHistoryCalendar === 'function') {
+        window.initializeProjectHistoryCalendar();
+        return;
+    }
+
+    const existing = document.querySelector('script[data-history-calendar]');
+    if (existing) {
+        existing.addEventListener('load', () => {
+            if (typeof window.initializeProjectHistoryCalendar === 'function') {
+                window.initializeProjectHistoryCalendar();
+            } else {
+                console.warn('⚠️ 진행상황 조회 스크립트 로드 후에도 init 함수가 없음');
+            }
+        }, { once: true });
+        return;
+    }
+
+    const script = document.createElement('script');
+    script.src = '/static/js/project-history-calendar.js?v=1.1';
+    script.dataset.historyCalendar = '1';
+    script.onload = () => {
+        if (typeof window.initializeProjectHistoryCalendar === 'function') {
+            window.initializeProjectHistoryCalendar();
+        } else {
+            console.warn('⚠️ 진행상황 조회 스크립트 로드 후에도 init 함수가 없음');
+        }
+    };
+    document.body.appendChild(script);
+}
+
 /**
  * 페이지별 초기화
  * @param {string} pageId - 초기화할 페이지 ID
@@ -491,6 +528,12 @@ function initializePage(pageId) {
             if (typeof initializeSalesDashboard === 'function') {
                 initializeSalesDashboard();
             }
+            break;
+
+        case 'project-history-calendar':
+            console.log('🗓️ 진행상황 조회 초기화');
+            console.log('🧭 init 함수 상태:', typeof initializeProjectHistoryCalendar);
+            ensureHistoryCalendarReady();
             break;
             
         case 'sales-plan-list':

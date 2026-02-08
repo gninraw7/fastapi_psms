@@ -14,13 +14,30 @@ from sqlalchemy import text
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, date
 
 from app.core.database import get_db
 from app.core.logger import app_logger
 from app.core.tenant import get_company_cd
 
 router = APIRouter()
+
+def _parse_list_param(raw: Optional[str]) -> List[str]:
+    if not raw:
+        return []
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _apply_in_filter(sql: str, column: str, values: List, params: dict, key_prefix: str) -> str:
+    if not values:
+        return sql
+    placeholders = []
+    for idx, value in enumerate(values):
+        key = f"{key_prefix}{idx}"
+        params[key] = value
+        placeholders.append(f":{key}")
+    clause = f" AND {column} IN ({', '.join(placeholders)})"
+    return sql + clause
 
 
 # ============================================
@@ -68,6 +85,7 @@ class ProjectHistoryCreateRequest(BaseModel):
     pipeline_id: str
     base_date: str = Field(..., description="기준 일자 (YYYY-MM-DD)")
     progress_stage: Optional[str] = Field(None, description="진행 단계")
+    activity_type: Optional[str] = Field(None, description="활동유형")
     strategy_content: Optional[str] = Field(None, description="이력 내용")
     creator_id: Optional[str] = Field(None, description="작성자 ID")
 
@@ -76,6 +94,7 @@ class ProjectHistoryUpdateRequest(BaseModel):
     """프로젝트 이력 수정 요청"""
     base_date: Optional[str] = Field(None, description="기준 일자")
     progress_stage: Optional[str] = Field(None, description="진행 단계")
+    activity_type: Optional[str] = Field(None, description="활동유형")
     strategy_content: Optional[str] = Field(None, description="이력 내용")
     creator_id: Optional[str] = Field(None, description="작성자 ID")
 
@@ -586,9 +605,9 @@ async def create_project_history(
         # 이력 등록
         insert_query = text("""
             INSERT INTO project_history 
-            (company_cd, pipeline_id, base_date, progress_stage, strategy_content, creator_id, record_date)
+            (company_cd, pipeline_id, base_date, progress_stage, activity_type, strategy_content, creator_id, record_date)
             VALUES 
-            (:company_cd, :pipeline_id, :base_date, :progress_stage, :strategy_content, :creator_id, NOW())
+            (:company_cd, :pipeline_id, :base_date, :progress_stage, :activity_type, :strategy_content, :creator_id, NOW())
         """)
         
         db.execute(insert_query, {
@@ -596,6 +615,7 @@ async def create_project_history(
             'pipeline_id': request.pipeline_id,
             'base_date': request.base_date,
             'progress_stage': request.progress_stage,
+            'activity_type': request.activity_type,
             'strategy_content': request.strategy_content,
             'creator_id': request.creator_id or 'system'
         })
@@ -662,7 +682,11 @@ async def update_project_history(
         if request.progress_stage is not None:
             update_fields.append("progress_stage = :progress_stage")
             params['progress_stage'] = request.progress_stage
-        
+
+        if request.activity_type is not None:
+            update_fields.append("activity_type = :activity_type")
+            params['activity_type'] = request.activity_type
+
         if request.strategy_content is not None:
             update_fields.append("strategy_content = :strategy_content")
             params['strategy_content'] = request.strategy_content
@@ -733,3 +757,391 @@ async def delete_project_history(
         error_msg = f"이력 삭제 실패: {str(e)}"
         app_logger.error(error_msg, exc_info=True)
         raise HTTPException(status_code=500, detail=error_msg)
+
+
+# ============================================
+# 진행상황 조회 - 필터 데이터
+# ============================================
+@router.get("/history/filters")
+async def get_project_history_filters(
+    db: Session = Depends(get_db)
+):
+    """진행상황 조회용 필터 목록"""
+    try:
+        company_cd = get_company_cd()
+
+        fields = db.execute(text("""
+            SELECT field_code, field_name
+            FROM industry_fields
+            WHERE company_cd = :company_cd
+            ORDER BY field_name ASC
+        """), {"company_cd": company_cd}).mappings().all()
+
+        services = db.execute(text("""
+            SELECT service_code,
+                   COALESCE(display_name, service_name) AS service_name
+            FROM service_codes
+            WHERE company_cd = :company_cd
+              AND parent_code IS NOT NULL
+            ORDER BY service_name ASC
+        """), {"company_cd": company_cd}).mappings().all()
+
+        managers = db.execute(text("""
+            SELECT login_id, user_name
+            FROM users
+            WHERE company_cd = :company_cd
+              AND status = 'ACTIVE'
+            ORDER BY user_name ASC
+        """), {"company_cd": company_cd}).mappings().all()
+
+        org_units = db.execute(text("""
+            SELECT org_id, org_name
+            FROM org_units
+            WHERE company_cd = :company_cd
+            ORDER BY org_name ASC
+        """), {"company_cd": company_cd}).mappings().all()
+
+        activity_types = db.execute(text("""
+            SELECT code AS activity_type,
+                   code_name AS activity_type_name,
+                   sort_order
+            FROM comm_code
+            WHERE company_cd = :company_cd
+              AND group_code = 'ACTIVITY_TYPE'
+              AND is_use = 'Y'
+            ORDER BY sort_order ASC, code ASC
+        """), {"company_cd": company_cd}).mappings().all()
+
+        return {
+            "fields": [dict(row) for row in fields],
+            "services": [dict(row) for row in services],
+            "managers": [dict(row) for row in managers],
+            "org_units": [dict(row) for row in org_units],
+            "activity_types": [dict(row) for row in activity_types]
+        }
+    except Exception as e:
+        app_logger.error(f"❌ 진행상황 조회 필터 로드 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# 진행상황 조회 - 프로젝트 검색
+# ============================================
+@router.get("/history/project-search")
+async def search_project_history_targets(
+    keyword: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """진행상황 조회용 프로젝트 검색"""
+    try:
+        company_cd = get_company_cd()
+
+        where = "WHERE p.company_cd = :company_cd"
+        params = {"company_cd": company_cd}
+
+        if keyword:
+            params["keyword"] = f"%{keyword}%"
+            where += """
+                AND (
+                    p.project_name LIKE :keyword
+                    OR p.pipeline_id LIKE :keyword
+                    OR c1.client_name LIKE :keyword
+                    OR c2.client_name LIKE :keyword
+                )
+            """
+
+        count_sql = f"""
+            SELECT COUNT(*) AS cnt
+            FROM projects p
+            LEFT JOIN clients c1
+              ON c1.client_id = p.customer_id
+             AND c1.company_cd = p.company_cd
+            LEFT JOIN clients c2
+              ON c2.client_id = p.ordering_party_id
+             AND c2.company_cd = p.company_cd
+            {where}
+        """
+        total = db.execute(text(count_sql), params).fetchone().cnt or 0
+
+        offset = (page - 1) * page_size
+        params["limit"] = page_size
+        params["offset"] = offset
+
+        list_sql = f"""
+            SELECT
+                p.pipeline_id,
+                p.project_name,
+                c1.client_name AS customer_name,
+                c2.client_name AS ordering_party_name
+            FROM projects p
+            LEFT JOIN clients c1
+              ON c1.client_id = p.customer_id
+             AND c1.company_cd = p.company_cd
+            LEFT JOIN clients c2
+              ON c2.client_id = p.ordering_party_id
+             AND c2.company_cd = p.company_cd
+            {where}
+            ORDER BY p.project_name ASC, p.pipeline_id ASC
+            LIMIT :limit OFFSET :offset
+        """
+        rows = db.execute(text(list_sql), params).mappings().all()
+        items = [dict(row) for row in rows]
+
+        total_pages = (total + page_size - 1) // page_size if page_size else 1
+
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages
+        }
+    except Exception as e:
+        app_logger.error(f"❌ 프로젝트 검색 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# 진행상황 조회 - 캘린더 요약 (활동유형 집계)
+# ============================================
+@router.get("/history/calendar/summary")
+async def get_project_history_calendar_summary(
+    date_from: date = Query(..., description="조회 시작일 (YYYY-MM-DD)"),
+    date_to: date = Query(..., description="조회 종료일 (YYYY-MM-DD)"),
+    field_code: Optional[str] = None,
+    service_code: Optional[str] = None,
+    manager_id: Optional[str] = None,
+    org_id: Optional[str] = None,
+    pipeline_id: Optional[str] = None,
+    project_keyword: Optional[str] = None,
+    activity_type: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """진행상황 조회용 활동유형 집계"""
+    try:
+        company_cd = get_company_cd()
+
+        if date_from > date_to:
+            date_from, date_to = date_to, date_from
+
+        field_list = _parse_list_param(field_code)
+        service_list = _parse_list_param(service_code)
+        manager_list = _parse_list_param(manager_id)
+        pipeline_list = _parse_list_param(pipeline_id)
+        activity_list = _parse_list_param(activity_type)
+        org_list_raw = _parse_list_param(org_id)
+        org_list = []
+        for raw in org_list_raw:
+            try:
+                org_list.append(int(raw))
+            except ValueError:
+                continue
+
+        params = {
+            "company_cd": company_cd,
+            "date_from": date_from,
+            "date_to": date_to
+        }
+
+        sql = """
+            SELECT
+                ph.base_date,
+                ph.activity_type,
+                cc_act.code_name AS activity_type_name,
+                COUNT(*) AS activity_count
+            FROM project_history ph
+            JOIN projects p
+              ON p.company_cd = ph.company_cd
+             AND p.pipeline_id = ph.pipeline_id
+            LEFT JOIN clients c
+              ON c.client_id = p.customer_id
+             AND c.company_cd = p.company_cd
+            LEFT JOIN clients c2
+              ON c2.client_id = p.ordering_party_id
+             AND c2.company_cd = p.company_cd
+            LEFT JOIN comm_code cc_act
+              ON cc_act.group_code = 'ACTIVITY_TYPE'
+             AND cc_act.code = ph.activity_type
+             AND cc_act.company_cd = ph.company_cd
+            WHERE ph.company_cd = :company_cd
+              AND ph.base_date BETWEEN :date_from AND :date_to
+        """
+
+        sql = _apply_in_filter(sql, "p.field_code", field_list, params, "field")
+        sql = _apply_in_filter(sql, "p.service_code", service_list, params, "service")
+        sql = _apply_in_filter(sql, "p.manager_id", manager_list, params, "manager")
+        sql = _apply_in_filter(sql, "p.pipeline_id", pipeline_list, params, "pipeline")
+        sql = _apply_in_filter(sql, "ph.activity_type", activity_list, params, "atype")
+        sql = _apply_in_filter(sql, "p.org_id", org_list, params, "org")
+
+        if project_keyword:
+            params["project_keyword"] = f"%{project_keyword}%"
+            sql += """
+                AND (
+                    p.project_name LIKE :project_keyword
+                    OR p.pipeline_id LIKE :project_keyword
+                    OR c.client_name LIKE :project_keyword
+                    OR c2.client_name LIKE :project_keyword
+                )
+            """
+
+        sql += """
+            GROUP BY ph.base_date, ph.activity_type, cc_act.code_name
+            ORDER BY ph.base_date ASC
+        """
+
+        rows = db.execute(text(sql), params).mappings().all()
+        items = [dict(row) for row in rows]
+
+        return {"items": items}
+    except Exception as e:
+        app_logger.error(f"❌ 진행상황 요약 로드 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# 진행상황 조회 - 캘린더 데이터
+# ============================================
+@router.get("/history/calendar")
+async def get_project_history_calendar(
+    date_from: date = Query(..., description="조회 시작일 (YYYY-MM-DD)"),
+    date_to: date = Query(..., description="조회 종료일 (YYYY-MM-DD)"),
+    field_code: Optional[str] = None,
+    service_code: Optional[str] = None,
+    manager_id: Optional[str] = None,
+    org_id: Optional[str] = None,
+    pipeline_id: Optional[str] = None,
+    project_keyword: Optional[str] = None,
+    activity_type: Optional[str] = None,
+    dates: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """진행상황 조회용 Project History 목록"""
+    try:
+        company_cd = get_company_cd()
+
+        if date_from > date_to:
+            date_from, date_to = date_to, date_from
+
+        date_list = []
+        for raw in _parse_list_param(dates):
+            try:
+                date_list.append(date.fromisoformat(raw))
+            except ValueError:
+                continue
+
+        field_list = _parse_list_param(field_code)
+        service_list = _parse_list_param(service_code)
+        manager_list = _parse_list_param(manager_id)
+        pipeline_list = _parse_list_param(pipeline_id)
+        activity_list = _parse_list_param(activity_type)
+        org_list_raw = _parse_list_param(org_id)
+        org_list = []
+        for raw in org_list_raw:
+            try:
+                org_list.append(int(raw))
+            except ValueError:
+                continue
+
+        params = {"company_cd": company_cd}
+        sql = """
+            SELECT
+                ph.history_id,
+                ph.pipeline_id,
+                ph.base_date,
+                ph.progress_stage,
+                cc.code_name AS stage_name,
+                ph.activity_type,
+                cc_act.code_name AS activity_type_name,
+                ph.strategy_content,
+                ph.created_at,
+                ph.updated_at,
+                ph.created_by,
+                ph.updated_by,
+                p.project_name,
+                p.field_code,
+                f.field_name,
+                p.service_code,
+                COALESCE(sc.display_name, sc.service_name) AS service_name,
+                p.manager_id,
+                u.user_name AS manager_name,
+                p.org_id,
+                o.org_name,
+                p.customer_id,
+                c.client_name AS customer_name
+            FROM project_history ph
+            JOIN projects p
+              ON p.company_cd = ph.company_cd
+             AND p.pipeline_id = ph.pipeline_id
+            LEFT JOIN industry_fields f
+              ON f.field_code = p.field_code
+             AND f.company_cd = p.company_cd
+            LEFT JOIN service_codes sc
+              ON sc.service_code = p.service_code
+             AND sc.company_cd = p.company_cd
+            LEFT JOIN comm_code cc
+              ON cc.group_code = 'STAGE'
+             AND cc.code = ph.progress_stage
+             AND cc.company_cd = ph.company_cd
+            LEFT JOIN comm_code cc_act
+              ON cc_act.group_code = 'ACTIVITY_TYPE'
+             AND cc_act.code = ph.activity_type
+             AND cc_act.company_cd = ph.company_cd
+            LEFT JOIN users u
+              ON u.login_id = p.manager_id
+             AND u.company_cd = p.company_cd
+            LEFT JOIN org_units o
+              ON o.org_id = p.org_id
+             AND o.company_cd = p.company_cd
+            LEFT JOIN clients c
+              ON c.client_id = p.customer_id
+             AND c.company_cd = p.company_cd
+            LEFT JOIN clients c2
+              ON c2.client_id = p.ordering_party_id
+             AND c2.company_cd = p.company_cd
+            WHERE ph.company_cd = :company_cd
+              AND ph.base_date IS NOT NULL
+        """
+
+        if date_list:
+            sql = _apply_in_filter(sql, "ph.base_date", date_list, params, "d")
+            date_from = min(date_list)
+            date_to = max(date_list)
+        else:
+            sql += " AND ph.base_date BETWEEN :date_from AND :date_to"
+            params["date_from"] = date_from
+            params["date_to"] = date_to
+
+        sql = _apply_in_filter(sql, "p.field_code", field_list, params, "field")
+        sql = _apply_in_filter(sql, "p.service_code", service_list, params, "service")
+        sql = _apply_in_filter(sql, "p.manager_id", manager_list, params, "manager")
+        sql = _apply_in_filter(sql, "p.pipeline_id", pipeline_list, params, "pipeline")
+        sql = _apply_in_filter(sql, "ph.activity_type", activity_list, params, "atype")
+        sql = _apply_in_filter(sql, "p.org_id", org_list, params, "org")
+        if project_keyword:
+            params["project_keyword"] = f"%{project_keyword}%"
+            sql += """
+                AND (
+                    p.project_name LIKE :project_keyword
+                    OR p.pipeline_id LIKE :project_keyword
+                    OR c.client_name LIKE :project_keyword
+                    OR c2.client_name LIKE :project_keyword
+                )
+            """
+
+        sql += " ORDER BY ph.base_date ASC, ph.history_id ASC"
+
+        rows = db.execute(text(sql), params).mappings().all()
+        items = [dict(row) for row in rows]
+
+        return {
+            "date_from": date_from.isoformat() if date_from else None,
+            "date_to": date_to.isoformat() if date_to else None,
+            "total": len(items),
+            "items": items
+        }
+    except Exception as e:
+        app_logger.error(f"❌ 진행상황 조회 데이터 로드 실패: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

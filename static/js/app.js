@@ -969,7 +969,7 @@ function renderProjectDetail(response, pipelineId) {
     
     '<div id="detail-history" class="detail-pane">' +
         (histories.length > 0 ? 
-            '<table class="detail-table"><thead><tr><th>일자</th><th>진행단계</th><th>내용</th><th>작성자</th></tr></thead><tbody>' + histRows + '</tbody></table>'
+            '<table class="detail-table detail-history-table"><thead><tr><th>일자</th><th>진행단계</th><th>내용</th><th>작성자</th></tr></thead><tbody>' + histRows + '</tbody></table>'
             : '<p class="no-data">등록된 이력이 없습니다.</p>') +
     '</div>';
     
@@ -984,6 +984,19 @@ function switchDetailTab(btn, tabId) {
     document.querySelectorAll('.detail-pane').forEach(function(p) { p.classList.remove('active'); });
     
     btn.classList.add('active');
+    var pane = document.getElementById('detail-' + tabId);
+    if (pane) pane.classList.add('active');
+}
+
+// 프로그램용 탭 활성화 헬퍼
+function activateDetailTab(tabId) {
+    var btn = document.querySelector(`.detail-tab[onclick*=\"'${tabId}'\"]`);
+    if (btn) {
+        switchDetailTab(btn, tabId);
+        return;
+    }
+    document.querySelectorAll('.detail-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.detail-pane').forEach(function(p) { p.classList.remove('active'); });
     var pane = document.getElementById('detail-' + tabId);
     if (pane) pane.classList.add('active');
 }
@@ -1004,7 +1017,10 @@ function editProject(pipelineId) {
 // ===================================
 function closeModal() {
     var modal = document.getElementById('projectModal');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.classList.remove('modal-front');
+    }
 }
 
 // ===================================
@@ -1483,6 +1499,7 @@ async function runExcelExport() {
 window.openProjectDetail = openProjectDetail;
 window.editProject = editProject;
 window.switchDetailTab = switchDetailTab;
+window.activateDetailTab = activateDetailTab;
 window.closeModal = closeModal;
 window.exportToExcel = exportToExcel;
 window.openExcelExportModal = openExcelExportModal;

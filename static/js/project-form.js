@@ -37,6 +37,17 @@ let histories = [];
 let stageOptions = [];
 let attributeOptions = [];
 let managerOptions = [];
+let activityTypeOptions = [];
+
+const ACTIVITY_TYPE_COLOR_MAP = {
+    MEETING: '#2563eb',
+    PROPOSAL: '#7c3aed',
+    CONTRACT: '#16a34a',
+    FOLLOWUP: '#f59e0b',
+    SUPPORT: '#0ea5e9',
+    ETC: '#94a3b8',
+    UNKNOWN: '#cbd5f5'
+};
 
 // 고객사 선택 모달 상태
 let clientSearchPage = 1;
@@ -263,7 +274,11 @@ async function loadFormComboBoxes() {
                 }
             });
         }
-        
+
+        // 1.2 활동유형 콤보박스 (ACTIVITY_TYPE)
+        const activityTypes = await API.get(`${API_CONFIG.ENDPOINTS.COMBO_DATA}/ACTIVITY_TYPE`);
+        activityTypeOptions = activityTypes?.items || [];
+
         // 1.1 사업분야 콤보박스 (industry_fields)
         const fields = await API.get(`${API_CONFIG.ENDPOINTS.INDUSTRY_FIELDS}/list?is_use=Y`);
         const fieldSelect = document.getElementById('field_code');
@@ -345,6 +360,17 @@ async function loadFormComboBoxes() {
     } catch (error) {
         console.error('❌ 콤보박스 로딩 실패:', error);
     }
+}
+
+function getActivityTypeLabel(code) {
+    if (!code) return '미지정';
+    const match = activityTypeOptions.find(opt => opt.code === code);
+    return match ? match.code_name : code;
+}
+
+function getActivityTypeColor(code) {
+    if (!code) return ACTIVITY_TYPE_COLOR_MAP.UNKNOWN;
+    return ACTIVITY_TYPE_COLOR_MAP[code] || ACTIVITY_TYPE_COLOR_MAP.UNKNOWN;
 }
 
 // ===================================
@@ -499,6 +525,8 @@ async function loadProjectData(pipelineId) {
                 history_id: hist.history_id,
                 base_date: hist.base_date,
                 progress_stage: hist.progress_stage,
+                activity_type: hist.activity_type,
+                activity_type_name: hist.activity_type_name || '',
                 strategy_content: hist.strategy_content || '',
                 stage_name: hist.stage_name || '',
                 row_stat: ''  // 기존 데이터: 빈값 (변경 시 'U')
@@ -1111,6 +1139,7 @@ async function updateBasicInfoStage(newStageCode, source = 'history') {
 function addHistory() {
     const baseDateInput = document.getElementById('new_history_date');
     const stageSelect = document.getElementById('new_history_stage');
+    const activitySelect = document.getElementById('new_history_activity');
     const contentTextarea = document.getElementById('new_history_content');
     
     if (!baseDateInput || !stageSelect) {
@@ -1120,6 +1149,7 @@ function addHistory() {
     
     const baseDate = baseDateInput.value;
     const progressStage = stageSelect.value;
+    const activityType = activitySelect ? activitySelect.value : '';
     const strategyContent = contentTextarea ? contentTextarea.value.trim() : '';
     
     if (!baseDate) {
@@ -1153,10 +1183,15 @@ function addHistory() {
     }
     
     // ✅ 신규 이력 추가 (row_stat: 'N' 설정 필수)
+    const activityOption = activityTypeOptions.find(opt => opt.code === activityType);
+    const activityName = activityOption ? activityOption.code_name : activityType;
+
     histories.push({
         history_id: null,  // 신규는 ID 없음
         base_date: baseDate,
         progress_stage: progressStage,
+        activity_type: activityType || null,
+        activity_type_name: activityName || '',
         strategy_content: strategyContent,
         stage_name: stageName,
         row_stat: 'N'  // ✅ 신규 표시
@@ -1167,6 +1202,7 @@ function addHistory() {
     // 입력 필드 초기화
     baseDateInput.value = new Date().toISOString().split('T')[0]; 
     stageSelect.value = formMode === 'edit' && currentStageCode ? currentStageCode : 'S01';  // ⭐ 기본값 유지
+    if (activitySelect) activitySelect.value = '';
     if (contentTextarea) {
         contentTextarea.value = '';
         contentTextarea.style.height = 'auto';
@@ -1252,6 +1288,21 @@ function editHistory(index) {
             }
         }        
     }
+
+    // 활동유형 select 옵션 채우기
+    const activitySelect = document.getElementById('edit_history_activity');
+    if (activitySelect) {
+        activitySelect.innerHTML = '<option value="">미지정</option>';
+        activityTypeOptions.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt.code;
+            option.textContent = opt.code_name;
+            if (opt.code === hist.activity_type) {
+                option.selected = true;
+            }
+            activitySelect.appendChild(option);
+        });
+    }
     
     // 기존 데이터 채우기
     const dateInput = document.getElementById('edit_history_date');
@@ -1285,6 +1336,7 @@ function saveHistoryEdit() {
     
     const dateInput = document.getElementById('edit_history_date');
     const stageSelect = document.getElementById('edit_history_stage');
+    const activitySelect = document.getElementById('edit_history_activity');
     const contentTextarea = document.getElementById('edit_history_content');
     
     if (!dateInput || !stageSelect || !contentTextarea) {
@@ -1294,6 +1346,7 @@ function saveHistoryEdit() {
     
     const newDate = dateInput.value;
     const newStage = stageSelect.value;
+    const newActivity = activitySelect ? activitySelect.value : '';
     const newContent = contentTextarea.value.trim();
     
     // 필수 입력 확인
@@ -1315,6 +1368,7 @@ function saveHistoryEdit() {
     const hasChanges = 
         newDate !== hist.base_date || 
         newStage !== hist.progress_stage || 
+        newActivity !== (hist.activity_type || '') ||
         newContent !== (hist.strategy_content || '');
     
     if (!hasChanges) {
@@ -1326,6 +1380,9 @@ function saveHistoryEdit() {
     // 진행단계명 찾기
     const selectedOption = stageOptions.find(opt => opt.code === newStage);
     const stageName = selectedOption ? selectedOption.code_name : newStage;
+
+    const activityOption = activityTypeOptions.find(opt => opt.code === newActivity);
+    const activityName = activityOption ? activityOption.code_name : newActivity;
     
     // ⭐ 진행단계가 변경된 경우 기본정보 탭과 비교
     if (newStage !== hist.progress_stage) {
@@ -1347,6 +1404,8 @@ function saveHistoryEdit() {
     // 데이터 업데이트
     histories[editingHistoryIndex].base_date = newDate;
     histories[editingHistoryIndex].progress_stage = newStage;
+    histories[editingHistoryIndex].activity_type = newActivity || null;
+    histories[editingHistoryIndex].activity_type_name = activityName || '';
     histories[editingHistoryIndex].strategy_content = newContent;
     histories[editingHistoryIndex].stage_name = stageName;
     
@@ -1389,6 +1448,9 @@ function closeHistoryEditModal() {
     
     const stageSelect = document.getElementById('edit_history_stage');
     if (stageSelect) stageSelect.value = '';
+
+    const activitySelect = document.getElementById('edit_history_activity');
+    if (activitySelect) activitySelect.value = '';
     
     const contentTextarea = document.getElementById('edit_history_content');
     if (contentTextarea) {
@@ -1444,7 +1506,7 @@ function renderHistories() {
     
     // ✅ 이력 추가 입력 폼 (textarea로 변경, 자동 높이 조절)
     html += `
-        <div class="history-add-row" style="display: grid; grid-template-columns: 220px 1fr auto; gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; align-items: start; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+        <div class="history-add-row" style="display: grid; grid-template-columns: 240px 1fr auto; gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; align-items: start; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
             <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                 <div style="display: flex; flex-direction: column; gap: 0.25rem;">
                     <label style="font-size: 0.75rem; font-weight: 600; color: #555;">기준일</label>
@@ -1464,6 +1526,19 @@ function renderHistories() {
     
     html += `
                 </select>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                    <label style="font-size: 0.75rem; font-weight: 600; color: #555;">활동유형</label>
+                    <select id="new_history_activity" class="form-select" style="width: 100%;">
+                        <option value="">미지정</option>
+    `;
+
+    activityTypeOptions.forEach(opt => {
+        html += `<option value="${opt.code}">${opt.code_name}</option>`;
+    });
+
+    html += `
+                    </select>
                 </div>
             </div>
             
@@ -1529,6 +1604,8 @@ function renderHistories() {
             let formattedContent = (cleanedContent || '-').replace(/\n/g, '<br>');
             formattedContent = formattedContent.replace(/^(<br>\s*)+/, '');
             const isDeleted = hist.row_stat === 'D';
+            const activityLabel = getActivityTypeLabel(hist.activity_type);
+            const activityColor = getActivityTypeColor(hist.activity_type);
             const itemStyle = isDeleted
                 ? "display: flex; gap: 1rem; padding: 1rem; background: #fafafa; border: 1px dashed #e0e0e0; border-radius: 8px; margin-bottom: 0.75rem; box-shadow: none; opacity: 0.7;"
                 : "display: flex; gap: 1rem; padding: 1rem; background: white; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: box-shadow 0.2s;";
@@ -1548,6 +1625,10 @@ function renderHistories() {
                                 { size: 'sm' }
                             )}
                             ${statusBadge}
+                            </div>
+                            <div class="history-activity" style="font-size: 0.75rem; color: ${activityColor}; font-weight: 600;">
+                                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${activityColor};margin-right:0.35rem;"></span>
+                                ${activityLabel}
                             </div>
                         </div>
                         <div class="history-content" style="color: #666; line-height: 1.6; white-space: pre-line; word-break: break-word; text-align: left;">${formattedContent}</div>
@@ -1663,6 +1744,7 @@ async function saveProject() {
                 history_id: h.history_id || null,
                 base_date: h.base_date,
                 progress_stage: h.progress_stage,
+                activity_type: h.activity_type || null,
                 strategy_content: h.strategy_content || '',
                 row_stat: h.row_stat
             }));
