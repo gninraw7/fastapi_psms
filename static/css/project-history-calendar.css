@@ -135,6 +135,22 @@
     flex-wrap: wrap;
 }
 
+.ph-tooltip-toggle .ph-inline-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.ph-tooltip-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+}
+
+.ph-tooltip-toggle .ph-toggle-text {
+    font-size: 0.85rem;
+    color: #4b5563;
+}
+
 .btn.btn-toggle {
     background: #e2e8f0;
     color: #475569;

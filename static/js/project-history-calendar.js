@@ -16,6 +16,7 @@ let historyHolidayIndex = {};
 let historyHolidayYears = new Set();
 let historyTooltipInitialized = false;
 let historyTooltipTarget = null;
+let historyTooltipEnabled = false;
 let historyProjectKeyword = '';
 let historyProjectPage = 1;
 let historyProjectTotalPages = 1;
@@ -64,6 +65,10 @@ function initializeProjectHistoryCalendar() {
 
     ensureHistoryYearOptions();
     initializeHistoryAnchors();
+    const tooltipToggle = document.getElementById('historyTooltipToggle');
+    if (tooltipToggle) {
+        historyTooltipEnabled = !!tooltipToggle.checked;
+    }
     historyFiltersLoaded = false;
     const layoutSelect = document.getElementById('historyYearLayout');
     if (layoutSelect && !layoutSelect.value) layoutSelect.value = '4x3';
@@ -97,6 +102,14 @@ function bindHistoryCalendarEvents() {
             saveHistorySettings();
         });
     });
+
+    const tooltipToggle = document.getElementById('historyTooltipToggle');
+    if (tooltipToggle && !tooltipToggle.dataset.bound) {
+        tooltipToggle.dataset.bound = 'true';
+        tooltipToggle.addEventListener('change', () => {
+            setHistoryTooltipEnabled(tooltipToggle.checked);
+        });
+    }
 
     const selects = [
         'historyFilterField',
@@ -207,6 +220,7 @@ function resetHistoryToDefaults() {
     historyProjectPage = 1;
     historyProjectTotalPages = 1;
     historyProjectSelected = '__ALL__';
+    historyTooltipEnabled = false;
 
     const today = new Date();
     historyMonthAnchorDate = new Date(today);
@@ -226,6 +240,8 @@ function resetHistoryToDefaults() {
 
     const projectSearch = document.getElementById('historyProjectSearch');
     if (projectSearch) projectSearch.value = '';
+    const tooltipToggle = document.getElementById('historyTooltipToggle');
+    if (tooltipToggle) tooltipToggle.checked = false;
 
     applyMultiSelectValues('historyFilterField', []);
     applyMultiSelectValues('historyFilterService', []);
@@ -240,6 +256,7 @@ function resetHistoryToDefaults() {
     updateCalendarSelectionStyles();
     updateHistoryNavRight();
     updateHistoryPeriodLabel();
+    clearHistoryTooltipAttributes();
 
     try {
         localStorage.removeItem(HISTORY_STATE_KEY);
@@ -375,6 +392,19 @@ function setHistoryMonthAnchor(dateObj, updateCalendar = true) {
     if (historyCalendarInstance && updateCalendar) {
         historyCalendarInstance.gotoDate(historyMonthAnchorDate);
     }
+}
+
+function setHistoryTooltipEnabled(enabled) {
+    historyTooltipEnabled = !!enabled;
+    const toggle = document.getElementById('historyTooltipToggle');
+    if (toggle) toggle.checked = historyTooltipEnabled;
+    if (!historyTooltipEnabled) {
+        hideHistoryTooltip();
+        clearHistoryTooltipAttributes();
+    } else {
+        renderHistoryView();
+    }
+    saveHistorySettings();
 }
 
 function setHistoryYearAnchor(year) {
@@ -1581,6 +1611,7 @@ function initializeHistoryTooltip() {
     historyTooltipInitialized = true;
 
     page.addEventListener('mouseover', (evt) => {
+        if (!historyTooltipEnabled) return;
         const target = evt.target?.closest?.('[data-ph-tooltip]');
         if (!target) return;
         if (historyTooltipTarget === target) return;
@@ -1589,11 +1620,13 @@ function initializeHistoryTooltip() {
     });
 
     page.addEventListener('mousemove', (evt) => {
+        if (!historyTooltipEnabled) return;
         if (!historyTooltipTarget) return;
         positionHistoryTooltip(evt.clientX, evt.clientY);
     });
 
     page.addEventListener('mouseout', (evt) => {
+        if (!historyTooltipEnabled) return;
         const target = evt.target?.closest?.('[data-ph-tooltip]');
         if (!target || target !== historyTooltipTarget) return;
         const related = evt.relatedTarget;
@@ -1606,6 +1639,10 @@ function initializeHistoryTooltip() {
 
 function setHistoryTooltip(el, text) {
     if (!el) return;
+    if (!historyTooltipEnabled) {
+        el.removeAttribute('data-ph-tooltip');
+        return;
+    }
     if (!text) {
         el.removeAttribute('data-ph-tooltip');
         return;
@@ -1615,6 +1652,7 @@ function setHistoryTooltip(el, text) {
 }
 
 function showHistoryTooltip(target, x, y) {
+    if (!historyTooltipEnabled) return;
     const tooltip = document.getElementById('historyTooltip');
     if (!tooltip || !target) return;
     const text = target.getAttribute('data-ph-tooltip') || '';
@@ -1630,6 +1668,14 @@ function hideHistoryTooltip() {
     if (!tooltip) return;
     tooltip.classList.remove('active');
     tooltip.setAttribute('aria-hidden', 'true');
+}
+
+function clearHistoryTooltipAttributes() {
+    const page = document.getElementById('page-project-history-calendar');
+    if (!page) return;
+    page.querySelectorAll('[data-ph-tooltip]').forEach(el => {
+        el.removeAttribute('data-ph-tooltip');
+    });
 }
 
 function positionHistoryTooltip(clientX, clientY) {
@@ -1723,6 +1769,7 @@ function saveHistorySettings() {
         yearLayout: document.getElementById('historyYearLayout')?.value || '',
         monthOrder: document.getElementById('historyMonthOrder')?.value || '',
         monthSlot: document.getElementById('historyMonthSlot')?.value || '',
+        tooltip: historyTooltipEnabled,
         filters: {
             field: getMultiSelectValues('historyFilterField'),
             service: getMultiSelectValues('historyFilterService'),
@@ -1756,6 +1803,7 @@ function loadHistorySettings() {
         historySavedState = state;
 
         if (state.view) historyActiveView = state.view;
+        if (typeof state.tooltip === 'boolean') historyTooltipEnabled = state.tooltip;
         if (state.year) {
             const year = Number(state.year);
             if (!Number.isNaN(year)) setHistoryYearAnchor(year);
@@ -1766,6 +1814,8 @@ function loadHistorySettings() {
         if (orderSelect && state.monthOrder) orderSelect.value = state.monthOrder;
         const slotInput = document.getElementById('historyMonthSlot');
         if (slotInput && state.monthSlot) slotInput.value = state.monthSlot;
+        const tooltipToggle = document.getElementById('historyTooltipToggle');
+        if (tooltipToggle) tooltipToggle.checked = historyTooltipEnabled;
         if (state.anchors?.month) historyMonthAnchorDate = parseDateInput(state.anchors.month);
         if (state.anchors?.week) historyWeekAnchorDate = parseDateInput(state.anchors.week);
         if (state.anchors?.daily) historyDailyDate = state.anchors.daily;
