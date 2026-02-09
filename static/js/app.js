@@ -895,6 +895,54 @@ function renderStageForDetail(stageCode) {
 }
 
 // ===================================
+// Render Activity Type (History)
+// ===================================
+const DETAIL_ACTIVITY_TYPE_COLOR_MAP = window.PSMS_ACTIVITY_TYPE_COLOR_MAP || {
+    MEETING: '#2563eb',
+    PROPOSAL: '#7c3aed',
+    CONTRACT: '#16a34a',
+    FOLLOWUP: '#f59e0b',
+    SUPPORT: '#0ea5e9',
+    ETC: '#94a3b8',
+    UNKNOWN: '#cbd5f5'
+};
+
+const DETAIL_ACTIVITY_TYPE_ICON_MAP = {
+    MEETING: 'fas fa-comments',
+    PROPOSAL: 'fas fa-file-signature',
+    CONTRACT: 'fas fa-handshake',
+    FOLLOWUP: 'fas fa-repeat',
+    SUPPORT: 'fas fa-life-ring',
+    ETC: 'fas fa-ellipsis-h',
+    UNKNOWN: 'fas fa-question'
+};
+
+function getDetailActivityTypeColor(typeCode) {
+    if (!typeCode) return DETAIL_ACTIVITY_TYPE_COLOR_MAP.UNKNOWN;
+    return DETAIL_ACTIVITY_TYPE_COLOR_MAP[typeCode] || DETAIL_ACTIVITY_TYPE_COLOR_MAP.UNKNOWN;
+}
+
+function getDetailActivityTypeIcon(typeCode) {
+    if (!typeCode) return DETAIL_ACTIVITY_TYPE_ICON_MAP.UNKNOWN;
+    return DETAIL_ACTIVITY_TYPE_ICON_MAP[typeCode] || DETAIL_ACTIVITY_TYPE_ICON_MAP.UNKNOWN;
+}
+
+function renderDetailActivityType(typeCode, typeName) {
+    if (!typeCode && !typeName) return '-';
+    const label = Utils.escapeHtml(typeName || typeCode || '-');
+    const color = getDetailActivityTypeColor(typeCode);
+    const iconClass = getDetailActivityTypeIcon(typeCode);
+    return `
+        <span class="history-activity">
+            <span class="history-activity-icon" style="background:${color}">
+                <i class="${iconClass}"></i>
+            </span>
+            <span class="history-activity-label">${label}</span>
+        </span>
+    `;
+}
+
+// ===================================
 // Render Project Detail
 // ===================================
 function renderProjectDetail(response, pipelineId) {
@@ -925,7 +973,8 @@ function renderProjectDetail(response, pipelineId) {
                 stageHtml = getStageBadge(h.progress_stage);
             }
             
-            histRows += '<tr><td>' + Utils.formatDate(h.history_date || h.base_date) + '</td><td>' + stageHtml + '</td><td>' + (h.strategy_content || '-') + '</td><td>' + (h.creator_name || h.creator_id || '-') + '</td></tr>';
+            var activityHtml = renderDetailActivityType(h.activity_type, h.activity_type_name);
+            histRows += '<tr><td>' + Utils.formatDate(h.history_date || h.base_date) + '</td><td>' + stageHtml + '</td><td>' + activityHtml + '</td><td>' + (h.strategy_content || '-') + '</td><td>' + (h.creator_name || h.creator_id || '-') + '</td></tr>';
         });
     }
     
@@ -969,7 +1018,7 @@ function renderProjectDetail(response, pipelineId) {
     
     '<div id="detail-history" class="detail-pane">' +
         (histories.length > 0 ? 
-            '<table class="detail-table detail-history-table"><thead><tr><th>일자</th><th>진행단계</th><th>내용</th><th>작성자</th></tr></thead><tbody>' + histRows + '</tbody></table>'
+            '<table class="detail-table detail-history-table"><thead><tr><th>일자</th><th>진행단계</th><th>활동유형</th><th>내용</th><th>작성자</th></tr></thead><tbody>' + histRows + '</tbody></table>'
             : '<p class="no-data">등록된 이력이 없습니다.</p>') +
     '</div>';
     

@@ -96,17 +96,30 @@ window.TABULATOR_COMMON_OPTIONS = {
     sortMode: "remote",
     ajaxSorting: true,
     ajaxConfig: {
-        headers: (() => {
-            try {
-                if (typeof AUTH !== 'undefined' && typeof AUTH.getAccessToken === 'function') {
-                    const token = AUTH.getAccessToken();
-                    return token ? { Authorization: `Bearer ${token}` } : {};
-                }
-            } catch (e) {
-                console.warn('⚠️ AUTH 토큰 헤더 구성 실패:', e);
-            }
-            return {};
-        })()
+        method: "GET"
+    },
+    ajaxRequestFunc: function(url, config) {
+        const basePrefix = `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}`;
+        let endpoint = url || "";
+
+        if (endpoint.startsWith(basePrefix)) {
+            endpoint = endpoint.slice(basePrefix.length);
+        } else if (endpoint.startsWith(API_CONFIG.BASE_URL)) {
+            endpoint = endpoint.slice(API_CONFIG.BASE_URL.length);
+        }
+
+        if (endpoint.startsWith(API_CONFIG.API_VERSION)) {
+            endpoint = endpoint.slice(API_CONFIG.API_VERSION.length);
+        }
+
+        if (!endpoint.startsWith("/")) {
+            endpoint = `/${endpoint}`;
+        }
+
+        return API.request(endpoint, {
+            method: (config && config.method) || "GET",
+            headers: (config && config.headers) || {}
+        });
     },
     columnDefaults: {
         headerSort: true
@@ -133,7 +146,7 @@ const API = {
 
         const headers = {
             'Content-Type': 'application/json',
-            ...options.headers
+            ...(options.headers || {})
         };
 
         const hasAuth = (typeof AUTH !== 'undefined' && typeof AUTH.getAccessToken === 'function');
@@ -150,10 +163,12 @@ const API = {
         }
 
         try {
-            let response = await fetch(url, {
-                headers,
-                ...options
-            });
+            const requestOptions = {
+                ...options,
+                headers
+            };
+
+            let response = await fetch(url, requestOptions);
 
             if (response.status === 401 && token && hasAuth && typeof AUTH.refreshToken === 'function') {
                 const refreshed = await AUTH.refreshToken();
@@ -163,8 +178,8 @@ const API = {
                         headers['Authorization'] = `Bearer ${newToken}`;
                     }
                     response = await fetch(url, {
-                        headers,
-                        ...options
+                        ...options,
+                        headers
                     });
                 }
             }
