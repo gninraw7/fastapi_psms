@@ -167,6 +167,9 @@ def _copy_common_tables(
 
     db.execute(text("SET FOREIGN_KEY_CHECKS=0"))
     for table in insert_order:
+        if table == "org_units":
+            _copy_org_units(db, source_company, target_company, actor_id)
+            continue
         cols = _get_columns(db, table)
         col_list = ", ".join([f"`{c}`" for c in cols])
         select_parts = []
@@ -193,6 +196,65 @@ def _copy_common_tables(
         "copied_tables": insert_order,
         "auto_included_tables": sorted([t for t in expanded if t not in selected])
     }
+
+
+def _copy_org_units(
+    db: Session,
+    source_company: str,
+    target_company: str,
+    actor_id: Optional[str] = None
+) -> None:
+    rows = db.execute(text("""
+        SELECT org_id, org_name, parent_id, org_type, sort_order, is_use, created_at, updated_at, created_by, updated_by
+        FROM org_units
+        WHERE company_cd = :source_company
+        ORDER BY org_id ASC
+    """), {"source_company": source_company}).mappings().all()
+
+    if not rows:
+        return
+
+    id_map: Dict[int, int] = {}
+    for row in rows:
+        params = {
+            "company_cd": target_company,
+            "org_name": row["org_name"],
+            "parent_id": None,
+            "org_type": row["org_type"],
+            "sort_order": row["sort_order"],
+            "is_use": row["is_use"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "created_by": actor_id or row["created_by"],
+            "updated_by": actor_id or row["updated_by"],
+        }
+        result = db.execute(text("""
+            INSERT INTO org_units (
+                company_cd, org_name, parent_id, org_type, sort_order, is_use,
+                created_at, updated_at, created_by, updated_by
+            ) VALUES (
+                :company_cd, :org_name, :parent_id, :org_type, :sort_order, :is_use,
+                :created_at, :updated_at, :created_by, :updated_by
+            )
+        """), params)
+        if result.lastrowid is None:
+            raise HTTPException(status_code=500, detail="Failed to copy org_units (missing org_id)")
+        id_map[row["org_id"]] = int(result.lastrowid)
+
+    for row in rows:
+        parent_id = row["parent_id"]
+        if not parent_id:
+            continue
+        new_parent = id_map.get(parent_id)
+        new_id = id_map.get(row["org_id"])
+        if not new_parent or not new_id:
+            continue
+        db.execute(text("""
+            UPDATE org_units
+            SET parent_id = :new_parent
+            WHERE company_cd = :company_cd
+              AND org_id = :org_id
+        """), {"new_parent": new_parent, "company_cd": target_company, "org_id": new_id})
 
 
 @router.get("/list")
