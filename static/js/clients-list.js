@@ -25,6 +25,18 @@ let currentClientFilters = {
     page_size: 25
 };
 
+function getCurrentClientSort() {
+    if (!clientsTable || typeof clientsTable.getSorters !== 'function') {
+        return { sort_field: '', sort_dir: '' };
+    }
+    const sorters = clientsTable.getSorters() || [];
+    if (!sorters.length) return { sort_field: '', sort_dir: '' };
+    return {
+        sort_field: sorters[0].field || '',
+        sort_dir: sorters[0].dir || 'asc'
+    };
+}
+
 function buildClientsListUrl({ page = 1, size = 25, sorters = [] } = {}) {
     const queryParams = {
         page,
@@ -47,7 +59,13 @@ function buildClientsListUrl({ page = 1, size = 25, sorters = [] } = {}) {
 
     if (sorters.length > 0) {
         queryParams.sort_field = sorters[0].field;
-        queryParams.sort_dir = sorters[0].dir;
+        queryParams.sort_dir = sorters[0].dir || 'asc';
+    } else {
+        const currentSort = getCurrentClientSort();
+        if (currentSort.sort_field) {
+            queryParams.sort_field = currentSort.sort_field;
+            queryParams.sort_dir = currentSort.sort_dir || 'asc';
+        }
     }
 
     const query = new URLSearchParams(queryParams);
@@ -166,7 +184,13 @@ function initializeClientsTable() {
         
         ajaxURLGenerator: function(url, config, params) {
             const safeParams = params || {};
-            const sorters = safeParams.sorters || safeParams.sort || safeParams.sorter || [];
+            let sorters = safeParams.sorters || safeParams.sort || safeParams.sorter || [];
+            if (!sorters.length && config && config.params) {
+                sorters = config.params.sorters || config.params.sort || config.params.sorter || [];
+            }
+            if (!sorters.length && clientsTable && typeof clientsTable.getSorters === 'function') {
+                sorters = clientsTable.getSorters() || [];
+            }
             const finalUrl = buildClientsListUrl({
                 page: safeParams.page || 1,
                 size: safeParams.size || 25,

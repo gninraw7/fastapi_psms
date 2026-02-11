@@ -83,6 +83,60 @@ const COMPANY_CONFIG = {
 // ===================================
 // Tabulator Common Options
 // ===================================
+function buildAjaxQueryParams(params = {}) {
+    const normalized = {};
+    if (!params || typeof params !== 'object') return normalized;
+
+    const sorters = params.sorters || params.sort || params.sorter || [];
+    if (Array.isArray(sorters) && sorters.length > 0) {
+        const sorter = sorters[0] || {};
+        if (sorter.field) {
+            normalized.sort_field = sorter.field;
+            normalized.sort_dir = sorter.dir || 'asc';
+        }
+    }
+
+    if (params.page && !normalized.page) {
+        normalized.page = params.page;
+    }
+    if (params.size && !normalized.page_size) {
+        normalized.page_size = params.size;
+    }
+
+    Object.keys(params).forEach(key => {
+        if (key === 'sorters' || key === 'sort' || key === 'sorter' || key === 'size') return;
+        if (normalized[key] !== undefined) return;
+        const value = params[key];
+        if (value === undefined || value === null) return;
+        if (typeof value === 'object') return;
+        normalized[key] = value;
+    });
+
+    return normalized;
+}
+
+function mergeAjaxUrlParams(url, params) {
+    const basePrefix = `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}`;
+    let fullUrl = url || '';
+    if (!/^https?:\/\//i.test(fullUrl)) {
+        if (!fullUrl.startsWith('/')) fullUrl = `/${fullUrl}`;
+        fullUrl = `${basePrefix}${fullUrl}`;
+    }
+
+    const queryParams = buildAjaxQueryParams(params);
+    if (Object.keys(queryParams).length === 0) {
+        return fullUrl;
+    }
+
+    const parsed = new URL(fullUrl);
+    Object.entries(queryParams).forEach(([key, value]) => {
+        if (!parsed.searchParams.has(key)) {
+            parsed.searchParams.set(key, String(value));
+        }
+    });
+    return parsed.toString();
+}
+
 window.TABULATOR_COMMON_OPTIONS = {
     headerSort: true,
     headerSortTristate: false,
@@ -98,9 +152,10 @@ window.TABULATOR_COMMON_OPTIONS = {
     ajaxConfig: {
         method: "GET"
     },
-    ajaxRequestFunc: function(url, config) {
+    ajaxRequestFunc: function(url, config, params) {
         const basePrefix = `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}`;
-        let endpoint = url || "";
+        const mergedUrl = mergeAjaxUrlParams(url, params);
+        let endpoint = mergedUrl || "";
 
         if (endpoint.startsWith(basePrefix)) {
             endpoint = endpoint.slice(basePrefix.length);

@@ -120,20 +120,41 @@ function checkURLParameters() {
 async function initializeFilters() {
     try {
         console.log('📡 필터 데이터 로딩...');
+
+        const resetSelect = (selectEl, defaultLabel = '전체') => {
+            if (!selectEl) return '';
+            const selectedValue = selectEl.value;
+            selectEl.innerHTML = '';
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = defaultLabel;
+            selectEl.appendChild(opt);
+            return selectedValue;
+        };
+        const restoreSelect = (selectEl, selectedValue) => {
+            if (!selectEl || !selectedValue) return;
+            selectEl.value = selectedValue;
+        };
         
         // 담당자 로드
         const managerSelect = document.getElementById('filterManager');
         if (managerSelect) {
             try {
+                const prevValue = resetSelect(managerSelect);
                 const managers = await API.get(API_CONFIG.ENDPOINTS.MANAGERS);
                 if (managers && managers.items) {
+                    const seen = new Set();
                     managers.items.forEach(m => {
+                        const value = m.manager_id || m.login_id;
+                        if (!value || seen.has(value)) return;
+                        seen.add(value);
                         const opt = document.createElement('option');
-                        opt.value = m.manager_id || m.login_id;
+                        opt.value = value;
                         opt.textContent = m.manager_name || m.user_name;
                         managerSelect.appendChild(opt);
                     });
                 }
+                restoreSelect(managerSelect, prevValue);
             } catch (e) {
                 console.warn('⚠️ 담당자 로드 실패:', e);
             }
@@ -143,15 +164,20 @@ async function initializeFilters() {
         const fieldSelect = document.getElementById('filterField');
         if (fieldSelect) {
             try {
+                const prevValue = resetSelect(fieldSelect);
                 const fields = await API.get(`${API_CONFIG.ENDPOINTS.INDUSTRY_FIELDS}/list?is_use=Y`);
                 if (fields && fields.items) {
+                    const seen = new Set();
                     fields.items.forEach(f => {
+                        if (!f.field_code || seen.has(f.field_code)) return;
+                        seen.add(f.field_code);
                         const opt = document.createElement('option');
                         opt.value = f.field_code;
                         opt.textContent = f.field_name || f.field_code;
                         fieldSelect.appendChild(opt);
                     });
                 }
+                restoreSelect(fieldSelect, prevValue);
             } catch (e) {
                 console.warn('⚠️ 사업분야 로드 실패:', e);
             }
@@ -161,17 +187,22 @@ async function initializeFilters() {
         const serviceSelect = document.getElementById('filterService');
         if (serviceSelect) {
             try {
+                const prevValue = resetSelect(serviceSelect);
                 const services = await API.get(`${API_CONFIG.ENDPOINTS.SERVICE_CODES}/list?is_use=Y`);
                 if (services && services.items) {
+                    const seen = new Set();
                     services.items
                         .filter(s => s.parent_code)
                         .forEach(s => {
+                            if (!s.service_code || seen.has(s.service_code)) return;
+                            seen.add(s.service_code);
                             const opt = document.createElement('option');
                             opt.value = s.service_code;
                             opt.textContent = s.display_name || '';
                             serviceSelect.appendChild(opt);
                         });
                 }
+                restoreSelect(serviceSelect, prevValue);
             } catch (e) {
                 console.warn('⚠️ 서비스 로드 실패:', e);
             }
@@ -181,11 +212,15 @@ async function initializeFilters() {
         const stageSelect = document.getElementById('filterStage');
         if (stageSelect) {
             try {
+                const prevValue = resetSelect(stageSelect);
                 const stages = await API.get(API_CONFIG.ENDPOINTS.COMBO_DATA + '/STAGE');
                 console.log('📥 진행단계 데이터:', stages);
                 
                 if (stages && stages.items && stages.items.length > 0) {
+                    const seen = new Set();
                     stages.items.forEach(s => {
+                        if (!s.code || seen.has(s.code)) return;
+                        seen.add(s.code);
                         const opt = document.createElement('option');
                         opt.value = s.code;
                         opt.textContent = s.code_name;
@@ -194,22 +229,31 @@ async function initializeFilters() {
                     console.log('✅ 진행단계 콤보 로드 완료:', stages.items.length, '개');
                 } else if (window.STAGE_CONFIG && Object.keys(window.STAGE_CONFIG).length > 0) {
                     console.warn('⚠️ STAGE API 응답 비어있음, STAGE_CONFIG 사용');
+                    const seen = new Set();
                     Object.keys(window.STAGE_CONFIG).forEach(code => {
+                        if (!code || seen.has(code)) return;
+                        seen.add(code);
                         const opt = document.createElement('option');
                         opt.value = code;
                         opt.textContent = window.STAGE_CONFIG[code].label;
                         stageSelect.appendChild(opt);
                     });
                 }
+                restoreSelect(stageSelect, prevValue);
             } catch (e) {
                 console.warn('⚠️ 진행단계 로드 실패:', e);
                 if (window.STAGE_CONFIG) {
+                    const prevValue = resetSelect(stageSelect);
+                    const seen = new Set();
                     Object.keys(window.STAGE_CONFIG).forEach(code => {
+                        if (!code || seen.has(code)) return;
+                        seen.add(code);
                         const opt = document.createElement('option');
                         opt.value = code;
                         opt.textContent = window.STAGE_CONFIG[code].label;
                         stageSelect.appendChild(opt);
                     });
+                    restoreSelect(stageSelect, prevValue);
                 }
             }
         }
@@ -218,8 +262,12 @@ async function initializeFilters() {
         const salesPlanSelect = document.getElementById('filterSalesPlan');
         if (salesPlanSelect) {
             try {
+                const prevValue = resetSelect(salesPlanSelect);
                 const response = await API.get(`${API_CONFIG.ENDPOINTS.SALES_PLANS}/list?page=1&page_size=500`);
+                const seen = new Set();
                 (response?.items || []).forEach(plan => {
+                    if (!plan.plan_id || seen.has(plan.plan_id)) return;
+                    seen.add(plan.plan_id);
                     const opt = document.createElement('option');
                     opt.value = plan.plan_id;
                     const year = plan.plan_year || '-';
@@ -228,6 +276,7 @@ async function initializeFilters() {
                     opt.textContent = `${year} ${version} (${status})`;
                     salesPlanSelect.appendChild(opt);
                 });
+                restoreSelect(salesPlanSelect, prevValue);
             } catch (e) {
                 console.warn('⚠️ 영업계획 콤보 로드 실패:', e);
             }
@@ -279,7 +328,13 @@ function initializeTable() {
         
         ajaxURLGenerator: function(url, config, params) {
             const safeParams = params || {};
-            const sorters = safeParams.sorters || safeParams.sort || safeParams.sorter || [];
+            let sorters = safeParams.sorters || safeParams.sort || safeParams.sorter || [];
+            if (!sorters.length && config && config.params) {
+                sorters = config.params.sorters || config.params.sort || config.params.sorter || [];
+            }
+            if (!sorters.length && projectTable && typeof projectTable.getSorters === 'function') {
+                sorters = projectTable.getSorters() || [];
+            }
             const finalUrl = buildProjectsListUrl({
                 page: safeParams.page || 1,
                 size: safeParams.size || 25,
