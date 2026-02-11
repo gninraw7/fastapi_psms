@@ -76,6 +76,9 @@
 
                     // 회사 전환 UI 초기화 (관리자만)
                     initializeCompanySwitcher(userInfo);
+
+                    // 초기 비밀번호 변경 강제 처리
+                    enforcePasswordChangeFlow(userInfo);
                 } else {
                     console.warn('⚠️ 사용자 정보가 없습니다');
                 }
@@ -165,4 +168,45 @@
         const exists = items.some(item => item.company_cd === selectedCd);
         select.value = exists ? selectedCd : (items[0]?.company_cd || selectedCd || '');
     }
+
+    function enforcePasswordChangeFlow(userInfo) {
+        const mustChange = !!(userInfo && userInfo.must_change_password);
+        window.__forcePasswordChange = mustChange;
+        if (!mustChange) {
+            hideInitialPasswordModal();
+            return;
+        }
+
+        showInitialPasswordModal();
+    }
+
+    function showInitialPasswordModal() {
+        const modal = document.getElementById('initialPasswordModal');
+        if (!modal) return;
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+    }
+
+    function hideInitialPasswordModal() {
+        const modal = document.getElementById('initialPasswordModal');
+        if (!modal) return;
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+
+    window.goToPasswordChange = function goToPasswordChange() {
+        hideInitialPasswordModal();
+        if (typeof navigateTo === 'function') {
+            navigateTo('my-info');
+        }
+        window.__forcePasswordChange = true;
+        window.__focusPasswordChange = true;
+        setTimeout(() => {
+            if (typeof window.focusPasswordChangeSection === 'function') {
+                window.focusPasswordChangeSection();
+            }
+        }, 200);
+    };
+
+    window.__hideInitialPasswordModal = hideInitialPasswordModal;
 })();

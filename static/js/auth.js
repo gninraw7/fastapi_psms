@@ -67,6 +67,23 @@ const AUTH = {
     },
 
     /**
+     * 초기 비밀번호 변경 필요 여부
+     */
+    mustChangePassword() {
+        const info = this.getUserInfo();
+        return !!(info && info.must_change_password);
+    },
+
+    /**
+     * 초기 비밀번호 변경 필요 여부 저장
+     */
+    setMustChangePassword(flag) {
+        const info = this.getUserInfo() || {};
+        info.must_change_password = !!flag;
+        this.setUserInfo(info);
+    },
+
+    /**
      * 회사 코드 저장
      */
     setCompanyCd(companyCd) {
@@ -107,6 +124,20 @@ const AUTH = {
         const serverUrl = this.getServerUrl();
         if (!serverUrl) {
             throw new Error('서버 주소가 설정되지 않았습니다.');
+        }
+
+        if (this.mustChangePassword && this.mustChangePassword()) {
+            const allow = [
+                '/api/v1/auth/me',
+                '/api/v1/auth/change-password',
+                '/api/v1/auth/logout',
+                '/api/v1/auth/refresh',
+                '/api/v1/auth/companies'
+            ];
+            const isAllowed = allow.some(prefix => endpoint.startsWith(prefix));
+            if (!isAllowed) {
+                throw new Error('초기 PW로 PW 변경 이후 사용이 가능합니다.');
+            }
         }
 
         const url = `${serverUrl}${endpoint}`;

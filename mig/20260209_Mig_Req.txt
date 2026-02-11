@@ -1,0 +1,108 @@
+엑셀 시트의 데이터를 psms 시스템의 테이블로 migration을 하려한다.
+
+- 소스 엑셀시트
+mig/source_20260209.xlsx
+
+- Migration Rule 정의 엑셀파일
+mig/mig_rule_20260209_v2.xlsx
+
+- 공통사항 : company_cd = 'KLCUBE'
+
+소스로부터 데이터를 읽어서 Migration Rule에 따라 처리하여 DB에 Insert하기 위한 csv 파일을 Target 테이블 단위로 만들어서 mig/20260209_KLCUBE 디렉토리에 작성해줘.
+파일명 : 테이블명.csv 
+
+- 유의사항: 기존 소스시트의 "진행상황 및 영업전략" 컬럼은 하나의 셀에 복수의 일자 데이터가 들어가 있는 경우에는 일자별 분리를 인털리전트하게 판단하여 분리하여 base_date 설정후 insert 필요
+  기준일자 구분 로직을 세심하게 튜닝해서 진행해줘.
+  . 연도 없이 월일 만 있는 경우에는 해당 시트의 연도기준으로 처리
+  . 셀 내에 일자정보가 없고 해당 파이프라인의 다른 히스토리가 없는 경우 해당연도 1월1일로 강제 셋팅
+  . 셀 내에 일자정보가 없고 해당 파이프라인의 다른 히스토리가 있는 경우 최종 히스토리의 일자로 셋팅 (컬럼값에 마이그 강제 일자 셋팅 정보 삽입)
+
+  . project_history 기준일자 파싱할 때 라인의 앞부분이 아닌 text 라인의 중간(최소 4글자 이후)에 일자가 있는 경우에는 기준일자로 판단하지 않는다.
+  . (2025.03.25 기준) 형태인 경우 2025.03.25 만 기준일자로 판단하고 "("," )"는 버림
+  . 'L' 문자 다음에 오는 날짜 패턴은 기준일자로 인식하지 않음
+
+- csv 검토 후 실제 DB insert 하는 Migration script는 별도 수행 예정.
+
+---------------------------------
+
+[조직 정보 복사  쿼리]
+-- 0) (선택) 기존 임시 매핑 테이블이 있으면 제거
+DROP TABLE IF EXISTS org_map_klcube_20260209;
+
+-- 1) old_id -> new_id 매핑 테이블 생성
+CREATE TABLE org_map_klcube_20260209 (
+  old_id INT PRIMARY KEY,
+  new_id INT NOT NULL
+);
+
+INSERT INTO org_map_klcube_20260209 (old_id, new_id)
+SELECT
+  ou.org_id AS old_id,
+  b.base + ROW_NUMBER() OVER (ORDER BY ou.org_id) AS new_id
+FROM org_units ou
+CROSS JOIN (SELECT IFNULL(MAX(org_id), 0) AS base FROM org_units) b
+WHERE ou.company_cd = 'TESTCOMP';
+
+-- 2) org_units 복사 (parent_id도 매핑)
+INSERT INTO org_units (
+  company_cd, org_id, org_name, parent_id, org_type, sort_order, is_use,
+  created_at, updated_at, created_by, updated_by
+)
+SELECT
+  'KLCUBE' AS company_cd,
+  m.new_id AS org_id,
+  ou.org_name,
+  pm.new_id AS parent_id,
+  ou.org_type,
+  ou.sort_order,
+  ou.is_use,
+  ou.created_at,
+  ou.updated_at,
+  ou.created_by,
+  ou.updated_by
+FROM org_units ou
+JOIN org_map_klcube_20260209 m ON ou.org_id = m.old_id
+LEFT JOIN org_map_klcube_20260209 pm ON ou.parent_id = pm.old_id
+WHERE ou.company_cd = 'TESTCOMP';
+
+-- 3) users 복사 (org_id 매핑)
+INSERT INTO users (
+  company_cd, login_id, password, user_name, role, is_sales_rep, email, phone,
+  headquarters, department, team, org_id, start_date, end_date, status,
+  created_at, updated_at, created_by, updated_by
+)
+SELECT
+  'KLCUBE' AS company_cd,
+  u.login_id, u.password, u.user_name, u.role, u.is_sales_rep, u.email, u.phone,
+  u.headquarters, u.department, u.team,
+  m.new_id AS org_id,
+  u.start_date, u.end_date, u.status,
+  u.created_at, u.updated_at, u.created_by, u.updated_by
+FROM users u
+LEFT JOIN org_map_klcube_20260209 m ON u.org_id = m.old_id
+LEFT JOIN users k
+  ON k.company_cd = 'KLCUBE' AND k.login_id = u.login_id
+WHERE u.company_cd = 'TESTCOMP'
+  AND k.login_id IS NULL;
+
+-- 4) 정리
+DROP TABLE org_map_klcube_20260209;
+
+
+
+[사용자 복사]
+INSERT INTO users (
+    company_cd, login_id, password, user_name, role, is_sales_rep, email, phone,
+    headquarters, department, team, org_id, start_date, end_date, status,
+    created_at, updated_at, created_by, updated_by
+)
+SELECT
+    'KLCUBE' AS company_cd,
+    u.login_id, u.password, u.user_name, u.role, u.is_sales_rep, u.email, u.phone,
+    u.headquarters, u.department, u.team, u.org_id, u.start_date, u.end_date, u.status,
+    u.created_at, u.updated_at, u.created_by, u.updated_by
+FROM users u
+LEFT JOIN users k
+  ON k.company_cd = 'KLCUBE' AND k.login_id = u.login_id
+WHERE u.company_cd = 'TESTCOMP'
+  AND k.login_id IS NULL;

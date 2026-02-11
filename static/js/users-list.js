@@ -15,6 +15,41 @@ let currentUserFilters = {
     page_size: 25
 };
 
+function getUsersListEndpoint() {
+    return (API_CONFIG && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.USERS_LIST)
+        ? API_CONFIG.ENDPOINTS.USERS_LIST
+        : "/users/list";
+}
+
+function buildUsersListUrl(params = {}) {
+    const usersListEndpoint = getUsersListEndpoint();
+    const queryParams = {
+        page: params.page || 1,
+        page_size: params.size || currentUserFilters.page_size || 25
+    };
+
+    if (currentUserFilters.search_text) {
+        queryParams.search_text = currentUserFilters.search_text;
+        if (currentUserFilters.search_field) {
+            queryParams.search_field = currentUserFilters.search_field;
+        }
+    }
+
+    const statusValue = (currentUserFilters.status || 'ACTIVE').toString().trim();
+    if (statusValue) {
+        queryParams.status = statusValue;
+    }
+
+    const sorters = params.sorters || [];
+    if (sorters.length > 0) {
+        queryParams.sort_field = sorters[0].field;
+        queryParams.sort_dir = sorters[0].dir;
+    }
+
+    const query = new URLSearchParams(queryParams);
+    return `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${usersListEndpoint}?${query.toString()}`;
+}
+
 // ===================================
 // Initialization
 // ===================================
@@ -35,6 +70,7 @@ function bootstrapUsersList() {
         const statusFilter = document.getElementById('userStatusFilter');
         if (statusFilter) {
             statusFilter.value = 'ACTIVE';
+            currentUserFilters.status = statusFilter.value || 'ACTIVE';
         }
 
         if (!usersTable) {
@@ -63,9 +99,7 @@ function initializeUsersTable() {
         return;
     }
 
-    const usersListEndpoint = (API_CONFIG && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.USERS_LIST)
-        ? API_CONFIG.ENDPOINTS.USERS_LIST
-        : "/users/list";
+    const usersListEndpoint = getUsersListEndpoint();
 
     const commonOptions = window.TABULATOR_COMMON_OPTIONS || {};
 
@@ -91,29 +125,12 @@ function initializeUsersTable() {
 
         ajaxURL: API_CONFIG.BASE_URL + API_CONFIG.API_VERSION + usersListEndpoint,
         ajaxURLGenerator: function(url, config, params) {
-            const queryParams = {
-                page: params.page || 1,
-                page_size: params.size || 25
-            };
-
-            if (currentUserFilters.search_text) {
-                queryParams.search_text = currentUserFilters.search_text;
-                if (currentUserFilters.search_field) {
-                    queryParams.search_field = currentUserFilters.search_field;
-                }
-            }
-
-            if (currentUserFilters.status) {
-                queryParams.status = currentUserFilters.status;
-            }
             const sorters = params.sorters || params.sort || params.sorter || [];
-            if (sorters.length > 0) {
-                queryParams.sort_field = sorters[0].field;
-                queryParams.sort_dir = sorters[0].dir;
-            }
-
-            const query = new URLSearchParams(queryParams);
-            const finalUrl = url + '?' + query.toString();
+            const finalUrl = buildUsersListUrl({
+                page: params.page || 1,
+                size: params.size || 25,
+                sorters
+            });
             console.log('📡 API 호출:', finalUrl);
             return finalUrl;
         },
@@ -298,12 +315,28 @@ function initializeUsersTable() {
 // Event Listeners
 // ===================================
 function initializeUserEventListeners() {
+    const searchField = document.getElementById('userSearchField');
+    if (searchField && !searchField.dataset.bound) {
+        searchField.dataset.bound = 'true';
+        searchField.addEventListener('change', () => {
+            applyUserFilters();
+        });
+    }
+
     const searchInput = document.getElementById('userSearchText');
     if (searchInput) {
         searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 applyUserFilters();
             }
+        });
+    }
+
+    const statusFilter = document.getElementById('userStatusFilter');
+    if (statusFilter && !statusFilter.dataset.bound) {
+        statusFilter.dataset.bound = 'true';
+        statusFilter.addEventListener('change', () => {
+            applyUserFilters();
         });
     }
 }
@@ -320,9 +353,7 @@ function applyUserFilters() {
     currentUserFilters.search_text = searchText ? searchText.value.trim() : '';
     currentUserFilters.status = statusFilter ? statusFilter.value : 'ACTIVE';
 
-    if (usersTable) {
-        usersTable.setPage(1);
-    }
+    reloadUsersList(1);
 }
 
 function resetUserFilters() {
@@ -342,15 +373,24 @@ function resetUserFilters() {
         page_size: 25
     };
 
-    if (usersTable) {
-        usersTable.setPage(1);
-    }
+    reloadUsersList(1);
 }
 
 function refreshUsersList() {
-    if (usersTable) {
-        usersTable.replaceData();
-    }
+    const currentPage = usersTable && typeof usersTable.getPage === 'function' ? usersTable.getPage() : 1;
+    reloadUsersList(currentPage || 1);
+}
+
+function reloadUsersList(page = 1) {
+    if (!usersTable) return;
+    const pageSize = typeof usersTable.getPageSize === 'function' ? usersTable.getPageSize() : 25;
+    const sorters = typeof usersTable.getSorters === 'function' ? usersTable.getSorters() : [];
+    const finalUrl = buildUsersListUrl({
+        page,
+        size: pageSize,
+        sorters
+    });
+    usersTable.setData(finalUrl);
 }
 
 // ===================================
@@ -416,8 +456,11 @@ async function bulkResetPasswords() {
         const resetEndpoint = (API_CONFIG && API_CONFIG.ENDPOINTS && API_CONFIG.ENDPOINTS.USERS_PASSWORD_RESET)
             ? API_CONFIG.ENDPOINTS.USERS_PASSWORD_RESET
             : "/users/password/reset";
-        await API.post(resetEndpoint, { user_nos: userNos, updated_by: actor });
-        alert('비밀번호가 초기화되었습니다.');
+        const result = await API.post(resetEndpoint, { user_nos: userNos, updated_by: actor });
+        const count = Number.isFinite(result?.count) ? result.count : userNos.length;
+        const skipped = Number.isFinite(result?.skipped) ? result.skipped : 0;
+        const detail = skipped > 0 ? ` (처리: ${count}명, 스킵: ${skipped}명)` : ` (처리: ${count}명)`;
+        alert(`비밀번호가 초기화되었습니다.${detail}`);
         refreshUsersList();
     } catch (error) {
         console.error('❌ 비밀번호 초기화 실패:', error);

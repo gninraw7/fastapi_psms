@@ -40,6 +40,8 @@ class Settings:
 
     # 멀티테넌트 기본 회사 코드 (UI 개발 전까지 기본값 사용)
     DEFAULT_COMPANY_CD: str = os.getenv("DEFAULT_COMPANY_CD", "TESTCOMP")
+    # 초기 비밀번호 (최초 로그인 시 변경 강제)
+    INITIAL_PASSWORD: str = os.getenv("INITIAL_PASSWORD", "1234")
 
     # JWT 보안 설정
     SECRET_KEY: str = "your-secret-key-change-this"

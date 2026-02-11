@@ -1009,6 +1009,10 @@ function setNoticeInputValue(id, value) {
 
 function setNoticeEditMode(canEdit, canDelete) {
     const isEditable = !!canEdit;
+    const detailContainer = document.querySelector('#page-notice-detail .notice-detail-container');
+    if (detailContainer) {
+        detailContainer.classList.toggle('notice-view-mode', !isEditable);
+    }
     const inputs = [
         'noticeTitleInput',
         'noticeCategorySelect',

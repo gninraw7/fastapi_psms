@@ -96,6 +96,9 @@ async def login(
         )
     
     user_no, login_id, hashed_password, user_name, role, user_status = result
+
+    # 초기 비밀번호 여부 확인
+    must_change_password = verify_password(settings.INITIAL_PASSWORD, hashed_password)
     
     # 비밀번호 확인
     if not verify_password(login_data.password, hashed_password):
@@ -146,7 +149,8 @@ async def login(
         refresh_token=refresh_token,
         token_type="bearer",
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        company_cd=company_cd
+        company_cd=company_cd,
+        must_change_password=must_change_password
     )
 
 @router.post("/refresh", response_model=TokenResponse, summary="토큰 갱신")
@@ -308,7 +312,8 @@ async def get_me(
             o.org_name,
             u.start_date,
             u.end_date,
-            u.status
+            u.status,
+            u.password
         FROM users u
         LEFT JOIN org_units o 
           ON o.org_id = u.org_id 
@@ -336,7 +341,8 @@ async def get_me(
         org_name=row[8],
         start_date=row[9],
         end_date=row[10],
-        status=row[11]
+        status=row[11],
+        must_change_password=verify_password(settings.INITIAL_PASSWORD, row[12])
     )
 
 @router.put("/me", summary="내정보 수정")

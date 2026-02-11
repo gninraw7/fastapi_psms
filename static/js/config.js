@@ -185,7 +185,38 @@ const API = {
             }
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                let detail = '';
+                try {
+                    const contentType = response.headers.get('content-type') || '';
+                    if (contentType.includes('application/json')) {
+                        const data = await response.json();
+                        detail = data?.detail || data?.message || '';
+                    } else {
+                        detail = await response.text();
+                    }
+                } catch (e) {
+                    detail = '';
+                }
+
+                const method = (requestOptions.method || 'GET').toUpperCase();
+                if (response.status === 403) {
+                    let permissionMessage = '권한이 없습니다.';
+                    if (method === 'POST') permissionMessage = '등록 권한이 없습니다.';
+                    else if (method === 'PUT' || method === 'PATCH') permissionMessage = '수정 권한이 없습니다.';
+                    else if (method === 'DELETE') permissionMessage = '삭제 권한이 없습니다.';
+
+                    if (!detail) {
+                        detail = permissionMessage;
+                    } else if (detail === '권한이 없습니다.' && method !== 'GET') {
+                        detail = permissionMessage;
+                    }
+                }
+
+                const message = detail || `HTTP ${response.status}`;
+                const err = new Error(message);
+                err.status = response.status;
+                err.detail = detail;
+                throw err;
             }
 
             return await response.json();

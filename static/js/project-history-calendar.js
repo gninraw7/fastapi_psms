@@ -12,6 +12,7 @@ let historyActiveView = 'year';
 let historyDailyDate = null;
 let historyMonthAnchorDate = new Date();
 let historyWeekAnchorDate = new Date();
+let historyModifierState = { ctrl: false, meta: false, shift: false };
 let historyHolidayIndex = {};
 let historyHolidayYears = new Set();
 let historyTooltipInitialized = false;
@@ -102,6 +103,13 @@ function bindHistoryCalendarEvents() {
             saveHistorySettings();
         });
     });
+
+    if (!document.body.dataset.historyModifierBound) {
+        document.body.dataset.historyModifierBound = 'true';
+        window.addEventListener('keydown', updateHistoryModifierState, true);
+        window.addEventListener('keyup', updateHistoryModifierState, true);
+        window.addEventListener('blur', resetHistoryModifierState, true);
+    }
 
     const tooltipToggle = document.getElementById('historyTooltipToggle');
     if (tooltipToggle && !tooltipToggle.dataset.bound) {
@@ -811,6 +819,19 @@ function renderHistoryCalendarView() {
                 handleDateSelection(info.dateStr, info.jsEvent);
             },
             eventClick: info => {
+                const evt = info.jsEvent || window.event;
+                if (isMultiSelectEvent(evt)) {
+                    const dateStr = info.event?.startStr
+                        || (info.event?.start ? formatDateInput(info.event.start) : null);
+                    if (dateStr) {
+                        handleDateSelection(dateStr, evt);
+                        if (evt) {
+                            evt.preventDefault?.();
+                            evt.stopPropagation?.();
+                        }
+                        return;
+                    }
+                }
                 openHistoryDetailFromEvent(info.event.extendedProps || {});
             },
             eventContent: info => buildHistoryEventContent(info),
@@ -1313,8 +1334,33 @@ function shiftDailyDate(diff) {
     shiftDailyToNextHistoryMonth(direction);
 }
 
+function updateHistoryModifierState(evt) {
+    if (!evt) return;
+    historyModifierState = {
+        ctrl: !!evt.ctrlKey,
+        meta: !!evt.metaKey,
+        shift: !!evt.shiftKey
+    };
+}
+
+function resetHistoryModifierState() {
+    historyModifierState = { ctrl: false, meta: false, shift: false };
+}
+
+function isMultiSelectEvent(evt) {
+    const fallback = historyModifierState.ctrl || historyModifierState.meta || historyModifierState.shift;
+    if (!evt) return fallback;
+    if (evt.ctrlKey || evt.metaKey || evt.shiftKey) return true;
+    if (typeof evt.getModifierState === 'function') {
+        return !!(evt.getModifierState('Control')
+            || evt.getModifierState('Meta')
+            || evt.getModifierState('Shift'));
+    }
+    return fallback;
+}
+
 function handleDateSelection(dateStr, evt) {
-    const isMulti = !!(evt && (evt.ctrlKey || evt.metaKey || evt.shiftKey));
+    const isMulti = isMultiSelectEvent(evt || window.event);
     if (historyActiveView === 'week' && dateStr) {
         historyWeekAnchorDate = new Date(dateStr);
     }

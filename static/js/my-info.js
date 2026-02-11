@@ -14,6 +14,12 @@ function initializeMyInfoPage() {
     }
 
     loadMyInfo();
+    if (window.__focusPasswordChange) {
+        setTimeout(() => {
+            focusPasswordChangeSection();
+            window.__focusPasswordChange = false;
+        }, 200);
+    }
 }
 
 function bindMyInfoEvents() {
@@ -187,6 +193,19 @@ async function changeMyPassword() {
 
         alert(response.message || '비밀번호가 변경되었습니다.');
         clearPasswordForm();
+        try {
+            const refreshedUser = await AUTH.getMe();
+            AUTH.setUserInfo(refreshedUser);
+            updateNavbarUserName(refreshedUser);
+            window.__forcePasswordChange = !!refreshedUser.must_change_password;
+        } catch (e) {
+            console.warn('⚠️ 사용자 정보 갱신 실패:', e);
+            AUTH.setMustChangePassword(false);
+            window.__forcePasswordChange = false;
+        }
+        if (typeof window.__hideInitialPasswordModal === 'function') {
+            window.__hideInitialPasswordModal();
+        }
     } catch (error) {
         console.error('❌ 비밀번호 변경 실패:', error);
         alert(error.message || '비밀번호 변경에 실패했습니다.');
@@ -201,6 +220,14 @@ function clearPasswordForm() {
 }
 
 function closeMyInfo() {
+    if (window.__forcePasswordChange) {
+        const modal = document.getElementById('initialPasswordModal');
+        if (modal) {
+            modal.classList.add('active');
+            modal.style.display = 'flex';
+        }
+        return;
+    }
     const fallbackPage = 'projects-list';
     const targetPage = window.myInfoReturnPage || fallbackPage;
     if (typeof pageExists === 'function' && !pageExists(targetPage)) {
@@ -210,7 +237,15 @@ function closeMyInfo() {
     navigateTo(targetPage);
 }
 
+function focusPasswordChangeSection() {
+    const section = document.getElementById('myPasswordSection');
+    if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
 window.initializeMyInfoPage = initializeMyInfoPage;
 window.saveMyInfo = saveMyInfo;
 window.changeMyPassword = changeMyPassword;
 window.closeMyInfo = closeMyInfo;
+window.focusPasswordChangeSection = focusPasswordChangeSection;

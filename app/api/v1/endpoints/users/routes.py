@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.logger import app_logger
 from app.core.tenant import get_company_cd
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, get_current_user
 
 router = APIRouter()
 
@@ -181,9 +181,12 @@ async def get_users_list(
                     )
                 """
 
-        if status:
+        status_value = (status or "").strip()
+        if not status_value:
+            status_value = "ACTIVE"
+        if status_value.upper() != "ALL":
             filter_condition += " AND u.status = :status"
-            params["status"] = status
+            params["status"] = status_value
 
         base_query += filter_condition
         count_query += filter_condition
@@ -526,6 +529,7 @@ async def delete_user(
 @router.post("/password/reset")
 async def bulk_password_reset(
     reset_data: BulkPasswordResetRequest,
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
@@ -545,10 +549,19 @@ async def bulk_password_reset(
         if not users:
             raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
 
-        updated_by = reset_data.updated_by
+        updated_by = (reset_data.updated_by or current_user.get("login_id") or "").strip() or None
+        updated_users = 0
+        skipped_users = 0
+
         for user in users:
             user_no, login_id = user
-            new_password = get_password_hash(login_id)
+            normalized_login_id = (login_id or "").strip()
+            if not normalized_login_id:
+                skipped_users += 1
+                app_logger.warning(f"⚠️ 비밀번호 리셋 스킵: 빈 login_id (user_no={user_no})")
+                continue
+
+            new_password = get_password_hash(normalized_login_id)
             db.execute(
                 text("""
                     UPDATE users
@@ -558,14 +571,19 @@ async def bulk_password_reset(
                 """),
                 {
                     "password": new_password,
-                    "updated_by": updated_by or login_id,
+                    "updated_by": updated_by or normalized_login_id,
                     "user_no": user_no,
                     "company_cd": company_cd
                 }
             )
+            updated_users += 1
 
         db.commit()
-        return {"success": True, "count": len(users)}
+        return {
+            "success": True,
+            "count": updated_users,
+            "skipped": skipped_users
+        }
     except HTTPException:
         raise
     except Exception as e:

@@ -1747,6 +1747,15 @@ body {
     border-radius: 12px;
 }
 
+.notice-detail-container.notice-view-mode .ql-toolbar {
+    display: none;
+}
+
+.notice-detail-container.notice-view-mode .notice-editor.ql-container {
+    height: 360px;
+    border-radius: 12px;
+}
+
 .notice-replies-panel {
     margin-top: 1.5rem;
     padding: 1.25rem;

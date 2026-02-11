@@ -205,6 +205,15 @@ function updateBreadcrumb(pageId) {
  */
 function navigateTo(pageId) {
     console.log('🔄 페이지 전환:', pageId);
+
+    if (window.__forcePasswordChange && pageId !== 'my-info') {
+        const modal = document.getElementById('initialPasswordModal');
+        if (modal) {
+            modal.classList.add('active');
+            modal.style.display = 'flex';
+        }
+        return;
+    }
     
     // 모든 페이지 숨김
     document.querySelectorAll('.page-content').forEach(page => {

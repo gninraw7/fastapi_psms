@@ -19,6 +19,7 @@ class TokenResponse(BaseModel):
     token_type: str = Field(default="bearer", description="토큰 타입")
     expires_in: int = Field(..., description="만료 시간(초)")
     company_cd: str = Field(..., description="회사 코드")
+    must_change_password: Optional[bool] = Field(default=False, description="초기 비밀번호 변경 필요 여부")
     
 class RefreshTokenRequest(BaseModel):
     """리프레시 토큰 요청"""
@@ -42,6 +43,7 @@ class UserInfo(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     status: str
+    must_change_password: Optional[bool] = None
     
     class Config:
         from_attributes = True
