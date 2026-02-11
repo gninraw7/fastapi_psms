@@ -1509,13 +1509,13 @@ body {
 
 .notice-meta-grid {
     display: grid;
-    grid-template-columns: 2.4fr 1.2fr 0.6fr 0.6fr;
+    grid-template-columns: 2.2fr 1.2fr 0.6fr 0.6fr 0.7fr 0.7fr;
     grid-template-areas:
-        "title category fixed view"
-        "status tags tags read"
-        "author start end created";
-    gap: 1rem;
-    margin-bottom: 1.5rem;
+        "title title category fixed view status"
+        "tags tags author start end read";
+    column-gap: 0.7rem;
+    row-gap: 0.25rem;
+    margin-bottom: 0.75rem;
 }
 
 .notice-field-title { grid-area: title; }
@@ -1528,7 +1528,23 @@ body {
 .notice-field-author { grid-area: author; }
 .notice-field-start { grid-area: start; }
 .notice-field-end { grid-area: end; }
-.notice-field-created { grid-area: created; }
+.notice-field-created { grid-area: created; display: none; }
+.notice-meta-grid .notice-field-created { display: none !important; }
+
+.notice-meta-grid .form-group label {
+    display: block;
+    margin: 0 0 0.2rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.notice-meta-grid .form-input,
+.notice-meta-grid .form-select {
+    flex: 1;
+    min-width: 0;
+    padding: 0.4rem 0.75rem;
+}
 
 .notice-editor-panel {
     display: flex;
@@ -2222,9 +2238,10 @@ body {
         grid-template-areas:
             "title title"
             "category fixed"
-            "view author"
-            "start end"
-            "created created";
+            "status view"
+            "tags tags"
+            "author start"
+            "end read";
     }
 }
 
