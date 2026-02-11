@@ -25,6 +25,43 @@ let currentClientFilters = {
     page_size: 25
 };
 
+function buildClientsListUrl({ page = 1, size = 25, sorters = [] } = {}) {
+    const queryParams = {
+        page,
+        page_size: size
+    };
+
+    if (currentClientFilters.search_text) {
+        queryParams.search_text = currentClientFilters.search_text;
+        if (currentClientFilters.search_field) {
+            queryParams.search_field = currentClientFilters.search_field;
+        }
+    }
+
+    if (currentClientFilters.industry_type) {
+        queryParams.industry_type = currentClientFilters.industry_type;
+    }
+    if (currentClientFilters.is_active !== '') {
+        queryParams.is_active = currentClientFilters.is_active;
+    }
+
+    if (sorters.length > 0) {
+        queryParams.sort_field = sorters[0].field;
+        queryParams.sort_dir = sorters[0].dir;
+    }
+
+    const query = new URLSearchParams(queryParams);
+    return `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${API_CONFIG.ENDPOINTS.CLIENTS_LIST}?${query.toString()}`;
+}
+
+function reloadClientsList(page = 1) {
+    if (!clientsTable) return;
+    const pageSize = typeof clientsTable.getPageSize === 'function' ? clientsTable.getPageSize() : 25;
+    const sorters = typeof clientsTable.getSorters === 'function' ? clientsTable.getSorters() : [];
+    const finalUrl = buildClientsListUrl({ page, size: pageSize, sorters });
+    clientsTable.setData(finalUrl);
+}
+
 // ===================================
 // Initialization
 // ===================================
@@ -128,37 +165,13 @@ function initializeClientsTable() {
         ajaxURL: API_CONFIG.BASE_URL + API_CONFIG.API_VERSION + "/clients/list",
         
         ajaxURLGenerator: function(url, config, params) {
-            const queryParams = {
-                page: params.page || 1,
-                page_size: params.size || 25
-            };
-            
-            // ⭐ 개선: 검색어가 있을 때만 검색 필터 적용
-            // search_field가 빈 값('')이면 전송하지 않음 → 백엔드에서 전체 검색
-            if (currentClientFilters.search_text) {
-                queryParams.search_text = currentClientFilters.search_text;
-                
-                // search_field가 있을 때만 추가
-                if (currentClientFilters.search_field) {
-                    queryParams.search_field = currentClientFilters.search_field;
-                }
-                // search_field가 없으면 백엔드에서 전체 필드 검색
-            }
-            
-            if (currentClientFilters.industry_type) {
-                queryParams.industry_type = currentClientFilters.industry_type;
-            }
-            if (currentClientFilters.is_active !== '') {
-                queryParams.is_active = currentClientFilters.is_active;
-            }
-            const sorters = params.sorters || params.sort || params.sorter || [];
-            if (sorters.length > 0) {
-                queryParams.sort_field = sorters[0].field;
-                queryParams.sort_dir = sorters[0].dir;
-            }
-            
-            const query = new URLSearchParams(queryParams);
-            const finalUrl = url + '?' + query.toString();
+            const safeParams = params || {};
+            const sorters = safeParams.sorters || safeParams.sort || safeParams.sorter || [];
+            const finalUrl = buildClientsListUrl({
+                page: safeParams.page || 1,
+                size: safeParams.size || 25,
+                sorters
+            });
             console.log('📡 API 호출:', finalUrl);
             return finalUrl;
         },
@@ -441,6 +454,13 @@ function initializeClientEventListeners() {
         });
     }
 
+    const searchField = document.getElementById('clientSearchField');
+    if (searchField) {
+        searchField.addEventListener('change', () => {
+            applyClientFilters();
+        });
+    }
+
     const industrySelect = document.getElementById('clientIndustryType');
     if (industrySelect) {
         industrySelect.addEventListener('change', () => {
@@ -486,10 +506,8 @@ function applyClientFilters() {
     currentClientFilters.page = 1;
     
     console.log('📋 필터 조건:', currentClientFilters);
-    
-    if (clientsTable) {
-        clientsTable.setPage(1);
-    }
+
+    reloadClientsList(1);
 }
 
 function resetClientFilters() {
@@ -514,9 +532,7 @@ function resetClientFilters() {
         page_size: 25
     };
     
-    if (clientsTable) {
-        clientsTable.setPage(1);
-    }
+    reloadClientsList(1);
 }
 
 // ===================================
@@ -606,9 +622,10 @@ function refreshClientsList(options = {}) {
     }
 
     if (resetPage) {
-        clientsTable.setPage(1);
+        reloadClientsList(1);
     } else {
-        clientsTable.replaceData();
+        const currentPage = typeof clientsTable.getPage === 'function' ? clientsTable.getPage() : 1;
+        reloadClientsList(currentPage || 1);
     }
 
     selectedClientRow = null;

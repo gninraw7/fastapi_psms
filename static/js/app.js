@@ -36,6 +36,8 @@ let selectedRow = null;
 let latestHistoryEnabled = false;
 let latestHistoryTooltip = null;
 let latestHistoryToggleBtn = null;
+let projectsListInitialized = false;
+let projectsListEventsBound = false;
 
 // ===================================
 // Initialization
@@ -52,29 +54,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     try {
-        // 1. STAGE 설정 로드
-        await loadStageConfig();
-        
-        // 2. 필터 초기화
-        await initializeFilters();
-        
-        // 3. 테이블 초기화 (Promise 기다리지 않음)
-        initializeTable();
-        
-        // 4. ⭐ 이벤트 리스너 즉시 등록 (테이블 빌드 기다리지 않음)
-        initializeEventListeners();
-
-        // 4-1. 최종 이력 보기 토글 초기화
-        initializeLatestHistoryControls();
-        
-        // 5. URL 파라미터 체크
-        checkURLParameters();
+        await initializeProjectsListPage();
         
         console.log('✅ 초기화 완료');
     } catch (error) {
         console.error('❌ 초기화 실패:', error);
     }
 });
+
+async function initializeProjectsListPage() {
+    const projectTableEl = document.getElementById('projectTable');
+    if (!projectTableEl) {
+        console.log('⚠️ projectTable 요소 없음, 프로젝트 목록 초기화 스킵');
+        return;
+    }
+
+    if (!projectsListInitialized) {
+        // 1. STAGE 설정 로드
+        await loadStageConfig();
+
+        // 2. 필터 초기화
+        await initializeFilters();
+
+        // 3. 테이블 초기화 (Promise 기다리지 않음)
+        initializeTable();
+
+        // 4. ⭐ 이벤트 리스너 즉시 등록 (테이블 빌드 기다리지 않음)
+        initializeEventListeners();
+
+        // 4-1. 최종 이력 보기 토글 초기화
+        initializeLatestHistoryControls();
+
+        // 5. URL 파라미터 체크
+        checkURLParameters();
+
+        projectsListInitialized = true;
+        return;
+    }
+
+    refreshProjectsList();
+}
 
 // ===================================
 // URL Parameters Check
@@ -259,43 +278,13 @@ function initializeTable() {
         ajaxURL: API_CONFIG.BASE_URL + API_CONFIG.API_VERSION + API_CONFIG.ENDPOINTS.PROJECTS_LIST,
         
         ajaxURLGenerator: function(url, config, params) {
-            const queryParams = {
-                page: params.page || 1,
-                page_size: params.size || 25
-            };
-            
-            if (currentFilters.search_field) {
-                queryParams.search_field = currentFilters.search_field;
-            }
-            if (currentFilters.search_text) {
-                queryParams.search_text = currentFilters.search_text;
-            }
-            if (currentFilters.manager_id) {
-                queryParams.manager_id = currentFilters.manager_id;
-            }
-            if (currentFilters.field_code) {
-                queryParams.field_code = currentFilters.field_code;
-            }
-            if (currentFilters.service_code) {
-                queryParams.service_code = currentFilters.service_code;
-            }
-            if (currentFilters.current_stage) {
-                queryParams.current_stage = currentFilters.current_stage;
-            }
-            if (currentFilters.status) {
-                queryParams.status = currentFilters.status;
-            }
-            if (currentFilters.sales_plan_id) {
-                queryParams.sales_plan_id = currentFilters.sales_plan_id;
-            }
-            const sorters = params.sorters || params.sort || params.sorter || [];
-            if (sorters.length > 0) {
-                queryParams.sort_field = sorters[0].field;
-                queryParams.sort_dir = sorters[0].dir;
-            }
-            
-            const query = new URLSearchParams(queryParams);
-            const finalUrl = url + '?' + query.toString();
+            const safeParams = params || {};
+            const sorters = safeParams.sorters || safeParams.sort || safeParams.sorter || [];
+            const finalUrl = buildProjectsListUrl({
+                page: safeParams.page || 1,
+                size: safeParams.size || 25,
+                sorters
+            });
             console.log('📡 API 호출:', finalUrl);
             return finalUrl;
         },
@@ -546,6 +535,8 @@ function updateEditButton() {
 // ⭐ 개선: [신규] 버튼 클릭 시 openProjectForm('new') 호출
 // ===================================
 function initializeEventListeners() {
+    if (projectsListEventsBound) return;
+    projectsListEventsBound = true;
     console.log('🔧 이벤트 리스너 초기화 시작...');
     
     // 새로고침 버튼
@@ -553,7 +544,7 @@ function initializeEventListeners() {
     if (btnRefresh) {
         btnRefresh.addEventListener('click', function() {
             console.log('🔄 새로고침 클릭');
-            if (projectTable) projectTable.setData();
+            refreshProjectsList();
         });
         console.log('  ✓ btnRefresh 이벤트 등록');
     } else {
@@ -617,7 +608,7 @@ function initializeEventListeners() {
             if (e.key === 'Enter') {
                 currentFilters.search_text = e.target.value;
                 console.log('🔍 검색 실행 (Enter):', currentFilters.search_text);
-                if (projectTable) projectTable.setData();
+                reloadProjectsList(1);
             }
         });
         searchText.addEventListener('blur', function(e) {
@@ -635,7 +626,7 @@ function initializeEventListeners() {
             var searchTextEl = document.getElementById('searchText');
             currentFilters.search_text = searchTextEl ? searchTextEl.value : '';
             console.log('🔍 검색 실행 (버튼):', currentFilters.search_text);
-            if (projectTable) projectTable.setData();
+            reloadProjectsList(1);
         });
         console.log('  ✓ btnSearch 이벤트 등록');
     }
@@ -646,7 +637,7 @@ function initializeEventListeners() {
         filterManager.addEventListener('change', function(e) {
             currentFilters.manager_id = e.target.value;
             console.log('🔍 담당자 필터:', currentFilters.manager_id);
-            if (projectTable) projectTable.setData();
+            reloadProjectsList(1);
         });
         console.log('  ✓ filterManager 이벤트 등록');
     } else {
@@ -659,7 +650,7 @@ function initializeEventListeners() {
         filterField.addEventListener('change', function(e) {
             currentFilters.field_code = e.target.value;
             console.log('🔍 사업분야 필터:', currentFilters.field_code);
-            if (projectTable) projectTable.setData();
+            reloadProjectsList(1);
         });
         console.log('  ✓ filterField 이벤트 등록');
     } else {
@@ -672,7 +663,7 @@ function initializeEventListeners() {
         filterService.addEventListener('change', function(e) {
             currentFilters.service_code = e.target.value;
             console.log('🔍 서비스 필터:', currentFilters.service_code);
-            if (projectTable) projectTable.setData();
+            reloadProjectsList(1);
         });
         console.log('  ✓ filterService 이벤트 등록');
     } else {
@@ -685,7 +676,7 @@ function initializeEventListeners() {
         filterStage.addEventListener('change', function(e) {
             currentFilters.current_stage = e.target.value;
             console.log('🔍 진행단계 필터:', currentFilters.current_stage);
-            if (projectTable) projectTable.setData();
+            reloadProjectsList(1);
         });
         console.log('  ✓ filterStage 이벤트 등록');
     } else {
@@ -698,7 +689,7 @@ function initializeEventListeners() {
         filterStatus.addEventListener('change', function(e) {
             currentFilters.status = e.target.value;
             console.log('🔍 상태 필터:', currentFilters.status);
-            if (projectTable) projectTable.setData();
+            reloadProjectsList(1);
         });
         console.log('  ✓ filterStatus 이벤트 등록');
     } else {
@@ -711,7 +702,7 @@ function initializeEventListeners() {
         filterSalesPlan.addEventListener('change', function(e) {
             currentFilters.sales_plan_id = e.target.value;
             console.log('🔍 영업계획 필터:', currentFilters.sales_plan_id);
-            if (projectTable) projectTable.setData();
+            reloadProjectsList(1);
         });
         console.log('  ✓ filterSalesPlan 이벤트 등록');
     } else {
@@ -724,6 +715,7 @@ function initializeEventListeners() {
         pageSize.addEventListener('change', function(e) {
             const size = parseInt(e.target.value, 10);
             console.log('📄 페이지 크기 변경:', size);
+            currentFilters.page_size = size;
             if (projectTable) projectTable.setPageSize(size);
         });
         console.log('  ✓ pageSize 이벤트 등록');
@@ -1130,6 +1122,29 @@ function buildProjectListQueryParams(page = 1, pageSize = 25) {
     }
 
     return params;
+}
+
+function buildProjectsListUrl({ page = 1, size = 25, sorters = [] } = {}) {
+    const params = buildProjectListQueryParams(page, size);
+    if (sorters.length > 0) {
+        params.sort_field = sorters[0].field;
+        params.sort_dir = sorters[0].dir || 'asc';
+    }
+    const query = new URLSearchParams(params);
+    return `${API_CONFIG.BASE_URL}${API_CONFIG.API_VERSION}${API_CONFIG.ENDPOINTS.PROJECTS_LIST}?${query.toString()}`;
+}
+
+function reloadProjectsList(page = 1) {
+    if (!projectTable) return;
+    const pageSize = typeof projectTable.getPageSize === 'function' ? projectTable.getPageSize() : 25;
+    const sorters = typeof projectTable.getSorters === 'function' ? projectTable.getSorters() : [];
+    const finalUrl = buildProjectsListUrl({ page, size: pageSize, sorters });
+    projectTable.setData(finalUrl);
+}
+
+function refreshProjectsList() {
+    const currentPage = projectTable && typeof projectTable.getPage === 'function' ? projectTable.getPage() : 1;
+    reloadProjectsList(currentPage || 1);
 }
 
 function getDateIsoString(dateObj) {
@@ -1555,5 +1570,6 @@ window.openExcelExportModal = openExcelExportModal;
 window.closeExcelExportModal = closeExcelExportModal;
 window.onExcelExportTypeChange = onExcelExportTypeChange;
 window.runExcelExport = runExcelExport;
+window.initializeProjectsListPage = initializeProjectsListPage;
 
 console.log('📦 app.js 모듈 로드 완료');

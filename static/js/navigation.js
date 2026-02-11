@@ -493,7 +493,9 @@ function initializePage(pageId) {
         case 'projects-list':
             // 프로젝트 목록 페이지
             console.log('📋 프로젝트 목록 초기화');
-            if (typeof projectTable !== 'undefined' && projectTable) {
+            if (typeof window.initializeProjectsListPage === 'function') {
+                window.initializeProjectsListPage();
+            } else if (typeof projectTable !== 'undefined' && projectTable) {
                 projectTable.setData();
             }
             break;
