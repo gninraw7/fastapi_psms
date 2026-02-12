@@ -54,6 +54,11 @@
     margin-bottom: 1rem;
 }
 
+.ph-control-row.ph-week-controls {
+    display: none;
+    align-items: flex-end;
+}
+
 .ph-control-row:last-child {
     margin-bottom: 0;
 }
@@ -69,6 +74,136 @@
 .ph-control-row.ph-view-row {
     align-items: flex-end;
     justify-content: space-between;
+}
+
+.ph-sort-controls {
+    min-width: 220px;
+}
+
+.ph-sort-switch {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.ph-sort-fixed {
+    font-size: 0.85rem;
+    color: #4b5563;
+    white-space: nowrap;
+}
+
+.ph-sort-fixed.active {
+    color: #1e3a8a;
+    font-weight: 700;
+}
+
+.ph-sort-controls .form-switch {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 24px;
+}
+
+.ph-sort-controls .form-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.ph-sort-controls .form-switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #cbd5f5;
+    transition: 0.3s;
+    border-radius: 999px;
+}
+
+.ph-sort-controls .form-switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: #ffffff;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.ph-sort-controls .form-switch input:checked + .form-switch-slider {
+    background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+}
+
+.ph-sort-controls .form-switch input:focus + .form-switch-slider {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+.ph-sort-controls .form-switch input:checked + .form-switch-slider:before {
+    transform: translateX(24px);
+}
+
+#page-project-history-calendar[data-history-view="year"] .ph-view-toggle {
+    flex-wrap: nowrap;
+    overflow: visible;
+}
+
+#page-project-history-calendar[data-history-view="year"] .ph-view-toggle .btn {
+    white-space: nowrap;
+}
+
+#page-project-history-calendar[data-history-view="year"] .ph-control-row.ph-view-row {
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+#page-project-history-calendar[data-history-view="year"] .ph-control-row.ph-view-row > .ph-control-group {
+    flex: 0 0 auto;
+}
+
+#page-project-history-calendar[data-history-view="year"] .ph-sort-controls {
+    order: 1;
+}
+
+#page-project-history-calendar[data-history-view="year"] .ph-year-controls {
+    order: 2;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 0.5rem;
+    overflow-x: visible;
+}
+
+#page-project-history-calendar[data-history-view="year"] .ph-tooltip-toggle {
+    order: 3;
+    margin-left: auto;
+}
+
+#page-project-history-calendar[data-history-view="year"] .ph-year-controls .ph-control-group {
+    min-width: 120px;
+}
+
+#page-project-history-calendar[data-history-view="year"] #historyYearSelect {
+    min-width: 110px;
+}
+
+#page-project-history-calendar[data-history-view="year"] #historyYearLayout {
+    min-width: 90px;
+}
+
+#page-project-history-calendar[data-history-view="year"] #historyMonthOrder {
+    min-width: 120px;
+}
+
+#page-project-history-calendar[data-history-view="year"] #historyMonthSlot {
+    width: 48px;
+    min-width: 48px;
+}
+
+#page-project-history-calendar[data-history-view="year"] .ph-year-controls .ph-inline-controls .form-select {
+    min-width: 110px;
 }
 
 .ph-year-controls {
@@ -122,6 +257,15 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 0.5rem;
+}
+
+.ph-week-range {
+    flex: 2 1 320px;
+    min-width: 260px;
+}
+
+.ph-week-range .form-input {
+    min-width: 140px;
 }
 
 .ph-date-sep {
@@ -220,6 +364,27 @@
 .ph-selection-actions {
     display: flex;
     gap: 0.5rem;
+    align-items: center;
+}
+
+.ph-select-all {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #334155;
+    font-size: 0.85rem;
+}
+
+.ph-select-all-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+}
+
+.ph-select-all input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
 }
 
 .ph-view-container {
@@ -380,6 +545,15 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+}
+
+.ph-week-empty {
+    padding: 1rem;
+    text-align: center;
+    color: #64748b;
+    background: #f8fafc;
+    border: 1px dashed #cbd5f5;
+    border-radius: 12px;
 }
 
 .ph-week-day {

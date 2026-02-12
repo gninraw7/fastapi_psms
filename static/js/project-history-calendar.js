@@ -12,6 +12,9 @@ let historyActiveView = 'year';
 let historyDailyDate = null;
 let historyMonthAnchorDate = new Date();
 let historyWeekAnchorDate = new Date();
+let historyWeekStartDay = 1;
+let historyWeekCustomRange = { start: '', end: '' };
+let historySortOrder = 'start';
 let historyModifierState = { ctrl: false, meta: false, shift: false };
 let historyHolidayIndex = {};
 let historyHolidayYears = new Set();
@@ -78,6 +81,7 @@ function initializeProjectHistoryCalendar() {
         historyRestoringState = true;
         historyRestoreStatus = { filters: false, projects: false };
     }
+    updateHistorySortToggle();
     setHistoryView(historyActiveView);
     syncMonthSlotInput();
 
@@ -118,6 +122,72 @@ function bindHistoryCalendarEvents() {
             setHistoryTooltipEnabled(tooltipToggle.checked);
         });
     }
+
+    const sortToggle = document.getElementById('historySortToggle');
+    if (sortToggle && !sortToggle.dataset.bound) {
+        sortToggle.dataset.bound = 'true';
+        sortToggle.addEventListener('change', () => {
+            const order = sortToggle.checked ? 'recent' : 'start';
+            setHistorySortOrder(order);
+        });
+    }
+
+    const selectAllToggle = document.getElementById('historySelectAllToggle');
+    if (selectAllToggle && !selectAllToggle.dataset.bound) {
+        selectAllToggle.dataset.bound = 'true';
+        selectAllToggle.addEventListener('change', () => {
+            if (historyActiveView !== 'week') return;
+            const dates = getVisibleWeekDatesWithItems();
+            if (selectAllToggle.checked) {
+                historySelectedDates = new Set(dates);
+            } else {
+                historySelectedDates = new Set();
+            }
+            updateHistorySelectionSummary();
+            updateCalendarSelectionStyles();
+            renderHistoryYearView();
+            renderHistoryWeekList();
+        });
+    }
+
+    const weekStartSelect = document.getElementById('historyWeekStartDay');
+    if (weekStartSelect && !weekStartSelect.dataset.bound) {
+        weekStartSelect.dataset.bound = 'true';
+        weekStartSelect.addEventListener('change', () => {
+            historyWeekStartDay = normalizeHistoryWeekStartDay(weekStartSelect.value);
+            syncHistoryWeekControls();
+            saveHistorySettings();
+            if (historyActiveView === 'week' && !isHistoryWeekCustomRangeActive()) {
+                renderHistoryWeekList();
+                loadHistoryCalendarData();
+            }
+        });
+    }
+
+    bindButton('btnHistoryWeekApply', () => {
+        applyHistoryWeekCustomRange();
+    });
+    bindButton('btnHistoryWeekClear', () => {
+        clearHistoryWeekCustomRange(true);
+        if (historyActiveView === 'week') {
+            renderHistoryWeekList();
+            loadHistoryCalendarData();
+        }
+        saveHistorySettings();
+    });
+
+    const weekRangeInputs = ['historyWeekFrom', 'historyWeekTo'];
+    weekRangeInputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (!input || input.dataset.bound) return;
+        input.dataset.bound = 'true';
+        input.addEventListener('keydown', evt => {
+            if (evt.key === 'Enter') {
+                evt.preventDefault();
+                applyHistoryWeekCustomRange();
+            }
+        });
+    });
 
     const selects = [
         'historyFilterField',
@@ -229,6 +299,9 @@ function resetHistoryToDefaults() {
     historyProjectTotalPages = 1;
     historyProjectSelected = '__ALL__';
     historyTooltipEnabled = false;
+    historyWeekStartDay = 1;
+    historyWeekCustomRange = { start: '', end: '' };
+    historySortOrder = 'start';
 
     const today = new Date();
     historyMonthAnchorDate = new Date(today);
@@ -250,6 +323,8 @@ function resetHistoryToDefaults() {
     if (projectSearch) projectSearch.value = '';
     const tooltipToggle = document.getElementById('historyTooltipToggle');
     if (tooltipToggle) tooltipToggle.checked = false;
+    syncHistoryWeekControls();
+    updateHistorySortToggle();
 
     applyMultiSelectValues('historyFilterField', []);
     applyMultiSelectValues('historyFilterService', []);
@@ -318,6 +393,174 @@ function syncMonthSlotInput() {
     slotInput.disabled = orderSelect.value !== 'current-slot';
 }
 
+function normalizeHistorySortOrder(value) {
+    return value === 'recent' ? 'recent' : 'start';
+}
+
+function updateHistorySortToggle() {
+    const toggle = document.getElementById('historySortToggle');
+    const recentLabel = document.getElementById('historySortLabelRecent');
+    const startLabel = document.getElementById('historySortLabelStart');
+    const isRecent = historySortOrder === 'recent';
+    if (toggle) toggle.checked = isRecent;
+    if (recentLabel) recentLabel.classList.toggle('active', isRecent);
+    if (startLabel) startLabel.classList.toggle('active', !isRecent);
+}
+
+function setHistorySortOrder(order) {
+    historySortOrder = normalizeHistorySortOrder(order);
+    updateHistorySortToggle();
+    sortHistoryDateIndex();
+    renderHistoryView();
+    saveHistorySettings();
+    loadHistoryCalendarData();
+}
+
+function parseDateTimeToMs(value) {
+    if (!value) return 0;
+    if (value instanceof Date) return value.getTime();
+    const normalized = formatDateTimeValue(value).replace(' ', 'T');
+    const parsed = Date.parse(normalized);
+    if (!Number.isNaN(parsed)) return parsed;
+    const fallback = new Date(value);
+    return Number.isNaN(fallback.getTime()) ? 0 : fallback.getTime();
+}
+
+function compareHistoryItems(a, b) {
+    const direction = historySortOrder === 'recent' ? -1 : 1;
+    const baseA = a?.base_date ? parseDateInput(a.base_date).getTime() : 0;
+    const baseB = b?.base_date ? parseDateInput(b.base_date).getTime() : 0;
+    if (baseA !== baseB) return (baseA - baseB) * direction;
+
+    const createdA = parseDateTimeToMs(a?.created_at || a?.updated_at);
+    const createdB = parseDateTimeToMs(b?.created_at || b?.updated_at);
+    if (createdA !== createdB) return (createdA - createdB) * direction;
+
+    const idA = String(a?.history_id || a?.pipeline_id || '');
+    const idB = String(b?.history_id || b?.pipeline_id || '');
+    return idA.localeCompare(idB);
+}
+
+function sortHistoryDateIndex() {
+    Object.keys(historyDateIndex || {}).forEach(key => {
+        const items = historyDateIndex[key];
+        if (Array.isArray(items)) items.sort(compareHistoryItems);
+    });
+}
+
+function normalizeHistoryWeekStartDay(value) {
+    const day = Number(value);
+    if (Number.isInteger(day) && day >= 0 && day <= 6) return day;
+    return 1;
+}
+
+function isValidDateInput(value) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim());
+}
+
+function isHistoryWeekCustomRangeActive() {
+    return isValidDateInput(historyWeekCustomRange.start)
+        && isValidDateInput(historyWeekCustomRange.end);
+}
+
+function getHistoryWeekRange() {
+    const today = new Date();
+    if (isHistoryWeekCustomRangeActive()) {
+        const startDate = parseDateInput(historyWeekCustomRange.start);
+        const endDate = parseDateInput(historyWeekCustomRange.end);
+        if (startDate <= endDate) {
+            return {
+                start: formatDateInput(startDate),
+                end: formatDateInput(endDate),
+                source: 'custom',
+                days: Math.floor((endDate - startDate) / 86400000) + 1
+            };
+        }
+    }
+
+    const base = historyWeekAnchorDate || today;
+    const startDay = normalizeHistoryWeekStartDay(historyWeekStartDay);
+    const diff = (base.getDay() - startDay + 7) % 7;
+    const startDate = new Date(base);
+    startDate.setDate(base.getDate() - diff);
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 6);
+    return {
+        start: formatDateInput(startDate),
+        end: formatDateInput(endDate),
+        source: 'week',
+        days: 7
+    };
+}
+
+function getVisibleWeekDatesWithItems() {
+    if (historyActiveView !== 'week') return [];
+    const range = getHistoryWeekRange();
+    if (!range) return [];
+    const dates = [];
+    const start = parseDateInput(range.start);
+    const end = parseDateInput(range.end);
+    for (let cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+        const dateStr = formatDateInput(cursor);
+        if ((historyDateIndex[dateStr] || []).length) {
+            dates.push(dateStr);
+        }
+    }
+    return dates;
+}
+
+function syncHistoryWeekControls() {
+    const row = document.getElementById('historyWeekControls');
+    if (!row) return;
+    const isWeek = historyActiveView === 'week';
+    row.style.display = isWeek ? 'flex' : 'none';
+
+    const startSelect = document.getElementById('historyWeekStartDay');
+    if (startSelect) startSelect.value = String(normalizeHistoryWeekStartDay(historyWeekStartDay));
+
+    const fromInput = document.getElementById('historyWeekFrom');
+    const toInput = document.getElementById('historyWeekTo');
+    if (fromInput) fromInput.value = historyWeekCustomRange.start || '';
+    if (toInput) toInput.value = historyWeekCustomRange.end || '';
+}
+
+function applyHistoryWeekCustomRange() {
+    const fromInput = document.getElementById('historyWeekFrom');
+    const toInput = document.getElementById('historyWeekTo');
+    const start = fromInput?.value || '';
+    const end = toInput?.value || '';
+
+    if (!isValidDateInput(start) || !isValidDateInput(end)) {
+        alert('시작일과 종료일을 모두 입력해 주세요.');
+        return;
+    }
+
+    const startDate = parseDateInput(start);
+    const endDate = parseDateInput(end);
+    if (startDate > endDate) {
+        alert('종료일이 시작일보다 빠를 수 없습니다.');
+        return;
+    }
+
+    historyWeekCustomRange = { start, end };
+    historyWeekAnchorDate = new Date(startDate);
+    historyMonthAnchorDate = new Date(startDate);
+    syncHistoryWeekControls();
+    renderHistoryWeekList();
+    loadHistoryCalendarData();
+    saveHistorySettings();
+}
+
+function clearHistoryWeekCustomRange(resetAnchor = true) {
+    historyWeekCustomRange = { start: '', end: '' };
+    if (resetAnchor) {
+        const today = new Date();
+        historyWeekAnchorDate = new Date(today);
+        historyMonthAnchorDate = new Date(today);
+    }
+    syncHistoryWeekControls();
+}
+
 function shiftHistoryRange(direction) {
     if (historyActiveView === 'year') {
         const yearSelect = document.getElementById('historyYearSelect');
@@ -347,11 +590,29 @@ function shiftHistoryRange(direction) {
     }
 
     if (historyActiveView === 'week') {
-        const base = historyWeekAnchorDate || new Date();
-        const target = new Date(base);
-        target.setDate(target.getDate() + (direction * 7));
-        historyWeekAnchorDate = target;
-        historyMonthAnchorDate = new Date(target);
+        if (isHistoryWeekCustomRangeActive()) {
+            const range = getHistoryWeekRange();
+            const startDate = parseDateInput(range.start);
+            const endDate = parseDateInput(range.end);
+            const spanDays = Math.max(1, Math.floor((endDate - startDate) / 86400000) + 1);
+            const nextStart = new Date(startDate);
+            const nextEnd = new Date(endDate);
+            nextStart.setDate(startDate.getDate() + (direction * spanDays));
+            nextEnd.setDate(endDate.getDate() + (direction * spanDays));
+            historyWeekCustomRange = {
+                start: formatDateInput(nextStart),
+                end: formatDateInput(nextEnd)
+            };
+            historyWeekAnchorDate = new Date(nextStart);
+            historyMonthAnchorDate = new Date(nextStart);
+            syncHistoryWeekControls();
+        } else {
+            const base = historyWeekAnchorDate || new Date();
+            const target = new Date(base);
+            target.setDate(target.getDate() + (direction * 7));
+            historyWeekAnchorDate = target;
+            historyMonthAnchorDate = new Date(target);
+        }
         renderHistoryWeekList();
         loadHistoryCalendarData();
         return;
@@ -380,6 +641,7 @@ function moveHistoryToToday() {
     }
 
     if (historyActiveView === 'week') {
+        clearHistoryWeekCustomRange(false);
         renderHistoryWeekList();
     }
 
@@ -665,10 +927,8 @@ function getVisibleRange() {
     }
 
     if (historyActiveView === 'week') {
-        const base = historyWeekAnchorDate || today;
-        const start = new Date(base.getFullYear(), base.getMonth(), 1);
-        const end = new Date(base.getFullYear(), base.getMonth() + 1, 0);
-        return { start: formatDateInput(start), end: formatDateInput(end) };
+        const range = getHistoryWeekRange();
+        return range ? { start: range.start, end: range.end } : null;
     }
 
     if (historyActiveView === 'daily') {
@@ -714,6 +974,7 @@ function buildHistoryDateIndex() {
         if (!historyDateIndex[key]) historyDateIndex[key] = [];
         historyDateIndex[key].push(item);
     });
+    sortHistoryDateIndex();
 }
 
 function normalizeSelectedDates() {
@@ -747,6 +1008,8 @@ function renderHistoryView() {
 
 function setHistoryView(view) {
     historyActiveView = view;
+    const page = document.getElementById('page-project-history-calendar');
+    if (page) page.dataset.historyView = view;
 
     document.querySelectorAll('.ph-view-toggle .btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.view === view);
@@ -779,7 +1042,9 @@ function setHistoryView(view) {
         }
     }
     if (view === 'week') {
-        if (historySelectedDates.size > 0) {
+        if (isHistoryWeekCustomRangeActive()) {
+            historyWeekAnchorDate = parseDateInput(historyWeekCustomRange.start);
+        } else if (historySelectedDates.size > 0) {
             const selected = Array.from(historySelectedDates).sort()[0];
             historyWeekAnchorDate = new Date(selected);
         } else if (!historyWeekAnchorDate) {
@@ -791,6 +1056,8 @@ function setHistoryView(view) {
         historyDailyDate = formatDateInput(new Date());
     }
 
+    syncHistoryWeekControls();
+    updateHistorySelectAllToggle();
     renderHistoryView();
     updateHistoryPeriodLabel();
     if (historyRestoringState) return;
@@ -1195,49 +1462,66 @@ function renderHistoryWeekList() {
     const container = document.getElementById('historyWeekList');
     if (!container) return;
 
-    const baseDate = historyWeekAnchorDate || new Date();
-    const year = baseDate.getFullYear();
-    const month = baseDate.getMonth();
-    const monthLabel = `${year}년 ${month + 1}월`;
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const range = getHistoryWeekRange();
+    if (!range) return;
+
+    const startDate = parseDateInput(range.start);
+    const endDate = parseDateInput(range.end);
+    const totalDays = range.days || 0;
     let visibleDays = 0;
     const dayBlocks = [];
 
-    for (let day = 1; day <= daysInMonth; day += 1) {
-        const dateStr = formatDateInput(new Date(year, month, day));
+    const direction = historySortOrder === 'recent' ? -1 : 1;
+    const startCursor = historySortOrder === 'recent' ? endDate : startDate;
+    const endCursor = historySortOrder === 'recent' ? startDate : endDate;
+
+    for (let cursor = new Date(startCursor);
+        direction === 1 ? cursor <= endCursor : cursor >= endCursor;
+        cursor.setDate(cursor.getDate() + direction)) {
+        const dateStr = formatDateInput(cursor);
         const items = historyDateIndex[dateStr] || [];
-        if (!items.length) continue;
+        if (!items.length) {
+            continue;
+        }
         visibleDays += 1;
         const isSelected = historySelectedDates.has(dateStr);
+        const dateLabel = formatDateWithWeekday(dateStr);
+        const itemsHtml = items.map(item => renderWeekItem(item)).join('');
         dayBlocks.push(`
             <div class="ph-week-day ${isSelected ? 'selected' : ''}" data-date="${dateStr}">
                 <div class="ph-week-day-header">
-                    <span>${dateStr}</span>
+                    <span>${dateLabel}</span>
                     <span class="ph-week-day-count">${items.length}건</span>
                 </div>
                 <div class="ph-week-items">
-                    ${items.map(item => renderWeekItem(item)).join('')}
+                    ${itemsHtml}
                 </div>
             </div>
         `);
     }
 
-    if (!visibleDays) {
-        dayBlocks.push('<div class="ph-week-day"><div class="ph-week-item">이력 없음</div></div>');
-    }
+    const emptyMessage = dayBlocks.length
+        ? ''
+        : '<div class="ph-week-empty">이력 없음</div>';
 
+    const rangeLabel = `${range.start} ~ ${range.end}`;
+    const rangeHint = range.source === 'custom'
+        ? '맞춤 기간'
+        : `${getWeekdayName(normalizeHistoryWeekStartDay(historyWeekStartDay))} 시작`;
     let html = `
         <div class="ph-week-header">
-            <div class="ph-week-title">${monthLabel}</div>
-            <div class="ph-week-day-count">표시 ${visibleDays}일 / 총 ${daysInMonth}일</div>
+            <div class="ph-week-title">${rangeLabel} <span class="ph-period-sub">${rangeHint}</span></div>
+            <div class="ph-week-day-count">표시 ${visibleDays}일 / 총 ${totalDays}일</div>
         </div>
         <div class="ph-week-days">
             ${dayBlocks.join('')}
+            ${emptyMessage}
         </div>
     `;
     container.innerHTML = html;
     bindWeekListEvents(container);
     updateHistoryPeriodLabel();
+    updateHistorySelectAllToggle();
 }
 
 function renderWeekItem(item) {
@@ -1392,6 +1676,22 @@ function handleDateSelection(dateStr, evt) {
     renderHistoryWeekList();
 }
 
+function updateHistorySelectAllToggle() {
+    const wrap = document.getElementById('historySelectAllWrap');
+    const toggle = document.getElementById('historySelectAllToggle');
+    if (!wrap || !toggle) return;
+    const isWeek = historyActiveView === 'week';
+    wrap.style.display = isWeek ? 'flex' : 'none';
+    if (!isWeek) {
+        toggle.checked = false;
+        toggle.disabled = true;
+        return;
+    }
+    const dates = getVisibleWeekDatesWithItems();
+    toggle.disabled = dates.length === 0;
+    toggle.checked = dates.length > 0 && dates.every(dateStr => historySelectedDates.has(dateStr));
+}
+
 function updateHistorySelectionSummary() {
     const summary = document.getElementById('historySelectionSummary');
     if (summary) {
@@ -1403,6 +1703,7 @@ function updateHistorySelectionSummary() {
     const enabled = historySelectedDates.size > 0;
     if (viewBtn) viewBtn.disabled = !enabled;
     if (exportBtn) exportBtn.disabled = !enabled;
+    updateHistorySelectAllToggle();
 }
 
 function openProjectHistoryModal() {
@@ -1467,7 +1768,7 @@ function getSelectedHistoryItems() {
     historySelectedDates.forEach(dateStr => {
         (historyDateIndex[dateStr] || []).forEach(item => items.push(item));
     });
-    return items.sort((a, b) => (a.base_date || '').localeCompare(b.base_date || ''));
+    return items.sort(compareHistoryItems);
 }
 
 function exportSelectedHistoryToExcel() {
@@ -1490,20 +1791,20 @@ function exportSelectedHistoryToExcel() {
     ];
 
     const rows = items.map(item => ([
-        item.pipeline_id || '',
-        item.field_code || '',
-        item.service_code || '',
-        item.project_name || '',
-        item.customer_name || '',
-        item.manager_name || item.manager_id || '',
-        item.org_name || item.org_id || '',
-        item.base_date || '',
-        item.activity_type_name || getActivityTypeName(item.activity_type) || '',
-        item.strategy_content || '',
-        formatDateTimeValue(item.created_at),
-        formatDateTimeValue(item.updated_at),
-        item.created_by || '',
-        item.updated_by || ''
+        sanitizeExcelValue(item.pipeline_id || ''),
+        sanitizeExcelValue(item.field_code || ''),
+        sanitizeExcelValue(item.service_code || ''),
+        sanitizeExcelValue(item.project_name || ''),
+        sanitizeExcelValue(item.customer_name || ''),
+        sanitizeExcelValue(item.manager_name || item.manager_id || ''),
+        sanitizeExcelValue(item.org_name || item.org_id || ''),
+        sanitizeExcelValue(item.base_date || ''),
+        sanitizeExcelValue(item.activity_type_name || getActivityTypeName(item.activity_type) || ''),
+        sanitizeExcelValue(item.strategy_content || ''),
+        sanitizeExcelValue(formatDateTimeValue(item.created_at)),
+        sanitizeExcelValue(formatDateTimeValue(item.updated_at)),
+        sanitizeExcelValue(item.created_by || ''),
+        sanitizeExcelValue(item.updated_by || '')
     ]));
 
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
@@ -1618,6 +1919,15 @@ function formatDateTimeValue(value) {
     return s;
 }
 
+function sanitizeExcelValue(value) {
+    if (value === null || typeof value === 'undefined') return '';
+    const text = String(value);
+    return text
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+        .replace(/[\uFFFE\uFFFF]/g, '')
+        .replace(/[\uD800-\uDFFF]/g, '');
+}
+
 function parseDateInput(dateStr) {
     if (!dateStr) return new Date();
     const parts = String(dateStr).split('-').map(Number);
@@ -1630,6 +1940,11 @@ function formatDateWithWeekday(dateStr) {
     const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
     const dayLabel = weekdays[date.getDay()] || '';
     return `${formatDateInput(date)} (${dayLabel})`;
+}
+
+function getWeekdayName(dayIndex) {
+    const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+    return weekdays[dayIndex] || '';
 }
 
 function updateHistoryNavRight() {
@@ -1827,6 +2142,12 @@ function saveHistorySettings() {
             keyword: document.getElementById('historyProjectSearch')?.value || '',
             selected: historyProjectSelected || '__ALL__'
         },
+        sortOrder: normalizeHistorySortOrder(historySortOrder),
+        weekStartDay: normalizeHistoryWeekStartDay(historyWeekStartDay),
+        weekRange: {
+            from: historyWeekCustomRange.start || '',
+            to: historyWeekCustomRange.end || ''
+        },
         anchors: {
             month: historyMonthAnchorDate ? formatDateInput(historyMonthAnchorDate) : '',
             week: historyWeekAnchorDate ? formatDateInput(historyWeekAnchorDate) : '',
@@ -1850,6 +2171,16 @@ function loadHistorySettings() {
 
         if (state.view) historyActiveView = state.view;
         if (typeof state.tooltip === 'boolean') historyTooltipEnabled = state.tooltip;
+        if (state.sortOrder) historySortOrder = normalizeHistorySortOrder(state.sortOrder);
+        if (typeof state.weekStartDay !== 'undefined') {
+            historyWeekStartDay = normalizeHistoryWeekStartDay(state.weekStartDay);
+        }
+        if (state.weekRange && (state.weekRange.from || state.weekRange.to)) {
+            historyWeekCustomRange = {
+                start: state.weekRange.from || '',
+                end: state.weekRange.to || ''
+            };
+        }
         if (state.year) {
             const year = Number(state.year);
             if (!Number.isNaN(year)) setHistoryYearAnchor(year);
@@ -1865,6 +2196,11 @@ function loadHistorySettings() {
         if (state.anchors?.month) historyMonthAnchorDate = parseDateInput(state.anchors.month);
         if (state.anchors?.week) historyWeekAnchorDate = parseDateInput(state.anchors.week);
         if (state.anchors?.daily) historyDailyDate = state.anchors.daily;
+
+        if (isHistoryWeekCustomRangeActive()) {
+            historyWeekAnchorDate = parseDateInput(historyWeekCustomRange.start);
+            historyMonthAnchorDate = new Date(historyWeekAnchorDate);
+        }
 
         const projectSearch = document.getElementById('historyProjectSearch');
         if (projectSearch && state.project?.keyword) {
@@ -2016,11 +2352,15 @@ function updateHistoryPeriodLabel() {
     }
 
     if (historyActiveView === 'week') {
-        const base = historyWeekAnchorDate || today;
-        const weekOfMonth = getWeekOfMonth(base);
-        const weekOfYear = getWeekOfYear(base);
-        const totalWeeks = getTotalWeeksInYear(base.getFullYear());
-        label.innerHTML = `${base.getFullYear()}년 ${base.getMonth() + 1}월 ${weekOfMonth}주 <span class="ph-period-sub">(${weekOfYear}주/${totalWeeks}주)</span>`;
+        const range = getHistoryWeekRange();
+        if (range) {
+            const rangeHint = range.source === 'custom'
+                ? '맞춤 기간'
+                : `${getWeekdayName(normalizeHistoryWeekStartDay(historyWeekStartDay))} 시작`;
+            label.innerHTML = `${range.start} ~ ${range.end} <span class="ph-period-sub">${rangeHint}</span>`;
+        } else {
+            label.textContent = '-';
+        }
         return;
     }
 

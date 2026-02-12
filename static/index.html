@@ -1284,9 +1284,6 @@
                 </div>
 
                 <div class="ph-controls">
-                    <div class="ph-control-row">
-                    </div>
-
                     <div class="ph-control-row ph-filter-row">
                         <div class="ph-control-group">
                             <label><i class="fas fa-tags"></i> 분야</label>
@@ -1316,6 +1313,35 @@
                         </div>
                     </div>
 
+                    <div class="ph-control-row ph-week-controls" id="historyWeekControls">
+                        <div class="ph-control-group">
+                            <label><i class="fas fa-calendar-week"></i> 시작요일</label>
+                            <select id="historyWeekStartDay" class="form-select">
+                                <option value="1" selected>월요일</option>
+                                <option value="2">화요일</option>
+                                <option value="3">수요일</option>
+                                <option value="4">목요일</option>
+                                <option value="5">금요일</option>
+                                <option value="6">토요일</option>
+                                <option value="0">일요일</option>
+                            </select>
+                        </div>
+                        <div class="ph-control-group ph-week-range">
+                            <label><i class="fas fa-calendar-alt"></i> 기간 (From ~ To)</label>
+                            <div class="ph-date-range">
+                                <input type="date" id="historyWeekFrom" class="form-input">
+                                <span class="ph-date-sep">~</span>
+                                <input type="date" id="historyWeekTo" class="form-input">
+                                <button class="btn btn-secondary" id="btnHistoryWeekApply">
+                                    <i class="fas fa-search"></i> 조회
+                                </button>
+                                <button class="btn btn-outline" id="btnHistoryWeekClear">
+                                    <i class="fas fa-rotate-left"></i> 초기화
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="ph-control-row ph-view-row">
                         <div class="ph-control-group">
                             <label><i class="fas fa-layer-group"></i> 보기 유형</label>
@@ -1324,6 +1350,17 @@
                                 <button class="btn btn-toggle" data-view="month">Month</button>
                                 <button class="btn btn-toggle" data-view="week">Week</button>
                                 <button class="btn btn-toggle" data-view="daily">Daily Card</button>
+                            </div>
+                        </div>
+                        <div class="ph-control-group ph-sort-controls">
+                            <label><i class="fas fa-sort-amount-down"></i> 배열 순서</label>
+                            <div class="ph-inline-controls ph-sort-switch">
+                                <span class="ph-sort-fixed" id="historySortLabelRecent">최근</span>
+                                <label class="form-switch">
+                                    <input type="checkbox" id="historySortToggle" class="form-switch-input">
+                                    <span class="form-switch-slider"></span>
+                                </label>
+                                <span class="ph-sort-fixed" id="historySortLabelStart">시작</span>
                             </div>
                         </div>
                         <div class="ph-control-group ph-tooltip-toggle">
@@ -1368,6 +1405,12 @@
                             선택된 일자: 0개
                         </div>
                         <div class="ph-selection-actions">
+                            <div class="ph-select-all" id="historySelectAllWrap">
+                                <label class="ph-select-all-label">
+                                    <input type="checkbox" id="historySelectAllToggle">
+                                    <span>전체 선택</span>
+                                </label>
+                            </div>
                             <button class="btn btn-secondary" id="btnHistoryViewSelection" disabled>
                                 <i class="fas fa-list"></i> 선택 이력 보기
                             </button>
